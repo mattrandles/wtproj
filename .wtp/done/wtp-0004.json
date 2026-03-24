@@ -1,0 +1,29 @@
+{
+  "id": "1150d902-6142-4bec-999b-8f0139260b6c",
+  "shortId": "wtp-0004",
+  "title": "Expand config and provider scaffolding",
+  "description": "Fill out `.wtp.json` handling, sharpen provider selection errors, and turn the Trello placeholder into a concrete extension point with package-level guidance.",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [
+    "25c3806a-bd1b-424d-889b-29e5b06679b8"
+  ],
+  "comments": [
+    {
+      "id": "3d4f7bf9-51a5-4734-85f8-5942a3feb0a4",
+      "author": "Codex",
+      "message": "Started during CLI compatibility probing; pausing until the provider/config work begins.",
+      "createdAt": "2026-03-24T15:53:49Z"
+    },
+    {
+      "id": "db449f71-c23d-4f1c-b6e2-c870f3c9f690",
+      "author": "Codex",
+      "message": "Expanded .wtp.json parsing, added env-var resolution and provider validation, and turned the Trello package into a validated not-yet-implemented extension point with tests.",
+      "createdAt": "2026-03-24T15:58:12Z"
+    }
+  ],
+  "createdAt": "2026-03-24T14:10:04Z",
+  "updatedAt": "2026-03-24T15:58:17Z",
+  "startedAt": "2026-03-24T15:55:58Z",
+  "completedAt": "2026-03-24T15:58:17Z"
+}

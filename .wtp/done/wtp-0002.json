@@ -1,0 +1,23 @@
+{
+  "id": "51c0e533-6db6-4fc4-8ce4-eed9b4ddd260",
+  "shortId": "wtp-0002",
+  "title": "Add tests for core and flat-file flows",
+  "description": "Cover dependency validation, status transitions, identifier resolution, next-task ordering, and flat-file persistence invariants.",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [
+    "25c3806a-bd1b-424d-889b-29e5b06679b8"
+  ],
+  "comments": [
+    {
+      "id": "bcab9da0-680a-4e94-b6dd-feb552411ecf",
+      "author": "Codex",
+      "message": "Added core validation and flat-file provider tests covering dependency checks, blocked starts, next-task ordering, and comment persistence.",
+      "createdAt": "2026-03-24T15:49:44Z"
+    }
+  ],
+  "createdAt": "2026-03-24T14:10:04Z",
+  "updatedAt": "2026-03-24T15:49:44Z",
+  "startedAt": "2026-03-24T15:49:44Z",
+  "completedAt": "2026-03-24T15:49:44Z"
+}

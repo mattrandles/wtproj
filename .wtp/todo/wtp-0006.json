@@ -1,0 +1,18 @@
+{
+  "id": "3e84bfea-efe5-427a-9555-779e96e0ed70",
+  "shortId": "wtp-0006",
+  "title": "Verify end-to-end flows and cut a baseline release",
+  "description": "Run manual and automated checks in a Go-enabled environment, confirm cross-command behavior, and establish the first baseline version of the CLI.",
+  "status": "todo",
+  "assignee": "",
+  "dependencies": [
+    "51c0e533-6db6-4fc4-8ce4-eed9b4ddd260",
+    "13105cd2-5830-48ce-a609-eedc1930199c",
+    "e4184338-c2af-47d8-bbf9-6cdc8da258fa"
+  ],
+  "comments": [],
+  "createdAt": "2026-03-24T14:10:04Z",
+  "updatedAt": "2026-03-24T14:10:04Z",
+  "startedAt": null,
+  "completedAt": null
+}

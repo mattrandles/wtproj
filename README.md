@@ -1,29 +1,83 @@
 # wtp
 
-`wtp` is a planned self-contained Go CLI for agent-oriented task workflow management.
+`wtp` is a self-contained Go CLI for agent-oriented task workflow management.
 
-The project goal is simple: give coding agents a scriptable task interface inside the current repository without turning the agent runner into a project-management UI. The first release is designed to work locally with no external service by default, while keeping a clean provider abstraction for future integrations such as Trello.
+It is designed for repos where agents need a narrow, scriptable task interface without depending on Jira, Trello, or a web UI. The default backend is local flat-file storage under `.wtp/`, and the CLI is structured so remote providers can be added later without changing the task model.
 
-## Status
+## Current Status
 
-This repository is currently in the planning stage.
+Implemented today:
 
-There is no shipped CLI yet. The current source of truth for scope and implementation direction is [PLAN.md](/home/matty/dev/wtproj/PLAN.md).
+- Go CLI with `task` subcommands
+- local flat-file backend under `.wtp/`
+- canonical task model with dependency validation
+- comments, status transitions, export, and JSON output
+- compatibility translation for the legacy README-style action flags
+- repo-local locking for concurrent writers on the same filesystem
+- atomic `task next` claim behavior
 
-## Why This Exists
+The broader scope and roadmap remain in [PLAN.md](/home/matty/dev/wtproj/PLAN.md).
 
-Existing tools like Jira, Trello, and similar project-management systems already solve the human-facing side of task tracking. Agents need something narrower:
+## Install
 
-- easy to invoke from scripts and terminals
-- usable inside the current worktree
-- independent of any specific SaaS in the first release
-- extensible enough to add remote backends later
+Build a local binary:
 
-`wtp` is intended to fill that gap.
+```sh
+go build -o wtp ./cmd/wtp
+```
 
-## Planned UX
+Or run it directly during development:
 
-The primary interface is planned as subcommands:
+```sh
+go run ./cmd/wtp task list
+```
+
+`wtp` assumes the current working directory is the repo or worktree it should manage.
+
+## Quick Start
+
+Create a task:
+
+```sh
+wtp task create \
+  --title "Implement parser" \
+  --description "Add provider selection parsing"
+```
+
+List tasks:
+
+```sh
+wtp task list
+wtp task list --status todo
+```
+
+Claim the next eligible task for an agent:
+
+```sh
+wtp task next --agent Tony
+```
+
+That command is not read-only. It selects the next eligible task and immediately moves it to `inProgress` under the repo lock so two agents do not claim the same task at the same time.
+
+Work a task explicitly:
+
+```sh
+wtp task start wtp-0002 --agent Tony
+wtp task comment wtp-0002 --agent Tony --message "Implemented parser"
+wtp task pause wtp-0002
+wtp task done wtp-0002
+```
+
+Inspect one task:
+
+```sh
+wtp task get wtp-0002
+wtp --json task get wtp-0002
+```
+
+## Command Surface
+
+Primary command style:
 
 ```sh
 wtp task next --agent Tony
@@ -33,35 +87,61 @@ wtp task start <task-id> --agent Tony
 wtp task pause <task-id>
 wtp task done <task-id>
 wtp task comment <task-id> --message "Implemented parser"
-wtp task create --title "New Task" --description "..." --depends-on id1,id2
-wtp export --out .wtp
+wtp task create --title "New Task" --description "..." --depends-on wtp-0001,wtp-0002
+wtp export --out .wtp-export
 ```
 
-Compatibility aliases are also planned:
+Legacy compatibility mode:
 
 ```sh
 wtp --agent Tony --get-next-task
 wtp --agent Tony --get-tasks --status todo
-wtp --agent Tony --get-task --task-id 123
-wtp --agent Tony --set-task-in-progress --task-id 123
-wtp --agent Tony --set-task-paused --task-id 123
-wtp --agent Tony --set-task-done --task-id 123
-wtp --agent Tony --add-comment --task-id 123 --comment "Implemented parser"
-wtp --agent Tony --create-task --title "New Task" --description "..." --dependencies 123,124
-wtp --export-tasks=.wtp
+wtp --agent Tony --get-task --task-id wtp-0001
+wtp --agent Tony --set-task-in-progress --task-id wtp-0001
+wtp --agent Tony --set-task-paused --task-id wtp-0001
+wtp --agent Tony --set-task-done --task-id wtp-0001
+wtp --agent Tony --add-comment --task-id wtp-0001 --comment "Implemented parser"
+wtp --agent Tony --create-task --title "..." --description "..." --dependencies wtp-0001
+wtp --export-tasks=.wtp-export
 ```
 
-## Planned Behavior
+Compatibility mode accepts exactly one legacy action flag per invocation.
 
-- If `.wtp.json` exists, `wtp` will load the configured provider.
-- If `.wtp.json` does not exist, `wtp` will default to a local flat-file backend rooted at `.wtp/`.
-- Tasks will use a minimal canonical model so storage and provider integrations share one contract.
-- Dependency validation, cycle rejection, and deterministic next-task selection are core v1 requirements.
-- `--json` output is planned from the start for machine-readable automation.
+## Task Semantics
 
-## Local Backend Design
+Canonical statuses:
 
-The default backend is planned as a flat-file store:
+- `todo`
+- `inProgress`
+- `paused`
+- `done`
+
+Identifier rules:
+
+- each task has a canonical UUID in the JSON payload
+- each task also has a stable short ID such as `wtp-0005`
+- CLI input accepts either UUID or short ID
+- flat-file task filenames use the short ID, for example `.wtp/todo/wtp-0005.json`
+
+Dependency rules:
+
+- dependencies are stored as canonical UUIDs
+- create rejects missing dependencies
+- create rejects cyclic dependencies
+- a task cannot be started or claimed while any dependency is not `done`
+
+`task next` ordering:
+
+- eligible tasks are only `paused` or `todo`
+- blocked tasks are excluded
+- `paused` tasks are preferred before `todo`
+- within a status bucket, older tasks win
+- if `--agent` is supplied, already-assigned matching tasks are preferred first
+- if none match, eligible unassigned tasks are the fallback
+
+## Local Storage
+
+Default layout:
 
 ```text
 .wtp/
@@ -72,48 +152,75 @@ The default backend is planned as a flat-file store:
   meta/
 ```
 
-Each task will live as a single JSON file in the directory that matches its status. The local format is intentionally simple so it can be inspected manually and later imported or exported to other systems.
+Task files live in the directory for their current status:
+
+```text
+.wtp/todo/wtp-0005.json
+.wtp/inProgress/wtp-0004.json
+```
+
+Metadata:
+
+- `.wtp/meta/index.json` stores the next short-ID counter
+- `.wtp/meta/wtp.lock` is the repo-local lock file used for serialized writes and atomic claiming
+
+The storage is intentionally human-readable and git-friendly, but it is not a database transaction engine. The lock file protects concurrent local agents from racing on create, claim, status update, and comment operations.
 
 ## Configuration
 
-Remote providers are planned to be configured through `.wtp.json`. For example:
+If `.wtp.json` is absent, `wtp` uses the local flat-file backend.
+
+Example Trello-oriented config:
 
 ```json
 {
   "tool": "trello",
   "apiKeyEnv": "TRELLO_API_KEY",
+  "tokenEnv": "TRELLO_TOKEN",
   "boardId": "your-trello-board-id",
   "listIds": {
-    "todo": "your-trello-list-id-for-todo",
-    "inProgress": "your-trello-list-id-for-in-progress",
-    "paused": "your-trello-list-id-for-paused",
-    "done": "your-trello-list-id-for-done"
+    "todo": "your-trello-todo-list-id",
+    "inProgress": "your-trello-in-progress-list-id",
+    "paused": "your-trello-paused-list-id",
+    "done": "your-trello-done-list-id"
   }
 }
 ```
 
-In v1, omitting `.wtp.json` will mean "use the local flat-file provider."
+Current provider behavior:
 
-## Scope
+- `flatfile`: fully implemented
+- `trello`: config validation exists, but the provider is not implemented yet
 
-Planned v1 goals:
+## JSON Output
 
-- self-contained Go CLI
-- local flat-file backend under `.wtp/`
-- canonical task model with stable statuses
-- task creation, listing, lookup, comments, status transitions, and next-task selection
-- provider abstraction that allows future integrations without reshaping the CLI
+Use `--json` on the root command to emit canonical JSON to stdout:
 
-Explicit non-goals for v1:
+```sh
+wtp --json task list
+wtp --json task get wtp-0005
+wtp --json task next --agent Tony
+```
 
-- full Trello integration
-- rich PM features such as labels, due dates, sprints, attachments, or permissions
-- multi-user locking and conflict resolution beyond safe file-writing conventions
-- web UI or background service
+Errors remain on stderr.
 
-## Repository Direction
+## Concurrency Notes
 
-The plan currently calls for a structure along these lines:
+`wtp` is intended to be safe for multiple agents working in the same repo on the same filesystem, within the limits of a flat-file backend:
+
+- mutating operations acquire a repo-local lock
+- `task next` claims work under the same lock instead of returning a merely advisory result
+- short IDs are allocated under lock so concurrent creates do not reuse numbers
+
+What this does not provide:
+
+- multi-file rollback
+- database-style isolation across machines or unreliable shared filesystems
+- protection against manual edits that bypass the lock
+
+## Repository Layout
+
+The codebase is being built toward:
 
 ```text
 cmd/wtp/
@@ -123,23 +230,8 @@ internal/core/
 internal/provider/
 internal/provider/flatfile/
 internal/provider/trello/
-internal/store/
 docs/
 SKILL.md
 ```
 
-That structure is not implemented yet; it is the intended shape for the first build-out.
-
-## Next Steps
-
-The implementation plan in [PLAN.md](/home/matty/dev/wtproj/PLAN.md) breaks the work into:
-
-1. Foundation and CLI scaffolding
-2. Flat-file provider
-3. Compatibility aliases and JSON output
-4. Documentation and agent workflow guidance
-5. Future-ready provider scaffolding
-
-## Contributing
-
-At this stage, the most useful contributions are clarifying the plan, tightening the CLI contract, and keeping the canonical task model stable before implementation begins.
+The repo-local `.wtp/` backlog is also part of the intended workflow.

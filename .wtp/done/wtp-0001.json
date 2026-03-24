@@ -1,0 +1,27 @@
+{
+  "id": "25c3806a-bd1b-424d-889b-29e5b06679b8",
+  "shortId": "wtp-0001",
+  "title": "Build the first working CLI slice",
+  "description": "Ship the initial Go module, canonical task model, local flat-file provider, and a usable task command surface so the repo can start dogfooding `.wtp/` immediately.",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3f78d803-6f42-4313-8347-9053060af6d4",
+      "author": "Codex",
+      "message": "Started implementation of the Go CLI foundation and flat-file provider.",
+      "createdAt": "2026-03-24T14:10:04Z"
+    },
+    {
+      "id": "f503747d-8e3f-40ab-bd72-ecff40cc88d6",
+      "author": "Codex",
+      "message": "Verified the initial CLI slice with gofmt and go test; local flat-file flows are executing against the seeded .wtp backlog.",
+      "createdAt": "2026-03-24T15:49:44Z"
+    }
+  ],
+  "createdAt": "2026-03-24T14:10:04Z",
+  "updatedAt": "2026-03-24T15:49:44Z",
+  "startedAt": "2026-03-24T14:10:04Z",
+  "completedAt": "2026-03-24T15:49:44Z"
+}

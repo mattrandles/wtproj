@@ -1,0 +1,23 @@
+{
+  "id": "e4184338-c2af-47d8-bbf9-6cdc8da258fa",
+  "shortId": "wtp-0005",
+  "title": "Write docs for install, usage, and agent workflow",
+  "description": "Expand the README into a real getting-started guide and keep `SKILL.md` aligned with how agents should plan, claim, pause, comment on, and finish work in this repo.",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [
+    "25c3806a-bd1b-424d-889b-29e5b06679b8"
+  ],
+  "comments": [
+    {
+      "id": "f5465e11-da4a-4704-8562-d7fb0f65e648",
+      "author": "Codex",
+      "message": "Expanded README into an install and operator guide, documented atomic task claiming and lock behavior, and aligned SKILL.md with the current agent workflow.",
+      "createdAt": "2026-03-24T16:43:11.129338385Z"
+    }
+  ],
+  "createdAt": "2026-03-24T14:10:04Z",
+  "updatedAt": "2026-03-24T16:43:11.173193538Z",
+  "startedAt": "2026-03-24T16:33:18.647776671Z",
+  "completedAt": "2026-03-24T16:43:11.173193538Z"
+}
