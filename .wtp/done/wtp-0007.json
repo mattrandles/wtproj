@@ -1,0 +1,21 @@
+{
+  "id": "e67ab29c-e374-415f-9e9e-05fca987ff90",
+  "shortId": "wtp-0007",
+  "title": "Windows support",
+  "description": "Make the CLI and verification flow work cleanly on Windows, prioritizing code and cross-platform behavior before plan/docs updates.",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a0032064-5c53-49e3-8fb4-cd5be057544b",
+      "author": "Codex",
+      "message": "Added PowerShell check/smoke scripts, a Windows GitHub Actions job, and a provider-level overwrite test for Windows file replacement behavior; verified with go test, GOOS=windows go test, and ./scripts/check.sh.",
+      "createdAt": "2026-03-25T11:04:30.167125802Z"
+    }
+  ],
+  "createdAt": "2026-03-25T11:01:45.557135681Z",
+  "updatedAt": "2026-03-25T11:04:30.167125802Z",
+  "startedAt": "2026-03-25T11:01:53.462895691Z",
+  "completedAt": "2026-03-25T11:04:30.161339554Z"
+}

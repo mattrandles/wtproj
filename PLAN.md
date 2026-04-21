@@ -1,6 +1,6 @@
 Build wtp as a self-contained Go CLI for agent-oriented task workflow management. The first shipped version will fully support a local flat-file backend stored under .wtp/, with a provider abstraction designed so Trello and other PM tools can be added without restructuring the CLI.
 
-The CLI will use subcommands as the primary UX, with compatibility aliases for the flag-style examples in README.me. The local backend will persist a minimal canonical task model with strict dependency validation, deterministic next-task selection, and agent/assignee-aware workflows. The repo will also include a SKILL.md explaining how agents should create plans, record progress, and use wtp consistently.
+The CLI will use subcommands as the primary UX, with compatibility aliases for the flag-style examples in README.md. The local backend will persist a minimal canonical task model with strict dependency validation, deterministic next-task selection, and agent/assignee-aware workflows. The repo will also include a task-management skill explaining how agents should create plans, record progress, and use wtp consistently. The baseline implementation now includes Windows-compatible build/test support via PowerShell scripts and CI, so cross-platform behavior is part of the v1 expectation.
 
 Product Goals
 Give coding agents a simple, scriptable CLI to manage tasks in the current repo/worktree.
@@ -8,6 +8,7 @@ Avoid requiring the agent runner itself to become a project-management UI.
 Keep the first release immediately usable without any external SaaS dependency.
 Make backend integrations additive by defining a stable provider interface and canonical task model.
 Make the on-disk format simple enough to inspect, edit manually if needed, and later import/export to remote tools.
+Keep local verification and release builds working on macOS, Linux, and Windows.
 Non-Goals for v1
 Full Trello integration.
 Rich project management features such as labels, due dates, sprints, attachments, or permissions.
@@ -56,6 +57,7 @@ Cannot start blocked work.
 Cannot mark a dependency target as invalid or missing at creation/update time.
 Cycles are rejected.
 export --out .wtp writes canonical flat-file data from the active provider into the local filesystem format.
+The CLI and verification scripts should work on macOS, Linux, and Windows without requiring WSL.
 Canonical Task Model
 Use a minimal, backend-agnostic schema:
 
@@ -98,8 +100,8 @@ Root directory:
   meta/
 File layout
 Each task is stored as one JSON file in the directory matching its current status.
-File name format: <uuid>.json
-meta/index.json stores the short-ID mapping and next display counter.
+File name format: <shortId>.json
+meta/index.json stores the next display counter.
 Optional future metadata files can live under meta/ without changing task files.
 Flat-file invariants
 The task file’s status must match its containing directory.
@@ -190,7 +192,7 @@ internal/provider/flatfile/
 internal/provider/trello/
 internal/store/
 docs/
-SKILL.md
+skills/task-management/skill.md
 README.me
 Package responsibilities
 cmd/wtp: entrypoint and command wiring.
@@ -201,7 +203,7 @@ internal/provider: provider interfaces and registration.
 internal/provider/flatfile: local backend implementation.
 internal/provider/trello: stub or skeletal adapter package for future work.
 docs/: CLI examples, config samples, provider extension notes.
-SKILL.md: agent workflow guidance.
+skills/task-management/skill.md: agent workflow guidance.
 Implementation Phases
 Phase 1: Foundation
 Initialize Go module.
@@ -218,20 +220,21 @@ Add --json.
 Improve help text, examples, and errors.
 Add export command for canonical flat-file output.
 Phase 4: Docs and agent guidance
-Expand README.me into install/use/architecture sections.
-Add SKILL.md that tells agents:
+Expand README.md into install/use/architecture sections.
+Add skills/task-management/skill.md that tells agents:
 how to create tasks from plans,
 how to claim work with --agent,
 how to pause/resume,
 how to add progress comments,
 how to break work into dependency-linked tasks.
+Document both Unix and PowerShell verification entrypoints.
 Phase 5: Future-ready provider scaffolding
 Add a non-functional Trello provider skeleton or clearly documented interface placeholder so extension points are concrete without implementing the integration yet.
 Public Interfaces and Types
 These should be treated as the initial stable surface:
 
 CLI subcommands under wtp task ...
-Compatibility action flags from README.me
+Compatibility action flags from README.md
 .wtp.json config schema with tool and provider-specific fields
 Canonical task JSON shape for flat-file storage and --json output
 Status names: todo, inProgress, paused, done
@@ -254,10 +257,15 @@ Starting task moves file to .wtp/inProgress/ and updates timestamps.
 Pausing task moves file to .wtp/paused/.
 Completing task moves file to .wtp/done/.
 Corrupt JSON file produces a clear error.
+Existing-file rewrites remain correct on Windows, where rename-overwrite semantics differ from Unix.
 Identifier handling
 Resolve by UUID.
 Resolve by short ID.
 Reject ambiguous or unknown IDs.
+Verification
+`./scripts/check.sh` passes on Unix-like environments.
+`./scripts/check.ps1` passes on PowerShell environments.
+CI covers at least one Unix runner and one Windows runner.
 Preserve short-ID stability across status changes.
 Dependency behavior
 Block start when dependencies are not done.
@@ -284,7 +292,7 @@ A user in a repo with no .wtp.json can install wtp, run wtp task create, and man
 An agent can reliably call wtp task next --agent <name> and receive deterministic results.
 Dependencies are enforced strongly enough that blocked work cannot be started.
 Legacy flag examples from README.me execute successfully or fail with explicit guidance if unsupported.
-The repo includes a usable SKILL.md for agent workflows.
+The repo includes a usable task-management skill for agent workflows.
 The codebase makes adding a real Trello provider a bounded follow-up task instead of a redesign.
 Assumptions and Defaults
 Language/runtime: Go.

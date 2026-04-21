@@ -1,0 +1,29 @@
+{
+  "id": "5b44b152-65e5-4696-b964-e7055c240646",
+  "shortId": "wtp-0012",
+  "title": "Expose readiness and blocked-state metadata",
+  "description": "Extend list/get or add a dedicated ready view so agents can see blocked reason, dependency count, reverse dependency count, and current claimability without reading raw task files. Define the canonical output shape and add tests for blocked and ready tasks. Keep the implementation on the flat-file provider only.",
+  "status": "done",
+  "assignee": "Jim",
+  "dependencies": [
+    "efa004c1-ad5a-42d2-8062-8037214a5160"
+  ],
+  "comments": [
+    {
+      "id": "65cf743d-620e-428b-8654-bdffaf945cf3",
+      "author": "Jim",
+      "message": "Implementing a derived task view with readiness metadata from the flat-file provider, plus optional agent context on list/get so claimability reflects assignee-safety rules.",
+      "createdAt": "2026-03-26T12:37:58.157144746Z"
+    },
+    {
+      "id": "72dbf61e-8bec-41e0-bd42-45978caeabe8",
+      "author": "Jim",
+      "message": "Exposed derived readiness metadata on task read paths, added agent-aware claimability to list/get, and verified with ./scripts/check.sh.",
+      "createdAt": "2026-03-26T12:41:03.607218461Z"
+    }
+  ],
+  "createdAt": "2026-03-25T15:12:08.462161137Z",
+  "updatedAt": "2026-03-26T12:41:03.649052207Z",
+  "startedAt": "2026-03-26T12:36:47.833714943Z",
+  "completedAt": "2026-03-26T12:41:03.649052207Z"
+}

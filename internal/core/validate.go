@@ -30,6 +30,17 @@ func ValidateDependencies(taskID string, dependencies []string, allTasks []Task)
 		byID[task.ID] = task
 	}
 
+	for _, task := range allTasks {
+		for _, dependency := range task.Dependencies {
+			if dependency == task.ID {
+				return fmt.Errorf("task cannot depend on itself: %s", dependency)
+			}
+			if _, ok := byID[dependency]; !ok {
+				return fmt.Errorf("dependency %q does not exist", dependency)
+			}
+		}
+	}
+
 	for _, dependency := range dependencies {
 		if dependency == taskID {
 			return fmt.Errorf("task cannot depend on itself: %s", dependency)

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -33,13 +34,42 @@ func TestCreateAndResolveByShortID(t *testing.T) {
 		t.Fatalf("CreateTask(second) error = %v", err)
 	}
 
-	got, err := p.GetTask(second.ShortID)
+	got, err := p.GetTask(second.ShortID, "")
 	if err != nil {
 		t.Fatalf("GetTask(%q) error = %v", second.ShortID, err)
 	}
 
 	if len(got.Dependencies) != 1 || got.Dependencies[0] != first.ID {
 		t.Fatalf("resolved dependencies = %v, want [%s]", got.Dependencies, first.ID)
+	}
+}
+
+func TestCreateTaskPersistsSchedulingMetadata(t *testing.T) {
+	p := newProvider(t)
+
+	task, err := p.CreateTask(core.CreateTaskInput{
+		Title:       "Scheduled task",
+		Priority:    core.PriorityHigh,
+		Estimate:    core.EstimateM,
+		Lane:        "backend",
+		Description: "metadata coverage",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	got, err := p.GetTask(task.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", task.ShortID, err)
+	}
+	if got.Priority != core.PriorityHigh {
+		t.Fatalf("priority = %s, want %s", got.Priority, core.PriorityHigh)
+	}
+	if got.Estimate != core.EstimateM {
+		t.Fatalf("estimate = %s, want %s", got.Estimate, core.EstimateM)
+	}
+	if got.Lane != "backend" {
+		t.Fatalf("lane = %q, want backend", got.Lane)
 	}
 }
 
@@ -125,6 +155,286 @@ func TestGetNextTaskPrefersPausedThenAssignedThenUnassigned(t *testing.T) {
 	}
 }
 
+func TestGetNextTaskPrefersHigherPriorityWithinStatusBucket(t *testing.T) {
+	p := newProvider(t)
+
+	low, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Low priority",
+		Priority: core.PriorityLow,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(low) error = %v", err)
+	}
+	high, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "High priority",
+		Priority: core.PriorityHigh,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(high) error = %v", err)
+	}
+
+	next, err := p.GetNextTask("")
+	if err != nil {
+		t.Fatalf("GetNextTask(\"\") error = %v", err)
+	}
+	if next.ID != high.ID {
+		t.Fatalf("GetNextTask(\"\") = %s, want %s", next.ID, high.ID)
+	}
+
+	storedLow, err := p.GetTask(low.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", low.ShortID, err)
+	}
+	if storedLow.Status != core.StatusTodo {
+		t.Fatalf("low-priority task status = %s, want %s", storedLow.Status, core.StatusTodo)
+	}
+}
+
+func TestPeekNextTaskUsesSameEligibilityWithoutClaiming(t *testing.T) {
+	p := newProvider(t)
+
+	assignedTodo, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Assigned todo",
+		Assignee: "Tony",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(assignedTodo) error = %v", err)
+	}
+	unassignedTodo, err := p.CreateTask(core.CreateTaskInput{Title: "Unassigned todo"})
+	if err != nil {
+		t.Fatalf("CreateTask(unassignedTodo) error = %v", err)
+	}
+
+	ready, err := p.PeekNextTask("Tony")
+	if err != nil {
+		t.Fatalf("PeekNextTask(Tony) error = %v", err)
+	}
+	if ready.ID != assignedTodo.ID {
+		t.Fatalf("PeekNextTask(Tony) = %s, want %s", ready.ID, assignedTodo.ID)
+	}
+	if ready.Status != core.StatusTodo {
+		t.Fatalf("PeekNextTask(Tony) status = %s, want %s", ready.Status, core.StatusTodo)
+	}
+
+	stored, err := p.GetTask(assignedTodo.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", assignedTodo.ShortID, err)
+	}
+	if stored.Status != core.StatusTodo {
+		t.Fatalf("stored assigned status = %s, want %s", stored.Status, core.StatusTodo)
+	}
+
+	fallback, err := p.PeekNextTask("Bob")
+	if err != nil {
+		t.Fatalf("PeekNextTask(Bob) error = %v", err)
+	}
+	if fallback.ID != unassignedTodo.ID {
+		t.Fatalf("PeekNextTask(Bob) = %s, want %s", fallback.ID, unassignedTodo.ID)
+	}
+}
+
+func TestPeekNextTasksReturnsOrderedBatchWithoutClaiming(t *testing.T) {
+	p := newProvider(t)
+
+	assignedLow, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Assigned low",
+		Assignee: "Tony",
+		Priority: core.PriorityLow,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(assignedLow) error = %v", err)
+	}
+	assignedHigh, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Assigned high",
+		Assignee: "Tony",
+		Priority: core.PriorityHigh,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(assignedHigh) error = %v", err)
+	}
+	unassigned, err := p.CreateTask(core.CreateTaskInput{Title: "Unassigned"})
+	if err != nil {
+		t.Fatalf("CreateTask(unassigned) error = %v", err)
+	}
+	if _, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Foreign assigned",
+		Assignee: "Alice",
+	}); err != nil {
+		t.Fatalf("CreateTask(foreignAssigned) error = %v", err)
+	}
+
+	ready, err := p.PeekNextTasks("Tony", 3)
+	if err != nil {
+		t.Fatalf("PeekNextTasks(Tony, 3) error = %v", err)
+	}
+	if len(ready) != 3 {
+		t.Fatalf("PeekNextTasks(Tony, 3) count = %d, want 3", len(ready))
+	}
+	if ready[0].ID != assignedHigh.ID {
+		t.Fatalf("ready[0] = %s, want %s", ready[0].ID, assignedHigh.ID)
+	}
+	if ready[1].ID != assignedLow.ID {
+		t.Fatalf("ready[1] = %s, want %s", ready[1].ID, assignedLow.ID)
+	}
+	if ready[2].ID != unassigned.ID {
+		t.Fatalf("ready[2] = %s, want %s", ready[2].ID, unassigned.ID)
+	}
+
+	stored, err := p.GetTask(assignedHigh.ShortID, "Tony")
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", assignedHigh.ShortID, err)
+	}
+	if stored.Status != core.StatusTodo {
+		t.Fatalf("stored status = %s, want %s", stored.Status, core.StatusTodo)
+	}
+}
+
+func TestPeekNextTasksRejectsNonPositiveLimit(t *testing.T) {
+	p := newProvider(t)
+
+	if _, err := p.CreateTask(core.CreateTaskInput{Title: "Ready task"}); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := p.PeekNextTasks("", 0); err == nil {
+		t.Fatal("expected invalid limit error")
+	}
+}
+
+func TestGetNextTaskDoesNotClaimForeignAssignedTaskForAgent(t *testing.T) {
+	p := newProvider(t)
+
+	foreignAssigned, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Foreign assigned",
+		Assignee: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(foreignAssigned) error = %v", err)
+	}
+	if _, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Later foreign assigned",
+		Assignee: "Alice",
+	}); err != nil {
+		t.Fatalf("CreateTask(later foreign assigned) error = %v", err)
+	}
+
+	if _, err := p.GetNextTask("Bob"); err == nil {
+		t.Fatal("expected no eligible task for Bob")
+	}
+
+	stored, err := p.GetTask(foreignAssigned.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", foreignAssigned.ShortID, err)
+	}
+	if stored.Status != core.StatusTodo {
+		t.Fatalf("foreign-assigned task status = %s, want %s", stored.Status, core.StatusTodo)
+	}
+	if stored.Assignee != "Alice" {
+		t.Fatalf("foreign-assigned task assignee = %q, want Alice", stored.Assignee)
+	}
+}
+
+func TestGetNextTaskWithoutAgentCanClaimAssignedTask(t *testing.T) {
+	p := newProvider(t)
+
+	assigned, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Assigned task",
+		Assignee: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(assigned) error = %v", err)
+	}
+
+	next, err := p.GetNextTask("")
+	if err != nil {
+		t.Fatalf("GetNextTask(\"\") error = %v", err)
+	}
+	if next.ID != assigned.ID {
+		t.Fatalf("GetNextTask(\"\") = %s, want %s", next.ID, assigned.ID)
+	}
+	if next.Assignee != "Alice" {
+		t.Fatalf("GetNextTask(\"\") assignee = %q, want Alice", next.Assignee)
+	}
+}
+
+func TestGetTaskExposesReadinessMetadata(t *testing.T) {
+	p := newProvider(t)
+
+	dependency, err := p.CreateTask(core.CreateTaskInput{Title: "Dependency"})
+	if err != nil {
+		t.Fatalf("CreateTask(dependency) error = %v", err)
+	}
+	target, err := p.CreateTask(core.CreateTaskInput{
+		Title:        "Blocked task",
+		Dependencies: []string{dependency.ShortID},
+		Assignee:     "Alice",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(target) error = %v", err)
+	}
+	if _, err := p.CreateTask(core.CreateTaskInput{
+		Title:        "Reverse dependency",
+		Dependencies: []string{target.ShortID},
+	}); err != nil {
+		t.Fatalf("CreateTask(reverse dependency) error = %v", err)
+	}
+
+	got, err := p.GetTask(target.ShortID, "Bob")
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", target.ShortID, err)
+	}
+	if !got.Readiness.Blocked {
+		t.Fatal("expected task to be blocked")
+	}
+	if got.Readiness.BlockedReason == "" {
+		t.Fatal("expected blocked reason")
+	}
+	if got.Readiness.DependencyCount != 1 {
+		t.Fatalf("dependencyCount = %d, want 1", got.Readiness.DependencyCount)
+	}
+	if got.Readiness.ReverseDependencyCount != 1 {
+		t.Fatalf("reverseDependencyCount = %d, want 1", got.Readiness.ReverseDependencyCount)
+	}
+	if got.Readiness.Claimable {
+		t.Fatal("expected foreign-assigned blocked task to be unclaimable")
+	}
+}
+
+func TestListTasksUsesAgentContextForClaimability(t *testing.T) {
+	p := newProvider(t)
+
+	if _, err := p.CreateTask(core.CreateTaskInput{
+		Title:    "Alice task",
+		Assignee: "Alice",
+	}); err != nil {
+		t.Fatalf("CreateTask(Alice task) error = %v", err)
+	}
+	unassigned, err := p.CreateTask(core.CreateTaskInput{Title: "Unassigned task"})
+	if err != nil {
+		t.Fatalf("CreateTask(Unassigned task) error = %v", err)
+	}
+
+	tasks, err := p.ListTasks(provider.TaskFilter{Agent: "Bob"})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("task count = %d, want 2", len(tasks))
+	}
+
+	for _, task := range tasks {
+		switch task.ID {
+		case unassigned.ID:
+			if !task.Readiness.Claimable {
+				t.Fatal("expected unassigned task to be claimable for Bob")
+			}
+		default:
+			if task.Assignee == "Alice" && task.Readiness.Claimable {
+				t.Fatal("expected Alice-assigned task to be unclaimable for Bob")
+			}
+		}
+	}
+}
+
 func TestAddCommentPersists(t *testing.T) {
 	p := newProvider(t)
 
@@ -142,6 +452,48 @@ func TestAddCommentPersists(t *testing.T) {
 	}
 	if updated.Comments[0].Author != "Tony" || updated.Comments[0].Message != "Implemented parser" {
 		t.Fatalf("comment = %#v", updated.Comments[0])
+	}
+}
+
+func TestUpdateTaskPersistsDependenciesAndMetadata(t *testing.T) {
+	p := newProvider(t)
+
+	dependency, err := p.CreateTask(core.CreateTaskInput{Title: "Dependency"})
+	if err != nil {
+		t.Fatalf("CreateTask(dependency) error = %v", err)
+	}
+	task, err := p.CreateTask(core.CreateTaskInput{Title: "Updatable", Description: "old"})
+	if err != nil {
+		t.Fatalf("CreateTask(task) error = %v", err)
+	}
+
+	updated, err := p.UpdateTask(task.ShortID, core.UpdateTaskInput{
+		Description:  core.OptionalString{Set: true, Value: "new description"},
+		Priority:     core.OptionalPriority{Set: true, Value: core.PriorityHigh},
+		Dependencies: core.OptionalString{Set: true, Value: dependency.ShortID},
+	})
+	if err != nil {
+		t.Fatalf("UpdateTask() error = %v", err)
+	}
+	if updated.Description != "new description" {
+		t.Fatalf("description = %q, want %q", updated.Description, "new description")
+	}
+	if updated.Priority != core.PriorityHigh {
+		t.Fatalf("priority = %s, want %s", updated.Priority, core.PriorityHigh)
+	}
+	if len(updated.Dependencies) != 1 || updated.Dependencies[0] != dependency.ID {
+		t.Fatalf("dependencies = %v, want [%s]", updated.Dependencies, dependency.ID)
+	}
+
+	stored, err := p.GetTask(task.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", task.ShortID, err)
+	}
+	if stored.Description != "new description" {
+		t.Fatalf("stored description = %q, want %q", stored.Description, "new description")
+	}
+	if len(stored.Dependencies) != 1 || stored.Dependencies[0] != dependency.ID {
+		t.Fatalf("stored dependencies = %v, want [%s]", stored.Dependencies, dependency.ID)
 	}
 }
 
@@ -273,7 +625,7 @@ func TestConcurrentGetNextTaskClaimsOnlyOnce(t *testing.T) {
 	}
 
 	type result struct {
-		task core.Task
+		task core.TaskView
 		err  error
 	}
 	results := make(chan result, 2)
@@ -309,6 +661,73 @@ func TestConcurrentGetNextTaskClaimsOnlyOnce(t *testing.T) {
 	}
 }
 
+func TestLoadTasksRejectsMissingDependencyOnDisk(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+
+	task := core.Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "Broken dependency",
+		Status:       core.StatusTodo,
+		Dependencies: []string{"missing-task"},
+		Comments:     []core.Comment{},
+		CreatedAt:    mustTime(t, "2026-03-24T14:10:04Z"),
+		UpdatedAt:    mustTime(t, "2026-03-24T14:10:04Z"),
+	}
+	writeTaskFile(t, root, task)
+
+	_, err = p.ListTasks(provider.TaskFilter{})
+	if err == nil {
+		t.Fatal("expected load to fail for missing dependency")
+	}
+	if !contains(err.Error(), `dependency "missing-task" does not exist`) {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+}
+
+func TestLoadTasksRejectsCyclicDependencyGraphOnDisk(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+
+	first := core.Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "First",
+		Status:       core.StatusTodo,
+		Dependencies: []string{"ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a"},
+		Comments:     []core.Comment{},
+		CreatedAt:    mustTime(t, "2026-03-24T14:10:04Z"),
+		UpdatedAt:    mustTime(t, "2026-03-24T14:10:04Z"),
+	}
+	second := core.Task{
+		ID:           "ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a",
+		ShortID:      "wtp-0002",
+		Title:        "Second",
+		Status:       core.StatusTodo,
+		Dependencies: []string{first.ID},
+		Comments:     []core.Comment{},
+		CreatedAt:    mustTime(t, "2026-03-24T14:10:05Z"),
+		UpdatedAt:    mustTime(t, "2026-03-24T14:10:05Z"),
+	}
+	writeTaskFile(t, root, first)
+	writeTaskFile(t, root, second)
+
+	_, err = p.ListTasks(provider.TaskFilter{})
+	if err == nil {
+		t.Fatal("expected load to fail for cyclic dependency graph")
+	}
+	if !contains(err.Error(), "cyclic dependency detected") {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+}
+
 func newProvider(t *testing.T) provider.Provider {
 	t.Helper()
 
@@ -328,4 +747,22 @@ func mustTime(t *testing.T, value string) (outTime time.Time) {
 		t.Fatalf("time.Parse() error = %v", err)
 	}
 	return outTime
+}
+
+func writeTaskFile(t *testing.T, root string, task core.Task) {
+	t.Helper()
+
+	path := filepath.Join(root, string(task.Status), task.ShortID+".json")
+	data, err := json.MarshalIndent(task, "", "  ")
+	if err != nil {
+		t.Fatalf("json.MarshalIndent() error = %v", err)
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+}
+
+func contains(value, needle string) bool {
+	return strings.Contains(value, needle)
 }

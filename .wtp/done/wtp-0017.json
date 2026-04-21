@@ -1,0 +1,30 @@
+{
+  "id": "fe4ec651-f7f4-4df9-8cd6-eb3ae04b6338",
+  "shortId": "wtp-0017",
+  "title": "Add task graph command",
+  "description": "Add a graph command that prints a tree of tasks and dependencies. Default view should show todo items, with a flag to request done, paused, inProgress, todo, or all.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "cli",
+  "status": "done",
+  "assignee": "Copilot",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "4d3b9f01-b3ba-41b9-bfd4-b6886570da39",
+      "author": "Copilot",
+      "message": "Recorded requested future work: add a graph command showing task and dependency trees with status filtering.",
+      "createdAt": "2026-04-21T16:22:49.45719688Z"
+    },
+    {
+      "id": "29fc9bc4-d10d-471c-ba72-f01d84c18871",
+      "author": "Copilot",
+      "message": "Implemented the graph command, added status filtering for todo|inProgress|paused|done|all, updated docs, ran go test ./..., and reinstalled ~/.local/bin/wtp.",
+      "createdAt": "2026-04-21T16:29:39.962163538Z"
+    }
+  ],
+  "createdAt": "2026-04-21T16:22:21.155672961Z",
+  "updatedAt": "2026-04-21T16:29:39.962163538Z",
+  "startedAt": "2026-04-21T16:22:49.454555472Z",
+  "completedAt": "2026-04-21T16:22:49.459625106Z"
+}

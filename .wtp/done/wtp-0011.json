@@ -1,0 +1,27 @@
+{
+  "id": "8a005628-9a0b-4e7c-ad3b-bc836c78bf2c",
+  "shortId": "wtp-0011",
+  "title": "Add lightweight scheduling metadata",
+  "description": "Extend the canonical task model with minimal scheduling fields such as priority, estimate, and area or lane so agents can choose among multiple ready tasks more intelligently. Define validation, persistence, CLI create/display behavior, and tests, keeping flat-file as the only implementation target for now.",
+  "status": "done",
+  "assignee": "Jim",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "04702634-7be4-43bb-9351-5f09a81f5be4",
+      "author": "Jim",
+      "message": "Implementing canonical scheduling metadata via task/create fields, flat-file persistence, display output, and ready/next ordering tests.",
+      "createdAt": "2026-03-26T12:32:41.233005126Z"
+    },
+    {
+      "id": "22d7a174-a26f-4b86-bafd-cf32911c4528",
+      "author": "Jim",
+      "message": "Implemented scheduling metadata (priority, estimate, lane), updated ready/next ordering to prefer higher priority within status buckets, and verified with ./scripts/check.sh.",
+      "createdAt": "2026-03-26T12:35:41.512344821Z"
+    }
+  ],
+  "createdAt": "2026-03-25T15:11:52.958348088Z",
+  "updatedAt": "2026-03-26T12:35:41.512344821Z",
+  "startedAt": "2026-03-26T12:32:16.988122964Z",
+  "completedAt": "2026-03-26T12:35:41.502038828Z"
+}

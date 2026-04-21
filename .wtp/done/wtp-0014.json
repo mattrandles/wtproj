@@ -1,0 +1,20 @@
+{
+  "id": "eb7d5149-58de-4f24-a295-98a87bf4dd30",
+  "shortId": "wtp-0014",
+  "title": "Add local install and update workflow",
+  "description": "Add a developer-facing script and README guidance for building and deploying wtp into the user's PATH during local development, including how to update the installed binary after source changes.",
+  "status": "done",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1d4a6aa3-7f97-487f-9d90-bf2276c8fd39",
+      "author": "Codex",
+      "message": "Added local install scripts for shell and PowerShell, documented install/update usage in the README, installed the binary to /home/matty/.local/bin/wtp, and verified with go test ./... plus a direct command run from the installed binary.",
+      "createdAt": "2026-03-25T15:40:25Z"
+    }
+  ],
+  "createdAt": "2026-03-25T15:39:22Z",
+  "updatedAt": "2026-03-25T15:40:25Z",
+  "startedAt": "2026-03-25T15:39:22Z",
+  "completedAt": "2026-03-25T15:40:25Z"
+}

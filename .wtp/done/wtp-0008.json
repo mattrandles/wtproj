@@ -1,0 +1,20 @@
+{
+  "id": "b5cf7c14-ff8c-4380-84c4-cc66e5511102",
+  "shortId": "wtp-0008",
+  "title": "Validate dependency integrity on load",
+  "description": "Make flat-file reads fail loudly when a task references a missing dependency or the dependency graph is otherwise invalid after manual edits or drift. Apply validation during provider load and add tests for dangling dependencies and corrupted graph state. Keep provider scope limited to flat-file for now.",
+  "status": "done",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "52f92d38-0607-4f6b-b7a6-afef29d10239",
+      "author": "Codex",
+      "message": "Validated loaded flat-file tasks against the full dependency graph and added coverage for dangling dependencies and on-disk cycles. Verified with go test ./...",
+      "createdAt": "2026-03-25T15:32:46Z"
+    }
+  ],
+  "createdAt": "2026-03-25T15:11:52.809896806Z",
+  "updatedAt": "2026-03-25T15:32:46Z",
+  "startedAt": "2026-03-25T15:31:11Z",
+  "completedAt": "2026-03-25T15:32:46Z"
+}

@@ -66,11 +66,12 @@ func (p *Provider) ensureLayout() error {
 	return p.withGlobalLock(p.migrateTaskFilenames)
 }
 
-func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.Task, error) {
+func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
 	tasks, err := p.loadTasks()
 	if err != nil {
 		return nil, err
 	}
+	allTasks := append([]core.Task(nil), tasks...)
 	if filter.Status != nil {
 		filtered := tasks[:0]
 		for _, task := range tasks {
@@ -86,18 +87,22 @@ func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.Task, error) {
 		}
 		return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
 	})
-	return tasks, nil
+	return decorateTasks(tasks, allTasks, filter.Agent), nil
 }
 
-func (p *Provider) GetTask(idOrShortID string) (core.Task, error) {
+func (p *Provider) GetTask(idOrShortID, agent string) (core.TaskView, error) {
 	tasks, err := p.loadTasks()
 	if err != nil {
-		return core.Task{}, err
+		return core.TaskView{}, err
 	}
-	return resolveTask(idOrShortID, tasks)
+	task, err := resolveTask(idOrShortID, tasks)
+	if err != nil {
+		return core.TaskView{}, err
+	}
+	return decorateTask(task, tasks, agent), nil
 }
 
-func (p *Provider) CreateTask(input core.CreateTaskInput) (core.Task, error) {
+func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error) {
 	var created core.Task
 	err := p.withGlobalLock(func() error {
 		now := time.Now().UTC()
@@ -126,6 +131,9 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.Task, error) {
 			ShortID:      shortID,
 			Title:        strings.TrimSpace(input.Title),
 			Description:  strings.TrimSpace(input.Description),
+			Priority:     input.Priority,
+			Estimate:     input.Estimate,
+			Lane:         strings.TrimSpace(input.Lane),
 			Status:       core.StatusTodo,
 			Assignee:     strings.TrimSpace(input.Assignee),
 			Dependencies: resolvedDependencies,
@@ -147,13 +155,73 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.Task, error) {
 		return nil
 	})
 	if err != nil {
-		return core.Task{}, err
+		return core.TaskView{}, err
 	}
-	return created, nil
+	return decorateTask(created, []core.Task{created}, ""), nil
 }
 
-func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.Task, error) {
+func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error) {
 	var updated core.Task
+	var tasksAfter []core.Task
+	err := p.withGlobalLock(func() error {
+		tasks, err := p.loadTasks()
+		if err != nil {
+			return err
+		}
+		task, err := resolveTask(idOrShortID, tasks)
+		if err != nil {
+			return err
+		}
+
+		if input.Title.Set {
+			task.Title = strings.TrimSpace(input.Title.Value)
+		}
+		if input.Description.Set {
+			task.Description = strings.TrimSpace(input.Description.Value)
+		}
+		if input.Priority.Set {
+			task.Priority = input.Priority.Value
+		}
+		if input.Estimate.Set {
+			task.Estimate = input.Estimate.Value
+		}
+		if input.Lane.Set {
+			task.Lane = strings.TrimSpace(input.Lane.Value)
+		}
+		if input.Assignee.Set {
+			task.Assignee = strings.TrimSpace(input.Assignee.Value)
+		}
+		if input.Dependencies.Set {
+			resolvedDependencies, err := resolveDependencyIDs(splitCSV(input.Dependencies.Value), tasks)
+			if err != nil {
+				return err
+			}
+			if err := core.ValidateDependencies(task.ID, resolvedDependencies, tasks); err != nil {
+				return err
+			}
+			task.Dependencies = resolvedDependencies
+		}
+
+		task.UpdatedAt = time.Now().UTC()
+		if err := task.Validate(); err != nil {
+			return err
+		}
+		if err := p.replaceTask(task); err != nil {
+			return err
+		}
+		updated = task
+		tasksAfter = replaceTaskInMemory(tasks, task)
+		return nil
+	})
+	if err != nil {
+		return core.TaskView{}, err
+	}
+	return decorateTask(updated, tasksAfter, ""), nil
+}
+
+func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
+	var updated core.Task
+	var tasksAfter []core.Task
 	err := p.withGlobalLock(func() error {
 		tasks, err := p.loadTasks()
 		if err != nil {
@@ -187,16 +255,18 @@ func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, acto
 			return err
 		}
 		updated = task
+		tasksAfter = replaceTaskInMemory(tasks, task)
 		return nil
 	})
 	if err != nil {
-		return core.Task{}, err
+		return core.TaskView{}, err
 	}
-	return updated, nil
+	return decorateTask(updated, tasksAfter, ""), nil
 }
 
-func (p *Provider) AddComment(idOrShortID, actor, message string) (core.Task, error) {
+func (p *Provider) AddComment(idOrShortID, actor, message string) (core.TaskView, error) {
 	var updated core.Task
+	var tasksAfter []core.Task
 	err := p.withGlobalLock(func() error {
 		tasks, err := p.loadTasks()
 		if err != nil {
@@ -222,66 +292,50 @@ func (p *Provider) AddComment(idOrShortID, actor, message string) (core.Task, er
 			return err
 		}
 		updated = task
+		tasksAfter = replaceTaskInMemory(tasks, task)
 		return nil
 	})
 	if err != nil {
-		return core.Task{}, err
+		return core.TaskView{}, err
 	}
-	return updated, nil
+	return decorateTask(updated, tasksAfter, ""), nil
 }
 
-func (p *Provider) GetNextTask(agent string) (core.Task, error) {
+func (p *Provider) PeekNextTask(agent string) (core.TaskView, error) {
+	tasks, err := p.loadTasks()
+	if err != nil {
+		return core.TaskView{}, err
+	}
+	task, err := selectNextEligibleTask(tasks, agent)
+	if err != nil {
+		return core.TaskView{}, err
+	}
+	return decorateTask(task, tasks, agent), nil
+}
+
+func (p *Provider) PeekNextTasks(agent string, limit int) ([]core.TaskView, error) {
+	tasks, err := p.loadTasks()
+	if err != nil {
+		return nil, err
+	}
+	selected, err := selectEligibleTasks(tasks, agent, limit)
+	if err != nil {
+		return nil, err
+	}
+	return decorateTasks(selected, tasks, agent), nil
+}
+
+func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
 	var claimed core.Task
+	var tasksAfter []core.Task
 	err := p.withGlobalLock(func() error {
 		tasks, err := p.loadTasks()
 		if err != nil {
 			return err
 		}
-		eligible := make([]core.Task, 0, len(tasks))
-		for _, task := range tasks {
-			if task.Status != core.StatusPaused && task.Status != core.StatusTodo {
-				continue
-			}
-			if err := validateStartable(task, tasks); err == nil {
-				eligible = append(eligible, task)
-			}
-		}
-		sort.Slice(eligible, func(i, j int) bool {
-			if eligible[i].Status != eligible[j].Status {
-				return eligible[i].Status == core.StatusPaused
-			}
-			if eligible[i].CreatedAt.Equal(eligible[j].CreatedAt) {
-				return eligible[i].ShortID < eligible[j].ShortID
-			}
-			return eligible[i].CreatedAt.Before(eligible[j].CreatedAt)
-		})
-		agent = strings.TrimSpace(agent)
-		var next core.Task
-		found := false
-		if agent != "" {
-			for _, task := range eligible {
-				if task.Assignee == agent {
-					next = task
-					found = true
-					break
-				}
-			}
-			if !found {
-				for _, task := range eligible {
-					if task.Assignee == "" {
-						next = task
-						found = true
-						break
-					}
-				}
-			}
-		}
-		if !found && len(eligible) > 0 {
-			next = eligible[0]
-			found = true
-		}
-		if !found {
-			return errors.New("no eligible task found")
+		next, err := selectNextEligibleTask(tasks, agent)
+		if err != nil {
+			return err
 		}
 
 		now := time.Now().UTC()
@@ -297,12 +351,13 @@ func (p *Provider) GetNextTask(agent string) (core.Task, error) {
 			return err
 		}
 		claimed = next
+		tasksAfter = replaceTaskInMemory(tasks, next)
 		return nil
 	})
 	if err != nil {
-		return core.Task{}, err
+		return core.TaskView{}, err
 	}
-	return claimed, nil
+	return decorateTask(claimed, tasksAfter, agent), nil
 }
 
 func (p *Provider) ExportCanonical(outDir string) error {
@@ -349,6 +404,9 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 			}
 			tasks = append(tasks, task)
 		}
+	}
+	if err := core.ValidateDependencies("", nil, tasks); err != nil {
+		return nil, fmt.Errorf("invalid dependency graph: %w", err)
 	}
 	return tasks, nil
 }
@@ -471,6 +529,147 @@ func validateStartable(task core.Task, tasks []core.Task) error {
 	return nil
 }
 
+func selectNextEligibleTask(tasks []core.Task, agent string) (core.Task, error) {
+	eligible, err := selectEligibleTasks(tasks, agent, 1)
+	if err != nil {
+		return core.Task{}, err
+	}
+	if len(eligible) > 0 {
+		return eligible[0], nil
+	}
+	return core.Task{}, provider.ErrNoEligibleTask
+}
+
+func selectEligibleTasks(tasks []core.Task, agent string, limit int) ([]core.Task, error) {
+	if limit <= 0 {
+		return nil, errors.New("ready task limit must be greater than zero")
+	}
+	eligible := make([]core.Task, 0, len(tasks))
+	for _, task := range tasks {
+		if task.Status != core.StatusPaused && task.Status != core.StatusTodo {
+			continue
+		}
+		if err := validateStartable(task, tasks); err == nil {
+			eligible = append(eligible, task)
+		}
+	}
+	sort.Slice(eligible, func(i, j int) bool {
+		if eligible[i].Status != eligible[j].Status {
+			return eligible[i].Status == core.StatusPaused
+		}
+		if core.PriorityRank(eligible[i].Priority) != core.PriorityRank(eligible[j].Priority) {
+			return core.PriorityRank(eligible[i].Priority) > core.PriorityRank(eligible[j].Priority)
+		}
+		if eligible[i].CreatedAt.Equal(eligible[j].CreatedAt) {
+			return eligible[i].ShortID < eligible[j].ShortID
+		}
+		return eligible[i].CreatedAt.Before(eligible[j].CreatedAt)
+	})
+	agent = strings.TrimSpace(agent)
+	if agent == "" {
+		if len(eligible) == 0 {
+			return nil, provider.ErrNoEligibleTask
+		}
+		return eligible[:min(limit, len(eligible))], nil
+	}
+
+	selected := make([]core.Task, 0, min(limit, len(eligible)))
+	for _, task := range eligible {
+		if task.Assignee == agent {
+			selected = append(selected, task)
+			if len(selected) == limit {
+				return selected, nil
+			}
+		}
+	}
+	for _, task := range eligible {
+		if task.Assignee == "" {
+			selected = append(selected, task)
+			if len(selected) == limit {
+				return selected, nil
+			}
+		}
+	}
+	if len(selected) == 0 {
+		return nil, provider.ErrNoEligibleTask
+	}
+	return selected, nil
+}
+
+func decorateTasks(tasks []core.Task, allTasks []core.Task, agent string) []core.TaskView {
+	views := make([]core.TaskView, 0, len(tasks))
+	for _, task := range tasks {
+		views = append(views, decorateTask(task, allTasks, agent))
+	}
+	return views
+}
+
+func decorateTask(task core.Task, allTasks []core.Task, agent string) core.TaskView {
+	blockedReason := blockedReason(task, allTasks)
+	return core.TaskView{
+		Task: task,
+		Readiness: core.TaskReadiness{
+			Claimable:              isClaimable(task, allTasks, agent),
+			Blocked:                blockedReason != "",
+			BlockedReason:          blockedReason,
+			DependencyCount:        len(task.Dependencies),
+			ReverseDependencyCount: reverseDependencyCount(task.ID, allTasks),
+		},
+	}
+}
+
+func blockedReason(task core.Task, tasks []core.Task) string {
+	blocked := []string{}
+	for _, dependencyID := range task.Dependencies {
+		for _, candidate := range tasks {
+			if candidate.ID == dependencyID && candidate.Status != core.StatusDone {
+				blocked = append(blocked, fmt.Sprintf("%s (%s)", candidate.ShortID, candidate.Title))
+			}
+		}
+	}
+	if len(blocked) == 0 {
+		return ""
+	}
+	sort.Strings(blocked)
+	return fmt.Sprintf("unresolved dependencies: %s", strings.Join(blocked, ", "))
+}
+
+func isClaimable(task core.Task, tasks []core.Task, agent string) bool {
+	if task.Status != core.StatusPaused && task.Status != core.StatusTodo {
+		return false
+	}
+	if blockedReason(task, tasks) != "" {
+		return false
+	}
+	agent = strings.TrimSpace(agent)
+	if agent == "" {
+		return true
+	}
+	return task.Assignee == agent || task.Assignee == ""
+}
+
+func reverseDependencyCount(taskID string, tasks []core.Task) int {
+	count := 0
+	for _, task := range tasks {
+		if slices.Contains(task.Dependencies, taskID) {
+			count++
+		}
+	}
+	return count
+}
+
+func replaceTaskInMemory(tasks []core.Task, updated core.Task) []core.Task {
+	out := make([]core.Task, 0, len(tasks))
+	for _, task := range tasks {
+		if task.ID == updated.ID {
+			out = append(out, updated)
+			continue
+		}
+		out = append(out, task)
+	}
+	return out
+}
+
 func resolveDependencyIDs(identifiers []string, tasks []core.Task) ([]string, error) {
 	resolved := make([]string, 0, len(identifiers))
 	for _, identifier := range identifiers {
@@ -481,6 +680,19 @@ func resolveDependencyIDs(identifiers []string, tasks []core.Task) ([]string, er
 		resolved = append(resolved, task.ID)
 	}
 	return core.NormalizeDependencies(resolved), nil
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
 }
 
 func readJSON(path string, target any) error {
@@ -529,9 +741,9 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
 	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
 		return err
 	}
 	return out.Close()

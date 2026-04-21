@@ -1,0 +1,20 @@
+{
+  "id": "efa004c1-ad5a-42d2-8062-8037214a5160",
+  "shortId": "wtp-0009",
+  "title": "Enforce assignee-safe task claiming",
+  "description": "Change task next --agent semantics so it never claims work assigned to a different agent unless an explicit future override such as --steal is introduced. Update scheduler logic, CLI/docs wording, and tests that cover assigned, unassigned, and foreign-assigned ready tasks. Keep flat-file backend as the only supported execution path; Trello and other providers remain future work.",
+  "status": "done",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a7a35af0-e4df-4767-9a77-039d4478fe45",
+      "author": "Codex",
+      "message": "Restricted task next --agent to matching-assignee or unassigned tasks, added scheduler coverage for foreign-assigned tasks and no-agent claims, and updated CLI/docs wording. Verified with go test ./...",
+      "createdAt": "2026-03-25T15:34:20Z"
+    }
+  ],
+  "createdAt": "2026-03-25T15:11:52.857823813Z",
+  "updatedAt": "2026-03-25T15:34:20Z",
+  "startedAt": "2026-03-25T15:33:03Z",
+  "completedAt": "2026-03-25T15:34:20Z"
+}

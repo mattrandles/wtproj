@@ -1,0 +1,23 @@
+{
+  "id": "0c0fdd89-8e07-4b64-8f55-e91b22591997",
+  "shortId": "wtp-0010",
+  "title": "Add read-only ready task inspection command",
+  "description": "Add a non-mutating command such as task peek or task ready that shows the next claimable task for an agent without moving it to inProgress. Define JSON and text output, ensure it reuses the same eligibility rules as task next, and document that the flat-file backend is the current supported backend.",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [
+    "b5cf7c14-ff8c-4380-84c4-cc66e5511102"
+  ],
+  "comments": [
+    {
+      "id": "80fb9de4-d184-4fe8-bca1-dd8dc73538d6",
+      "author": "Codex",
+      "message": "Implemented read-only task ready command with shared eligibility selection and flatfile coverage.",
+      "createdAt": "2026-03-25T17:22:21.985711236Z"
+    }
+  ],
+  "createdAt": "2026-03-25T15:11:52.908211841Z",
+  "updatedAt": "2026-03-25T17:22:28.812996686Z",
+  "startedAt": "2026-03-25T17:19:36.852310243Z",
+  "completedAt": "2026-03-25T17:22:28.812996686Z"
+}

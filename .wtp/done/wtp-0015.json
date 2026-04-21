@@ -1,0 +1,21 @@
+{
+  "id": "78d17836-6468-48e4-ad9a-083f62d7201b",
+  "shortId": "wtp-0015",
+  "title": "Document task ready in task-management skill",
+  "description": "Add read-only task readiness guidance to skills/task-management/skill.md alongside task next usage.",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "177791b8-1744-428c-860b-65d3735e3f8e",
+      "author": "Codex",
+      "message": "Documented read-only task ready usage and flatfile support in the task-management skill.",
+      "createdAt": "2026-03-26T11:39:57.504706018Z"
+    }
+  ],
+  "createdAt": "2026-03-26T11:39:36.451996729Z",
+  "updatedAt": "2026-03-26T11:40:01.277021498Z",
+  "startedAt": "2026-03-26T11:39:42.598522641Z",
+  "completedAt": "2026-03-26T11:40:01.277021498Z"
+}

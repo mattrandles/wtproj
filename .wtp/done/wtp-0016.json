@@ -1,0 +1,27 @@
+{
+  "id": "e529b1b8-2d6d-4a5b-ab13-3306ebb94e11",
+  "shortId": "wtp-0016",
+  "title": "Return empty ready result when no work is eligible",
+  "description": "Make task ready report an empty successful result instead of an error when no tasks are eligible, update text and JSON output semantics, add tests, and verify with ./scripts/check.sh.",
+  "status": "done",
+  "assignee": "Jim",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7ebb878f-807a-4c2e-b0ed-3e3bbd423c7b",
+      "author": "Jim",
+      "message": "Implementing no-ready-work as an explicit empty-result path via a provider sentinel error, so task ready can return success for empty queues while preserving real backend failures.",
+      "createdAt": "2026-03-26T13:05:40.823038238Z"
+    },
+    {
+      "id": "5ff52ba0-196c-4ce4-95cd-537ec084014b",
+      "author": "Jim",
+      "message": "Changed task ready so empty queues return successful empty output (text: message, JSON: null or []), preserved real backend errors, verified with ./scripts/check.sh, and reinstalled the local binary.",
+      "createdAt": "2026-03-26T13:07:00.128575582Z"
+    }
+  ],
+  "createdAt": "2026-03-26T13:05:11.248372682Z",
+  "updatedAt": "2026-03-26T13:07:00.180151457Z",
+  "startedAt": "2026-03-26T13:05:22.637297766Z",
+  "completedAt": "2026-03-26T13:07:00.180151457Z"
+}

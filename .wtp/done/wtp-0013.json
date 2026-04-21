@@ -1,0 +1,30 @@
+{
+  "id": "e5405f4e-5062-4c62-8ea2-666fe79197e1",
+  "shortId": "wtp-0013",
+  "title": "Support batch ready-task intake for coordinators",
+  "description": "Add a command path for retrieving multiple ready tasks, for example task ready --limit N, so a coordinator agent can inspect or distribute parallelizable work without racing claims. Reuse the same eligibility and assignee-safety rules as single-task inspection and document flat-file-only support.",
+  "status": "done",
+  "assignee": "Jim",
+  "dependencies": [
+    "0c0fdd89-8e07-4b64-8f55-e91b22591997",
+    "5b44b152-65e5-4696-b964-e7055c240646"
+  ],
+  "comments": [
+    {
+      "id": "e09261a5-3805-476c-857d-d21f62fc799d",
+      "author": "Jim",
+      "message": "Implementing task ready --limit N on top of the current readiness view, preserving single-task behavior at limit 1 and reusing the same eligibility and assignee-safety ordering for batch output.",
+      "createdAt": "2026-03-26T12:41:24.069643816Z"
+    },
+    {
+      "id": "138d44a8-e94e-42b8-bd15-09406379935f",
+      "author": "Jim",
+      "message": "Added task ready --limit N for batch inspection using the same eligibility and assignee-safety rules as single ready selection, and verified with ./scripts/check.sh.",
+      "createdAt": "2026-03-26T12:43:06.879621346Z"
+    }
+  ],
+  "createdAt": "2026-03-25T15:12:08.468600684Z",
+  "updatedAt": "2026-03-26T12:43:06.930185816Z",
+  "startedAt": "2026-03-26T12:41:12.992501893Z",
+  "completedAt": "2026-03-26T12:43:06.930185816Z"
+}
