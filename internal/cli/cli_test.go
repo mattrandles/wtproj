@@ -167,6 +167,29 @@ func TestRunTaskAcceptsEditAlias(t *testing.T) {
 	}
 }
 
+func TestRunTaskAcceptsShowAlias(t *testing.T) {
+	provider := &getTestProvider{}
+	ctx := context{
+		provider: provider,
+		stdout:   &bytes.Buffer{},
+		stderr:   &bytes.Buffer{},
+	}
+
+	err := runTask(ctx, []string{"show", "wtp-0028", "--agent", "Tony"})
+	if err != nil {
+		t.Fatalf("runTask(show) error = %v", err)
+	}
+	if provider.gotID != "wtp-0028" {
+		t.Fatalf("got id = %q, want %q", provider.gotID, "wtp-0028")
+	}
+	if provider.gotAgent != "Tony" {
+		t.Fatalf("got agent = %q, want %q", provider.gotAgent, "Tony")
+	}
+	if provider.getCalls != 1 {
+		t.Fatalf("getCalls = %d, want 1", provider.getCalls)
+	}
+}
+
 func TestRunGraphDefaultsToTodoAndPrintsDependencyTree(t *testing.T) {
 	provider := graphTestProvider{tasks: []core.TaskView{
 		graphTaskView("dep-1", "wtp-0001", "Dependency", core.StatusTodo, nil, "2026-04-21T10:00:00Z"),
@@ -220,13 +243,13 @@ func TestRunGraphRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
-func TestHelpMentionsUpdateEditAndSchema(t *testing.T) {
+func TestHelpMentionsShowUpdateEditAndSchema(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := help(&stdout); err != nil {
 		t.Fatalf("help() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"wtp task update", "wtp task edit", "wtp graph", "wtp schema", "Usage Guide:"} {
+	for _, needle := range []string{"wtp task show", "wtp task update", "wtp task edit", "wtp graph", "wtp schema", "Usage Guide:"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("help output missing %q", needle)
 		}
@@ -249,6 +272,12 @@ func TestSchemaMentionsDependenciesAndIndex(t *testing.T) {
 type readyTestProvider struct {
 	peekErr     error
 	peekManyErr error
+}
+
+type getTestProvider struct {
+	gotID    string
+	gotAgent string
+	getCalls int
 }
 
 type updateTestProvider struct {
@@ -413,6 +442,62 @@ func (p readyTestProvider) GetNextTask(agent string) (core.TaskView, error) {
 }
 
 func (p readyTestProvider) ExportCanonical(outDir string) error {
+	return errors.New("unexpected call")
+}
+
+func (p *getTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
+	return nil, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) GetTask(idOrShortID, agent string) (core.TaskView, error) {
+	p.gotID = idOrShortID
+	p.gotAgent = agent
+	p.getCalls++
+	now := time.Date(2026, time.April, 21, 12, 0, 0, 0, time.UTC)
+	return core.TaskView{
+		Task: core.Task{
+			ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+			ShortID:      idOrShortID,
+			Title:        "Shown",
+			Status:       core.StatusTodo,
+			Assignee:     agent,
+			Dependencies: []string{},
+			Comments:     []core.Comment{},
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		},
+	}, nil
+}
+
+func (p *getTestProvider) CreateTask(input core.CreateTaskInput) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) AddComment(idOrShortID, actor, message string) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) PeekNextTask(agent string) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) PeekNextTasks(agent string, limit int) ([]core.TaskView, error) {
+	return nil, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) GetNextTask(agent string) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) ExportCanonical(outDir string) error {
 	return errors.New("unexpected call")
 }
 

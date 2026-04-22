@@ -1,0 +1,24 @@
+{
+  "id": "b06822c0-c023-4c8f-bd92-52a6414cfbcb",
+  "shortId": "wtp-0018",
+  "title": "Add show command for read-only task inspection",
+  "description": "Add a task show CLI alias that prints a specific task without claiming it, and update README plus task-management skill examples to document the new usage.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "cli",
+  "status": "done",
+  "assignee": "GitHubCopilot",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0521b51e-aabb-45ca-84fd-236b3b92de6f",
+      "author": "GitHubCopilot",
+      "message": "Added task show alias, updated help/README/skill usage, and validated with go test ./... plus a real task show invocation.",
+      "createdAt": "2026-04-22T15:34:39.314410283Z"
+    }
+  ],
+  "createdAt": "2026-04-22T15:31:00.710828047Z",
+  "updatedAt": "2026-04-22T15:34:51.489493975Z",
+  "startedAt": "2026-04-22T15:31:38.127798979Z",
+  "completedAt": "2026-04-22T15:34:51.489493975Z"
+}

@@ -123,12 +123,12 @@ wtp task pause wtp-0002
 wtp task done wtp-0002
 ```
 
-Inspect one task:
+Inspect one task without claiming it:
 
 ```sh
-wtp task get wtp-0002
-wtp task get wtp-0002 --agent Tony
-wtp --json task get wtp-0002
+wtp task show wtp-0002
+wtp task show wtp-0002 --agent Tony
+wtp --json task show wtp-0002
 ```
 
 Discover usage or inspect the flat-file contract:
@@ -146,6 +146,7 @@ Primary command style:
 ```sh
 wtp task next --agent Tony
 wtp task list --status todo --agent Tony
+wtp task show <task-id> [--agent Tony]
 wtp task get <task-id> [--agent Tony]
 wtp task start <task-id> --agent Tony
 wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--depends-on wtp-0001,wtp-0002] [--agent Tony]
@@ -239,7 +240,9 @@ Derived readiness metadata:
 
 `task ready` uses the same eligibility rules and output shape as `task next`, but it does not change task state. Use `task ready --limit N` to inspect multiple ready tasks in priority order without claiming them. When no work is eligible, `task ready` succeeds and reports an empty result instead of treating the empty queue as an operational error. The current supported backend for batch read-only selection is the local `flatfile` backend.
 
-`task list --agent ...` and `task get ... --agent ...` use the same assignee-safety rule when reporting `claimable`.
+`task show` prints a specific task without changing task state. `task get` remains available as an alias.
+
+`task list --agent ...` and `task show ... --agent ...` use the same assignee-safety rule when reporting `claimable`.
 
 ## Local Storage
 
@@ -300,8 +303,8 @@ Use `--json` on the root command to emit canonical JSON to stdout:
 
 ```sh
 wtp --json task list
-wtp --json task get wtp-0005
-wtp --json task get wtp-0005 --agent Tony
+wtp --json task show wtp-0005
+wtp --json task show wtp-0005 --agent Tony
 wtp --json task ready --agent Tony
 wtp --json task ready --agent Tony --limit 3
 wtp --json task next --agent Tony

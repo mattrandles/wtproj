@@ -100,8 +100,8 @@ func runTask(ctx context, args []string) error {
 		return runTaskUpdate(ctx, args[1:])
 	case "list":
 		return runTaskList(ctx, args[1:])
-	case "get":
-		return runTaskGet(ctx, args[1:])
+	case "get", "show":
+		return runTaskGet(ctx, args[1:], args[0])
 	case "start":
 		return runTaskTransition(ctx, "start", core.StatusInProgress, args[1:])
 	case "pause":
@@ -245,10 +245,10 @@ func runTaskList(ctx context, args []string) error {
 	return printValue(ctx, tasks)
 }
 
-func runTaskGet(ctx context, args []string) error {
+func runTaskGet(ctx context, args []string, name string) error {
 	id, options, err := splitSinglePositional(args)
 	if err != nil {
-		return errors.New("usage: wtp task get <task-id> [--agent Tony]")
+		return fmt.Errorf("usage: wtp task %s <task-id> [--agent Tony]", name)
 	}
 	task, err := ctx.provider.GetTask(id, firstOption(options, "--agent"))
 	if err != nil {
@@ -599,6 +599,7 @@ Commands:
 	wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--depends-on a,b] [--agent Tony]
 	wtp task edit <task-id> [same options as update]
   wtp task list [--status todo|inProgress|paused|done] [--agent Tony]
+	wtp task show <task-id> [--agent Tony]
   wtp task get <task-id> [--agent Tony]
   wtp task start <task-id> [--agent Tony]
   wtp task pause <task-id>
@@ -613,6 +614,7 @@ Commands:
 
 task ready shows the next eligible task without changing task state.
 Use --limit N to inspect multiple ready tasks in the same order; batch ready is currently implemented only for the flatfile backend.
+task show prints one specific task without claiming it; task get remains available as an alias.
 task next claims the returned task by moving it to inProgress.
 When --agent is supplied, list/get/ready/next compute claimability using that same assignee-safety rule.
 task update edits mutable task fields in place; dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
@@ -620,7 +622,7 @@ graph prints dependency trees for matching tasks; it defaults to todo and accept
 
 Usage Guide:
 	1. Create tasks with title and optional metadata.
-	2. Inspect work with task list, task get, or task ready.
+	2. Inspect work with task list, task show, or task ready.
 	3. Use graph to inspect dependency trees by status.
 	4. Claim or move work with task next, start, pause, and done.
 	5. Revise metadata or dependencies with task update or task edit.

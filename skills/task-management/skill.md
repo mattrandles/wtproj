@@ -20,6 +20,7 @@ Apply this skill whenever work in this repository needs to be planned, claimed, 
 ## Decision Points
 
 - If you need to inspect the next claimable task without changing state, use `wtp task ready --agent <name>`.
+- If you need to inspect a specific task without claiming it, use `wtp task show <task-id> [--agent <name>]`.
 - If you need a task selected safely in a multi-agent repo, use `wtp task next --agent <name>`.
 - If you already know the exact task to claim, use `wtp task start <task-id> --agent <name>`.
 - If work depends on another task finishing first, encode that as a dependency instead of describing it informally.
@@ -83,6 +84,7 @@ Claim or start work:
 
 ```sh
 wtp task ready --agent Tony
+wtp task show wtp-0008 --agent Tony
 wtp task next --agent Tony
 wtp task start wtp-0008 --agent Tony
 wtp graph --status todo

@@ -1,5 +1,9 @@
 {
     "chat.tools.terminal.autoApprove": {
-        "go": true
+        "go": true,
+        "/^cd /home/matty/dev/wtproj && \\./scripts/install_local\\.sh$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }
