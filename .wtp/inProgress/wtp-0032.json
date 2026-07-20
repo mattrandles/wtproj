@@ -7,13 +7,14 @@
   "estimate": "s",
   "lane": "release",
   "model": "GPT 5.6 Terra High",
-  "status": "todo",
+  "status": "inProgress",
+  "assignee": "Codex",
   "dependencies": [
     "c9deea94-d6ab-489c-aaaa-11ae6786e5b7"
   ],
   "comments": [],
   "createdAt": "2026-07-20T21:09:04.047251567Z",
-  "updatedAt": "2026-07-20T21:41:22.195997898Z",
-  "startedAt": null,
+  "updatedAt": "2026-07-20T23:10:47.146969187Z",
+  "startedAt": "2026-07-20T23:10:47.146969187Z",
   "completedAt": null
 }

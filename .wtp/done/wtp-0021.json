@@ -1,0 +1,25 @@
+{
+  "id": "bc133f37-b722-417b-88f5-db0d4df79701",
+  "shortId": "wtp-0021",
+  "title": "Add version command and embedded release metadata",
+  "description": "Replace the placeholder Go module path, add wtp version with semantic version, commit, and build date output, inject release values through GoReleaser ldflags, provide clear development-build defaults, and add text plus JSON tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "release",
+  "model": "GPT 5.6 Terra High",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e7b2955e-f460-4ec5-9bb5-2bd2fe0ca8b6",
+      "author": "Codex",
+      "message": "Implemented wtp version with text and JSON metadata, migrated the module to github.com/mattrandles/wtproj, and added GoReleaser ldflags. Verified with go test, both check scripts, and a link-time metadata build.",
+      "createdAt": "2026-07-20T21:59:10.277604334Z"
+    }
+  ],
+  "createdAt": "2026-07-20T21:00:05.472588776Z",
+  "updatedAt": "2026-07-20T21:59:10.313664287Z",
+  "startedAt": "2026-07-20T21:56:02.438959831Z",
+  "completedAt": "2026-07-20T21:59:10.313664287Z"
+}

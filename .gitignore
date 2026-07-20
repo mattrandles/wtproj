@@ -1,0 +1,26 @@
+# Build outputs
+/wtp
+/wtp.exe
+/coverage.out
+/coverage.txt
+/dist/
+*.test
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+
+# Local configuration and exported task snapshots
+.wtp.json
+.wtp-export/
+
+# This repository dogfoods wtp: task records in .wtp/ are intentionally tracked.
+# Ignore only the transient lock created while wtp performs a mutation.
+.wtp/meta/wtp.lock

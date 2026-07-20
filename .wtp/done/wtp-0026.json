@@ -1,0 +1,25 @@
+{
+  "id": "e710b408-6a76-4555-88f7-44816d9d73e1",
+  "shortId": "wtp-0026",
+  "title": "Harden CLI option parsing and read-only help paths",
+  "description": "Reject unknown or missing options consistently for get/show/transitions/comment, support documented flag forms deliberately, and parse help/schema before provider initialization so informational commands do not create or migrate .wtp state. Add exit-code and no-side-effect tests.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "cli",
+  "model": "GPT 5.6 Terra High",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0f9592f0-3f30-41ed-b059-69091683aed3",
+      "author": "Codex",
+      "message": "Verified strict get/show/transition/comment option parsing, informational no-side-effect paths, and exact invalid-command exit status in shell and PowerShell smoke checks. go vet ./..., ./scripts/check.sh, and ./scripts/check.ps1 all pass.",
+      "createdAt": "2026-07-20T22:29:09.359147743Z"
+    }
+  ],
+  "createdAt": "2026-07-20T21:00:05.487613162Z",
+  "updatedAt": "2026-07-20T22:29:09.362107389Z",
+  "startedAt": "2026-07-20T22:24:32.699821172Z",
+  "completedAt": "2026-07-20T22:29:09.362107389Z"
+}

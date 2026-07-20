@@ -5,9 +5,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
+)
+
+var (
+	canonicalUUIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	shortIDPattern       = regexp.MustCompile(`^wtp-[0-9]{4,}$`)
 )
 
 type Status string
@@ -161,11 +167,11 @@ func ParseEstimate(value string) (Estimate, error) {
 }
 
 func (t Task) Validate() error {
-	if strings.TrimSpace(t.ID) == "" {
-		return errors.New("task id is required")
+	if !canonicalUUIDPattern.MatchString(t.ID) {
+		return fmt.Errorf("task id %q must be a canonical lowercase UUID", t.ID)
 	}
-	if strings.TrimSpace(t.ShortID) == "" {
-		return errors.New("task shortId is required")
+	if !shortIDPattern.MatchString(t.ShortID) {
+		return fmt.Errorf("task shortId %q must match wtp-NNNN (at least four digits)", t.ShortID)
 	}
 	if strings.TrimSpace(t.Title) == "" {
 		return errors.New("task title is required")
@@ -188,7 +194,92 @@ func (t Task) Validate() error {
 	if t.CreatedAt.IsZero() || t.UpdatedAt.IsZero() {
 		return errors.New("task timestamps are required")
 	}
+	if !isUTC(t.CreatedAt) || !isUTC(t.UpdatedAt) {
+		return errors.New("task timestamps must be in UTC")
+	}
+	if t.UpdatedAt.Before(t.CreatedAt) {
+		return errors.New("task updatedAt cannot be before createdAt")
+	}
+	for index, dependency := range t.Dependencies {
+		if !canonicalUUIDPattern.MatchString(dependency) {
+			return fmt.Errorf("task dependency %d %q must be a canonical lowercase UUID", index, dependency)
+		}
+	}
+	commentIDs := make(map[string]struct{}, len(t.Comments))
+	for index, comment := range t.Comments {
+		if !canonicalUUIDPattern.MatchString(comment.ID) {
+			return fmt.Errorf("task comment %d id %q must be a canonical lowercase UUID", index, comment.ID)
+		}
+		if _, exists := commentIDs[comment.ID]; exists {
+			return fmt.Errorf("task comment id %s is duplicated", comment.ID)
+		}
+		commentIDs[comment.ID] = struct{}{}
+		if comment.Author != "" && strings.TrimSpace(comment.Author) == "" {
+			return fmt.Errorf("task comment %d author cannot be blank", index)
+		}
+		if strings.TrimSpace(comment.Message) == "" {
+			return fmt.Errorf("task comment %d message is required", index)
+		}
+		if comment.CreatedAt.IsZero() {
+			return fmt.Errorf("task comment %d createdAt is required", index)
+		}
+		if !isUTC(comment.CreatedAt) {
+			return fmt.Errorf("task comment %d createdAt must be in UTC", index)
+		}
+		if comment.CreatedAt.Before(t.CreatedAt) || comment.CreatedAt.After(t.UpdatedAt) {
+			return fmt.Errorf("task comment %d createdAt must be between task createdAt and updatedAt", index)
+		}
+	}
+	if err := t.validateLifecycleTimestamps(); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (t Task) validateLifecycleTimestamps() error {
+	if t.StartedAt != nil {
+		if !isUTC(*t.StartedAt) {
+			return errors.New("task startedAt must be in UTC")
+		}
+		if t.StartedAt.Before(t.CreatedAt) || t.StartedAt.After(t.UpdatedAt) {
+			return errors.New("task startedAt must be between createdAt and updatedAt")
+		}
+	}
+	if t.CompletedAt != nil {
+		if !isUTC(*t.CompletedAt) {
+			return errors.New("task completedAt must be in UTC")
+		}
+		if t.CompletedAt.Before(t.CreatedAt) || t.CompletedAt.After(t.UpdatedAt) {
+			return errors.New("task completedAt must be between createdAt and updatedAt")
+		}
+	}
+
+	switch t.Status {
+	case StatusTodo:
+		if t.StartedAt != nil || t.CompletedAt != nil {
+			return errors.New("todo task cannot have startedAt or completedAt")
+		}
+	case StatusInProgress, StatusPaused:
+		if t.StartedAt == nil {
+			return fmt.Errorf("%s task requires startedAt", t.Status)
+		}
+		if t.CompletedAt != nil {
+			return fmt.Errorf("%s task cannot have completedAt", t.Status)
+		}
+	case StatusDone:
+		if t.StartedAt == nil || t.CompletedAt == nil {
+			return errors.New("done task requires startedAt and completedAt")
+		}
+	}
+	if t.StartedAt != nil && t.CompletedAt != nil && t.CompletedAt.Before(*t.StartedAt) {
+		return errors.New("task completedAt cannot be before startedAt")
+	}
+	return nil
+}
+
+func isUTC(value time.Time) bool {
+	_, offset := value.Zone()
+	return offset == 0
 }
 
 func PriorityRank(priority Priority) int {

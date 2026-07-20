@@ -1,0 +1,25 @@
+{
+  "id": "b65df269-50cc-45e8-b589-eee8a57e04e3",
+  "shortId": "wtp-0024",
+  "title": "Enforce documented canonical task invariants",
+  "description": "Validate UUID and shortId formats, duplicate IDs and short IDs, comment fields, and timestamp/status consistency when loading flat files. Align schema documentation, migration behavior, and corruption tests with the enforced contract.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "core",
+  "model": "GPT 5.6 Sol High",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "5e4eabea-bf31-4c43-88e7-ebe69432064d",
+      "author": "Codex",
+      "message": "Enforced canonical UUID/short-ID uniqueness and formats, comment and lifecycle timestamp validity, crash-residue-safe duplicate handling, and validate-before-migrate legacy behavior. Updated schema/README and corruption coverage. Verified ./scripts/check.sh and go test -race ./... (pass).",
+      "createdAt": "2026-07-20T22:18:15.034692188Z"
+    }
+  ],
+  "createdAt": "2026-07-20T21:00:05.482179542Z",
+  "updatedAt": "2026-07-20T22:18:15.084076141Z",
+  "startedAt": "2026-07-20T22:09:57.082656633Z",
+  "completedAt": "2026-07-20T22:18:15.084076141Z"
+}

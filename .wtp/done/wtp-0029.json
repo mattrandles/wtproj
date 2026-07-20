@@ -1,0 +1,27 @@
+{
+  "id": "f883375b-4179-4f88-9f44-05361df49e32",
+  "shortId": "wtp-0029",
+  "title": "Define stable GitHub Release asset contract",
+  "description": "Define predictable standalone executable names for every supported OS and architecture, published checksum metadata, the GitHub latest-release lookup contract, and the platform-to-asset mapping shared by release automation and wtp update.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "release",
+  "model": "GPT 5.6 Sol High",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [
+    "bc133f37-b722-417b-88f5-db0d4df79701"
+  ],
+  "comments": [
+    {
+      "id": "70f6740d-2a0f-4912-abab-eee92a788458",
+      "author": "Codex",
+      "message": "Defined the stable release contract in internal/releaseasset and docs: six Darwin/Linux/Windows AMD64/ARM64 standalone asset names, strict SHA-256 checksum metadata parsing, and the versioned GitHub latest-release API shape. GoReleaser now publishes that exact matrix as uncompressed binaries plus checksums.txt, with tests locking automation to the shared mapping. Verified with scripts/check.sh, scripts/check.ps1, go vet ./..., six direct cross-builds, GoReleaser v2.17.0 check, and a snapshot artifact/checksum comparison.",
+      "createdAt": "2026-07-20T22:35:40.172547726Z"
+    }
+  ],
+  "createdAt": "2026-07-20T21:00:20.225947688Z",
+  "updatedAt": "2026-07-20T22:35:40.175389903Z",
+  "startedAt": "2026-07-20T22:29:51.946712464Z",
+  "completedAt": "2026-07-20T22:35:40.175389903Z"
+}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"wtp/internal/cli"
+	"github.com/mattrandles/wtproj/internal/cli"
 )
 
 func main() {

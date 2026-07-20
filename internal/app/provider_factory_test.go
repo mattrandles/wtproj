@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"wtp/internal/config"
+	"github.com/mattrandles/wtproj/internal/config"
 )
 
 func TestNewProviderRejectsUnknownTool(t *testing.T) {

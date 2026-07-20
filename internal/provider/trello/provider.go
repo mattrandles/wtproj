@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"wtp/internal/config"
-	"wtp/internal/core"
-	"wtp/internal/provider"
+	"github.com/mattrandles/wtproj/internal/config"
+	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/provider"
 )
 
 type runtimeConfig struct {

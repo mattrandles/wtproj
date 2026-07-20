@@ -42,6 +42,18 @@ task_out="$work_dir/task.txt"
 (
   cd "$test_repo"
 
+  "$binary_path" help > /dev/null
+  [ ! -e ".wtp" ] || fail "help initialized .wtp storage"
+  "$binary_path" schema > /dev/null
+  [ ! -e ".wtp" ] || fail "schema initialized .wtp storage"
+
+  set +e
+  "$binary_path" task show wtp-9999 --unknown > /dev/null 2> "$err_out"
+  invalid_show_exit_code=$?
+  set -e
+  [ "$invalid_show_exit_code" -eq 1 ] || fail "unknown show option exited $invalid_show_exit_code, want 1"
+  assert_contains 'unknown option "--unknown"' "$err_out"
+
   "$binary_path" --json task create \
     --title "Bootstrap provider" \
     --description "Initial task for smoke testing" > "$task_a_json"

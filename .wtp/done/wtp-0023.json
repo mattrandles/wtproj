@@ -1,0 +1,25 @@
+{
+  "id": "3ec8f165-6150-4019-bd4e-07844c8cd567",
+  "shortId": "wtp-0023",
+  "title": "Fix readiness metadata returned by task creation",
+  "description": "Decorate a newly created task against the complete task set so a task with unfinished dependencies is returned as blocked and non-claimable. Add provider and CLI regression coverage.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "core",
+  "model": "GPT 5.6 Terra High",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "51660e42-9fca-42d3-abcb-80e8ae387a3a",
+      "author": "Codex",
+      "message": "Fixed creation-time readiness decoration to use the complete post-create task set. Added provider and CLI JSON regression coverage for unfinished dependencies. Verified with go test ./... (pass).",
+      "createdAt": "2026-07-20T22:09:34.126869699Z"
+    }
+  ],
+  "createdAt": "2026-07-20T21:00:05.478707152Z",
+  "updatedAt": "2026-07-20T22:09:34.129855033Z",
+  "startedAt": "2026-07-20T22:08:00.171567525Z",
+  "completedAt": "2026-07-20T22:09:34.129855033Z"
+}

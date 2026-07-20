@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -138,6 +139,83 @@ func TestTaskValidateAcceptsFreeFormSuggestedModel(t *testing.T) {
 
 	if err := task.Validate(); err != nil {
 		t.Fatalf("Task.Validate() error = %v", err)
+	}
+}
+
+func TestTaskValidateRejectsCanonicalInvariantViolations(t *testing.T) {
+	created := mustValidationTime(t, "2026-03-24T14:10:04Z")
+	updated := created.Add(2 * time.Minute)
+	started := created.Add(time.Minute)
+	completed := updated
+	validComment := Comment{
+		ID:        "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
+		Author:    "Tony",
+		Message:   "Implemented parser",
+		CreatedAt: started,
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*Task)
+		want   string
+	}{
+		{name: "task id format", mutate: func(task *Task) { task.ID = "not-a-uuid" }, want: "canonical lowercase UUID"},
+		{name: "short id format", mutate: func(task *Task) { task.ShortID = "WTP-1" }, want: "must match wtp-NNNN"},
+		{name: "dependency id format", mutate: func(task *Task) { task.Dependencies = []string{"missing"} }, want: "dependency 0"},
+		{name: "comment id format", mutate: func(task *Task) { task.Comments[0].ID = "comment-1" }, want: "comment 0 id"},
+		{name: "duplicate comment id", mutate: func(task *Task) { task.Comments = append(task.Comments, task.Comments[0]) }, want: "comment id 7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6 is duplicated"},
+		{name: "blank comment author", mutate: func(task *Task) { task.Comments[0].Author = "   " }, want: "author cannot be blank"},
+		{name: "blank comment message", mutate: func(task *Task) { task.Comments[0].Message = "   " }, want: "message is required"},
+		{name: "missing comment timestamp", mutate: func(task *Task) { task.Comments[0].CreatedAt = time.Time{} }, want: "comment 0 createdAt is required"},
+		{name: "comment before task", mutate: func(task *Task) { task.Comments[0].CreatedAt = created.Add(-time.Second) }, want: "between task createdAt and updatedAt"},
+		{name: "updated before created", mutate: func(task *Task) { task.UpdatedAt = created.Add(-time.Second) }, want: "updatedAt cannot be before createdAt"},
+		{name: "todo with started timestamp", mutate: func(task *Task) { task.StartedAt = &started }, want: "todo task cannot have"},
+		{name: "in progress without started timestamp", mutate: func(task *Task) { task.Status = StatusInProgress }, want: "inProgress task requires startedAt"},
+		{name: "paused with completed timestamp", mutate: func(task *Task) { task.Status = StatusPaused; task.StartedAt = &started; task.CompletedAt = &completed }, want: "paused task cannot have completedAt"},
+		{name: "done without completed timestamp", mutate: func(task *Task) { task.Status = StatusDone; task.StartedAt = &started }, want: "done task requires startedAt and completedAt"},
+		{name: "completion before start", mutate: func(task *Task) { task.Status = StatusDone; task.StartedAt = &completed; task.CompletedAt = &started }, want: "completedAt cannot be before startedAt"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			task := Task{
+				ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+				ShortID:      "wtp-0001",
+				Title:        "Canonical task",
+				Status:       StatusTodo,
+				Dependencies: []string{},
+				Comments:     []Comment{validComment},
+				CreatedAt:    created,
+				UpdatedAt:    updated,
+			}
+			test.mutate(&task)
+			err := task.Validate()
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Task.Validate() error = %v, want containing %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestTaskValidateAcceptsLegacyAnonymousComment(t *testing.T) {
+	created := mustValidationTime(t, "2026-03-24T14:10:04Z")
+	task := Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "Legacy comment",
+		Status:       StatusTodo,
+		Dependencies: []string{},
+		Comments: []Comment{{
+			ID:        "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
+			Author:    "",
+			Message:   "Created before agent attribution was required",
+			CreatedAt: created,
+		}},
+		CreatedAt: created,
+		UpdatedAt: created,
+	}
+	if err := task.Validate(); err != nil {
+		t.Fatalf("Task.Validate() legacy anonymous comment error = %v", err)
 	}
 }
 

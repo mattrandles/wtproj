@@ -7,15 +7,23 @@
   "estimate": "m",
   "lane": "docs",
   "model": "GPT 5.6 Terra High",
-  "status": "todo",
+  "status": "done",
+  "assignee": "Codex",
   "dependencies": [
     "8daaaf6f-62a5-4681-92da-37e7ffd827c8",
     "bc133f37-b722-417b-88f5-db0d4df79701",
     "def73f82-84ff-49ed-9467-05947a50aed1"
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c6d0d9a7-5f08-4226-9f23-57fec0a7c067",
+      "author": "Codex",
+      "message": "Documented GitHub Releases as the sole supported distribution channel, exact assets, verified Unix/Windows project/user/global PATH installs, permissions, checksums, updater/version behavior, storage compatibility, and Trello status. Added release-documentation contract coverage; ./scripts/check.sh passes.",
+      "createdAt": "2026-07-20T22:59:18.592013834Z"
+    }
+  ],
   "createdAt": "2026-07-20T21:00:05.490431755Z",
-  "updatedAt": "2026-07-20T21:41:22.190926206Z",
-  "startedAt": null,
-  "completedAt": null
+  "updatedAt": "2026-07-20T22:59:18.657089065Z",
+  "startedAt": "2026-07-20T22:56:00.05038135Z",
+  "completedAt": "2026-07-20T22:59:18.657089065Z"
 }

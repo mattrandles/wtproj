@@ -2,15 +2,188 @@ package cli
 
 import (
 	"bytes"
+	stdcontext "context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"wtp/internal/core"
-	"wtp/internal/provider"
+	"github.com/mattrandles/wtproj/internal/buildinfo"
+	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/provider"
+	"github.com/mattrandles/wtproj/internal/provider/flatfile"
+	"github.com/mattrandles/wtproj/internal/updater"
 )
+
+func TestRunVersionTextUsesDevelopmentDefaultsOutsideProject(t *testing.T) {
+	chdir(t, t.TempDir())
+	var stdout, stderr bytes.Buffer
+
+	if err := Run([]string{"version"}, &stdout, &stderr); err != nil {
+		t.Fatalf("Run(version) error = %v", err)
+	}
+	if got, want := stdout.String(), "wtp dev\ncommit: none\nbuildDate: unknown\n"; got != want {
+		t.Fatalf("version text = %q, want %q", got, want)
+	}
+	if got := stderr.String(); got != "" {
+		t.Fatalf("stderr = %q, want empty", got)
+	}
+}
+
+func TestRunVersionJSONReportsEmbeddedReleaseMetadata(t *testing.T) {
+	originalVersion, originalCommit, originalBuildDate := buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate
+	buildinfo.Version = "1.2.3"
+	buildinfo.Commit = "abc1234"
+	buildinfo.BuildDate = "2026-07-20T22:00:00Z"
+	t.Cleanup(func() {
+		buildinfo.Version = originalVersion
+		buildinfo.Commit = originalCommit
+		buildinfo.BuildDate = originalBuildDate
+	})
+	chdir(t, t.TempDir())
+	var stdout, stderr bytes.Buffer
+
+	if err := Run([]string{"--json", "version"}, &stdout, &stderr); err != nil {
+		t.Fatalf("Run(--json version) error = %v", err)
+	}
+	if got, want := stdout.String(), "{\n  \"version\": \"1.2.3\",\n  \"commit\": \"abc1234\",\n  \"buildDate\": \"2026-07-20T22:00:00Z\"\n}\n"; got != want {
+		t.Fatalf("version JSON = %q, want %q", got, want)
+	}
+	if got := stderr.String(); got != "" {
+		t.Fatalf("stderr = %q, want empty", got)
+	}
+}
+
+func TestRunSelfUpdatePrintsNoOpUpgradeAndScheduledResults(t *testing.T) {
+	tests := []struct {
+		name   string
+		result updater.Result
+		args   []string
+		want   string
+	}{
+		{
+			name:   "no-op",
+			result: updater.Result{CurrentVersion: "1.2.3", LatestVersion: "1.2.3"},
+			want:   "no update available (current 1.2.3, latest 1.2.3)\n",
+		},
+		{
+			name:   "upgrade",
+			result: updater.Result{CurrentVersion: "1.2.3", LatestVersion: "1.3.0", Path: "/opt/bin/wtp", Updated: true},
+			want:   "updated wtp from 1.2.3 to 1.3.0 at /opt/bin/wtp\n",
+		},
+		{
+			name:   "scheduled Windows replacement",
+			result: updater.Result{CurrentVersion: "1.2.3", LatestVersion: "1.3.0", Path: `C:\\bin\\wtp.exe`, Scheduled: true},
+			want:   "Windows will replace",
+		},
+		{
+			name:   "JSON",
+			result: updater.Result{CurrentVersion: "1.2.3", LatestVersion: "1.3.0", Path: "/usr/local/bin/wtp", Updated: true},
+			args:   []string{"--json"},
+			want:   `"updated": true`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			called := 0
+			runner := func(_ stdcontext.Context, version string) (updater.Result, error) {
+				called++
+				if version != buildinfo.Version {
+					t.Fatalf("runner version = %q, want %q", version, buildinfo.Version)
+				}
+				return test.result, nil
+			}
+			if err := runSelfUpdate(contextForTest(&stdout, &stderr), test.args, runner); err != nil {
+				t.Fatalf("runSelfUpdate() error = %v", err)
+			}
+			if called != 1 {
+				t.Fatalf("runner calls = %d, want 1", called)
+			}
+			if !strings.Contains(stdout.String(), test.want) {
+				t.Fatalf("stdout = %q, want containing %q", stdout.String(), test.want)
+			}
+		})
+	}
+}
+
+func TestRunSelfUpdateRejectsArgumentsBeforeCallingNetworkRunner(t *testing.T) {
+	called := false
+	runner := func(stdcontext.Context, string) (updater.Result, error) {
+		called = true
+		return updater.Result{}, nil
+	}
+	var stdout, stderr bytes.Buffer
+	err := runSelfUpdate(contextForTest(&stdout, &stderr), []string{"unexpected"}, runner)
+	if err == nil || !strings.Contains(err.Error(), "usage: wtp [--json] update") {
+		t.Fatalf("runSelfUpdate() error = %v", err)
+	}
+	if called {
+		t.Fatal("invalid update arguments called the updater")
+	}
+}
+
+func TestRunInformationalCommandsDoNotInitializeFlatfileStorage(t *testing.T) {
+	for _, command := range []string{"help", "schema"} {
+		t.Run(command, func(t *testing.T) {
+			dir := t.TempDir()
+			chdir(t, dir)
+
+			var stdout, stderr bytes.Buffer
+			if err := Run([]string{command}, &stdout, &stderr); err != nil {
+				t.Fatalf("Run(%s) error = %v", command, err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, ".wtp")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("%s created .wtp: stat error = %v", command, err)
+			}
+		})
+	}
+}
+
+func TestRunSchemaDoesNotMigrateExistingFlatfileStorage(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+	legacyTask := filepath.Join(dir, ".wtp", "todo", "legacy.json")
+	if err := os.MkdirAll(filepath.Dir(legacyTask), 0o755); err != nil {
+		t.Fatalf("create legacy task directory: %v", err)
+	}
+	if err := os.WriteFile(legacyTask, []byte("legacy"), 0o644); err != nil {
+		t.Fatalf("write legacy task: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := Run([]string{"schema"}, &stdout, &stderr); err != nil {
+		t.Fatalf("Run(schema) error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".wtp", "meta", "index.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("schema initialized or migrated flatfile storage: stat error = %v", err)
+	}
+	if got, err := os.ReadFile(legacyTask); err != nil || string(got) != "legacy" {
+		t.Fatalf("legacy task changed: got %q, error = %v", got, err)
+	}
+}
+
+func TestRunInformationalCommandsRejectUnexpectedArgumentsWithoutStorageSideEffects(t *testing.T) {
+	for _, command := range []string{"help", "schema"} {
+		t.Run(command, func(t *testing.T) {
+			dir := t.TempDir()
+			chdir(t, dir)
+			var stdout, stderr bytes.Buffer
+
+			err := Run([]string{command, "--unexpected"}, &stdout, &stderr)
+			if err == nil || !strings.Contains(err.Error(), "usage: wtp "+command) {
+				t.Fatalf("Run(%s --unexpected) error = %v", command, err)
+			}
+			if _, statErr := os.Stat(filepath.Join(dir, ".wtp")); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("invalid %s initialized .wtp: stat error = %v", command, statErr)
+			}
+		})
+	}
+}
 
 func TestRewriteLegacyArgsGetTask(t *testing.T) {
 	got, err := rewriteLegacyArgs([]string{"--json", "--agent", "Jim", "--get-task", "--task-id", "wtp-0003"})
@@ -104,6 +277,39 @@ func TestRunTaskCreatePassesSuggestedModelToProvider(t *testing.T) {
 	}
 	if provider.createCalls != 1 {
 		t.Fatalf("createCalls = %d, want 1", provider.createCalls)
+	}
+}
+
+func TestRunTaskCreatePrintsBlockedReadinessForUnfinishedDependency(t *testing.T) {
+	p, err := flatfile.New(t.TempDir())
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	dependency, err := p.CreateTask(core.CreateTaskInput{Title: "Unfinished dependency"})
+	if err != nil {
+		t.Fatalf("CreateTask(dependency) error = %v", err)
+	}
+
+	var stdout bytes.Buffer
+	ctx := context{
+		provider: p,
+		stdout:   &stdout,
+		stderr:   &bytes.Buffer{},
+		jsonOut:  true,
+	}
+	if err := runTaskCreate(ctx, []string{"--title", "Blocked task", "--depends-on", dependency.ShortID}); err != nil {
+		t.Fatalf("runTaskCreate() error = %v", err)
+	}
+
+	var created core.TaskView
+	if err := json.Unmarshal(stdout.Bytes(), &created); err != nil {
+		t.Fatalf("unmarshal task creation output: %v", err)
+	}
+	if created.Readiness.Claimable {
+		t.Fatal("created task output is claimable despite an unfinished dependency")
+	}
+	if !created.Readiness.Blocked {
+		t.Fatal("created task output is not marked blocked")
 	}
 }
 
@@ -227,6 +433,81 @@ func TestRunTaskAcceptsShowAlias(t *testing.T) {
 	}
 }
 
+func TestTaskTargetCommandsSupportEqualsOptionForms(t *testing.T) {
+	getProvider := &getTestProvider{}
+	getCtx := context{provider: getProvider, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	if err := runTaskGet(getCtx, []string{"--agent=Tony", "wtp-0028"}, "show"); err != nil {
+		t.Fatalf("runTaskGet() error = %v", err)
+	}
+	if getProvider.gotAgent != "Tony" {
+		t.Fatalf("get agent = %q, want Tony", getProvider.gotAgent)
+	}
+
+	transitionProvider := &updateTestProvider{}
+	transitionCtx := context{provider: transitionProvider, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	if err := runTaskTransition(transitionCtx, "done", core.StatusDone, []string{"wtp-0028", "--agent=Tony"}); err != nil {
+		t.Fatalf("runTaskTransition() error = %v", err)
+	}
+	if transitionProvider.gotActor != "Tony" || transitionProvider.gotStatus != core.StatusDone {
+		t.Fatalf("transition = actor %q, status %q", transitionProvider.gotActor, transitionProvider.gotStatus)
+	}
+
+	commentProvider := &updateTestProvider{}
+	commentCtx := context{provider: commentProvider, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	if err := runTaskComment(commentCtx, []string{"wtp-0028", "--agent=Tony", "--message=ready"}); err != nil {
+		t.Fatalf("runTaskComment() error = %v", err)
+	}
+	if commentProvider.gotActor != "Tony" || commentProvider.gotComment != "ready" {
+		t.Fatalf("comment = actor %q, message %q", commentProvider.gotActor, commentProvider.gotComment)
+	}
+}
+
+func TestTaskTargetCommandsRejectUnknownAndMissingOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr string
+	}{
+		{
+			name: "show unknown option",
+			run: func() error {
+				return runTaskGet(context{provider: &getTestProvider{}, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}, []string{"wtp-0028", "--unknown", "value"}, "show")
+			},
+			wantErr: "unknown option \"--unknown\"",
+		},
+		{
+			name: "get missing agent",
+			run: func() error {
+				return runTaskGet(context{provider: &getTestProvider{}, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}, []string{"wtp-0028", "--agent"}, "get")
+			},
+			wantErr: "option \"--agent\" requires a value",
+		},
+		{
+			name: "transition unknown option",
+			run: func() error {
+				return runTaskTransition(context{provider: &updateTestProvider{}, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}, "start", core.StatusInProgress, []string{"wtp-0028", "--unknown", "value"})
+			},
+			wantErr: "unknown option \"--unknown\"",
+		},
+		{
+			name: "comment missing message",
+			run: func() error {
+				return runTaskComment(context{provider: &updateTestProvider{}, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}, []string{"wtp-0028", "--message"})
+			},
+			wantErr: "option \"--message\" requires a value",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.run()
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("error = %v, want containing %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestRunGraphDefaultsToTodoAndPrintsDependencyTree(t *testing.T) {
 	provider := graphTestProvider{tasks: []core.TaskView{
 		graphTaskView("dep-1", "wtp-0001", "Dependency", core.StatusTodo, nil, "2026-04-21T10:00:00Z"),
@@ -280,13 +561,13 @@ func TestRunGraphRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
-func TestHelpMentionsShowUpdateEditSchemaAndModel(t *testing.T) {
+func TestHelpMentionsShowTaskUpdateSelfUpdateEditSchemaAndModel(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := help(&stdout); err != nil {
 		t.Fatalf("help() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"wtp task show", "wtp task update", "wtp task edit", "wtp graph", "wtp schema", "--model", "Usage Guide:"} {
+	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "Usage Guide:"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("help output missing %q", needle)
 		}
@@ -299,7 +580,7 @@ func TestSchemaMentionsDependenciesIndexAndModel(t *testing.T) {
 		t.Fatalf("schema() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, "model: optional free-form string", "--model"} {
+	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, "model: optional free-form string", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("schema output missing %q", needle)
 		}
@@ -360,8 +641,13 @@ type updateTestProvider struct {
 	gotCreateInput core.CreateTaskInput
 	gotID          string
 	gotInput       core.UpdateTaskInput
+	gotStatus      core.Status
+	gotActor       string
+	gotComment     string
 	createCalls    int
 	updateCalls    int
+	statusCalls    int
+	commentCalls   int
 }
 
 type graphTestProvider struct {
@@ -415,11 +701,19 @@ func (p *updateTestProvider) UpdateTask(idOrShortID string, input core.UpdateTas
 }
 
 func (p *updateTestProvider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
-	return core.TaskView{}, errors.New("unexpected call")
+	p.gotID = idOrShortID
+	p.gotStatus = target
+	p.gotActor = actor
+	p.statusCalls++
+	return p.UpdateTask(idOrShortID, core.UpdateTaskInput{})
 }
 
 func (p *updateTestProvider) AddComment(idOrShortID, actor, message string) (core.TaskView, error) {
-	return core.TaskView{}, errors.New("unexpected call")
+	p.gotID = idOrShortID
+	p.gotActor = actor
+	p.gotComment = message
+	p.commentCalls++
+	return p.UpdateTask(idOrShortID, core.UpdateTaskInput{})
 }
 
 func (p *updateTestProvider) PeekNextTask(agent string) (core.TaskView, error) {
@@ -590,4 +884,24 @@ func (p *getTestProvider) GetNextTask(agent string) (core.TaskView, error) {
 
 func (p *getTestProvider) ExportCanonical(outDir string) error {
 	return errors.New("unexpected call")
+}
+
+func chdir(t *testing.T, dir string) {
+	t.Helper()
+	original, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("change working directory to %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(original); err != nil {
+			t.Errorf("restore working directory to %s: %v", original, err)
+		}
+	})
+}
+
+func contextForTest(stdout, stderr *bytes.Buffer) context {
+	return context{stdout: stdout, stderr: stderr}
 }

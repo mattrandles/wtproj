@@ -7,15 +7,23 @@
   "estimate": "l",
   "lane": "qa",
   "model": "GPT 5.6 Terra High",
-  "status": "todo",
+  "status": "done",
+  "assignee": "Codex",
   "dependencies": [
     "81496832-ac9f-409d-9b73-a6593deb9e0b",
     "838f7208-2f4e-46cc-a68a-7ebcfad9a775",
     "def73f82-84ff-49ed-9467-05947a50aed1"
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "80f71fc7-25b0-4395-ab57-db5b94f07866",
+      "author": "Codex",
+      "message": "Added deterministic GoReleaser direct-download QA harness with a local GitHub-compatible fixture. Validated all six assets/checksums, Unix project/user/global-PATH installs, create/claim/export, safe in-place update preserving .wtp, and Windows PowerShell/cross-target coverage. Passed ./scripts/check.sh, goreleaser check, and ./scripts/release_qa.sh.",
+      "createdAt": "2026-07-20T23:08:52.779496022Z"
+    }
+  ],
   "createdAt": "2026-07-20T21:00:20.228709047Z",
-  "updatedAt": "2026-07-20T21:41:22.193468621Z",
-  "startedAt": null,
-  "completedAt": null
+  "updatedAt": "2026-07-20T23:08:52.782373767Z",
+  "startedAt": "2026-07-20T22:59:56.324700966Z",
+  "completedAt": "2026-07-20T23:08:52.782373767Z"
 }

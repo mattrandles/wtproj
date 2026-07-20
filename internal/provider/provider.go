@@ -3,7 +3,7 @@ package provider
 import (
 	"errors"
 
-	"wtp/internal/core"
+	"github.com/mattrandles/wtproj/internal/core"
 )
 
 var ErrNoEligibleTask = errors.New("no eligible task found")

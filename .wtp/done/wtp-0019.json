@@ -1,0 +1,25 @@
+{
+  "id": "9f45abc1-4717-4288-a3cc-dc3e37be5bd6",
+  "shortId": "wtp-0019",
+  "title": "Restore green CI and modernize GitHub Actions",
+  "description": "Run gofmt on the failing CLI test, upgrade checkout and setup-go to Node 24 action majors, and configure dependency caching for a dependency-free module without expecting go.sum. Verify both scripts/check.sh and scripts/check.ps1.",
+  "priority": "urgent",
+  "estimate": "s",
+  "lane": "ci",
+  "model": "GPT 5.6 Terra High",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2f913525-df71-4f48-ae66-1e3146a6081e",
+      "author": "",
+      "message": "Updated CI to checkout@v5 and setup-go@v6 (Node 24 majors), with setup-go cache keys based on go.mod because this dependency-free module has no go.sum. Confirmed internal/cli/cli_test.go is gofmt-clean. Verification passed: ./scripts/check.sh and pwsh -NoProfile -File ./scripts/check.ps1.",
+      "createdAt": "2026-07-20T21:53:58.583896116Z"
+    }
+  ],
+  "createdAt": "2026-07-20T21:00:05.461019682Z",
+  "updatedAt": "2026-07-20T21:53:58.586852035Z",
+  "startedAt": "2026-07-20T21:52:46.990022009Z",
+  "completedAt": "2026-07-20T21:53:58.586852035Z"
+}

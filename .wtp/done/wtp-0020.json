@@ -7,11 +7,19 @@
   "estimate": "m",
   "lane": "repo",
   "model": "GPT 5.6 Terra High",
-  "status": "todo",
+  "status": "done",
+  "assignee": "Codex",
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e00a86eb-49e4-4e1b-a87a-ce71905fe5a9",
+      "author": "Codex",
+      "message": "Added publication policies, contribution/security/changelog docs, GitHub issue/PR templates, portable VS Code approval cleanup, and documented tracked .wtp dogfooding with only runtime artifacts ignored.",
+      "createdAt": "2026-07-20T21:55:42.562980262Z"
+    }
+  ],
   "createdAt": "2026-07-20T21:00:05.469988167Z",
-  "updatedAt": "2026-07-20T21:41:22.18103296Z",
-  "startedAt": null,
-  "completedAt": null
+  "updatedAt": "2026-07-20T21:55:42.565748746Z",
+  "startedAt": "2026-07-20T21:54:23.380665968Z",
+  "completedAt": "2026-07-20T21:55:42.565748746Z"
 }

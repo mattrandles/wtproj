@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"wtp/internal/core"
-	"wtp/internal/provider"
-	"wtp/internal/provider/flatfile"
+	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/provider"
+	"github.com/mattrandles/wtproj/internal/provider/flatfile"
 )
 
 func TestCreateAndResolveByShortID(t *testing.T) {
@@ -41,6 +41,36 @@ func TestCreateAndResolveByShortID(t *testing.T) {
 
 	if len(got.Dependencies) != 1 || got.Dependencies[0] != first.ID {
 		t.Fatalf("resolved dependencies = %v, want [%s]", got.Dependencies, first.ID)
+	}
+}
+
+func TestCreateTaskReturnsReadinessAgainstExistingDependencies(t *testing.T) {
+	p := newProvider(t)
+
+	dependency, err := p.CreateTask(core.CreateTaskInput{Title: "Unfinished dependency"})
+	if err != nil {
+		t.Fatalf("CreateTask(dependency) error = %v", err)
+	}
+
+	created, err := p.CreateTask(core.CreateTaskInput{
+		Title:        "Blocked task",
+		Dependencies: []string{dependency.ShortID},
+	})
+	if err != nil {
+		t.Fatalf("CreateTask(blocked task) error = %v", err)
+	}
+
+	if created.Readiness.Claimable {
+		t.Fatal("created task is claimable despite an unfinished dependency")
+	}
+	if !created.Readiness.Blocked {
+		t.Fatal("created task is not marked blocked")
+	}
+	if got, want := created.Readiness.BlockedReason, "unresolved dependencies: "+dependency.ShortID+" (Unfinished dependency)"; got != want {
+		t.Fatalf("blocked reason = %q, want %q", got, want)
+	}
+	if got, want := created.Readiness.DependencyCount, 1; got != want {
+		t.Fatalf("dependency count = %d, want %d", got, want)
 	}
 }
 
@@ -577,9 +607,14 @@ func TestNewMigratesLegacyUUIDFilename(t *testing.T) {
 		Title:        "Legacy file",
 		Status:       core.StatusTodo,
 		Dependencies: []string{},
-		Comments:     []core.Comment{},
-		CreatedAt:    mustTime(t, "2026-03-24T14:10:04Z"),
-		UpdatedAt:    mustTime(t, "2026-03-24T14:10:04Z"),
+		Comments: []core.Comment{{
+			ID:        "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
+			Author:    "",
+			Message:   "Legacy anonymous comment",
+			CreatedAt: mustTime(t, "2026-03-24T14:10:04Z"),
+		}},
+		CreatedAt: mustTime(t, "2026-03-24T14:10:04Z"),
+		UpdatedAt: mustTime(t, "2026-03-24T14:10:04Z"),
 	}
 	legacyPath := filepath.Join(root, string(core.StatusTodo), task.ID+".json")
 	data, err := json.MarshalIndent(task, "", "  ")
@@ -729,7 +764,7 @@ func TestLoadTasksRejectsMissingDependencyOnDisk(t *testing.T) {
 		ShortID:      "wtp-0001",
 		Title:        "Broken dependency",
 		Status:       core.StatusTodo,
-		Dependencies: []string{"missing-task"},
+		Dependencies: []string{"7f13f5e2-6d9d-4630-84e1-7aef10c637e4"},
 		Comments:     []core.Comment{},
 		CreatedAt:    mustTime(t, "2026-03-24T14:10:04Z"),
 		UpdatedAt:    mustTime(t, "2026-03-24T14:10:04Z"),
@@ -740,7 +775,7 @@ func TestLoadTasksRejectsMissingDependencyOnDisk(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected load to fail for missing dependency")
 	}
-	if !contains(err.Error(), `dependency "missing-task" does not exist`) {
+	if !contains(err.Error(), `dependency "7f13f5e2-6d9d-4630-84e1-7aef10c637e4" does not exist`) {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
 }
@@ -784,6 +819,139 @@ func TestLoadTasksRejectsCyclicDependencyGraphOnDisk(t *testing.T) {
 	}
 }
 
+func TestLoadTasksRejectsCanonicalCorruption(t *testing.T) {
+	created := mustTime(t, "2026-03-24T14:10:04Z")
+	commentTime := created.Add(time.Minute)
+	validComment := core.Comment{
+		ID:        "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
+		Author:    "Tony",
+		Message:   "Implemented parser",
+		CreatedAt: commentTime,
+	}
+	tests := []struct {
+		name   string
+		mutate func(*core.Task)
+		want   string
+	}{
+		{name: "invalid task UUID", mutate: func(task *core.Task) { task.ID = "task-1" }, want: "canonical lowercase UUID"},
+		{name: "invalid short ID", mutate: func(task *core.Task) { task.ShortID = "wtp-1" }, want: "must match wtp-NNNN"},
+		{name: "invalid comment", mutate: func(task *core.Task) { task.Comments[0].Message = "" }, want: "comment 0 message is required"},
+		{name: "updated before created", mutate: func(task *core.Task) { task.UpdatedAt = created.Add(-time.Second) }, want: "updatedAt cannot be before createdAt"},
+		{name: "status timestamp mismatch", mutate: func(task *core.Task) { task.Status = core.StatusDone }, want: "done task requires startedAt and completedAt"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			p, err := flatfile.New(root)
+			if err != nil {
+				t.Fatalf("flatfile.New() error = %v", err)
+			}
+			task := core.Task{
+				ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+				ShortID:      "wtp-0001",
+				Title:        "Corrupt task",
+				Status:       core.StatusTodo,
+				Dependencies: []string{},
+				Comments:     []core.Comment{validComment},
+				CreatedAt:    created,
+				UpdatedAt:    commentTime,
+			}
+			test.mutate(&task)
+			writeTaskFile(t, root, task)
+
+			_, err = p.ListTasks(provider.TaskFilter{})
+			if err == nil || !contains(err.Error(), test.want) {
+				t.Fatalf("ListTasks() error = %v, want containing %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestLoadTasksRejectsDuplicateCanonicalTaskID(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	first := canonicalDiskTask(t, "25c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0001")
+	writeTaskFile(t, root, first)
+	duplicatePath := filepath.Join(root, string(first.Status), first.ID+".json")
+	duplicateData, err := json.MarshalIndent(first, "", "  ")
+	if err != nil {
+		t.Fatalf("json.MarshalIndent() error = %v", err)
+	}
+	if err := os.WriteFile(duplicatePath, append(duplicateData, '\n'), 0o644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	_, err = p.ListTasks(provider.TaskFilter{})
+	if err == nil || !contains(err.Error(), "duplicate canonical task id") {
+		t.Fatalf("ListTasks() duplicate canonical ID error = %v", err)
+	}
+}
+
+func TestLoadTasksRejectsDuplicateShortID(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	first := canonicalDiskTask(t, "25c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0001")
+	second := canonicalDiskTask(t, "ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a", first.ShortID)
+	second.Status = core.StatusInProgress
+	second.UpdatedAt = second.CreatedAt.Add(time.Second)
+	second.StartedAt = &second.UpdatedAt
+	writeTaskFile(t, root, first)
+	writeTaskFile(t, root, second)
+
+	_, err = p.ListTasks(provider.TaskFilter{})
+	if err == nil || !contains(err.Error(), "is used by both") {
+		t.Fatalf("ListTasks() duplicate short ID error = %v", err)
+	}
+}
+
+func TestNewDoesNotMigrateInvalidLegacyTask(t *testing.T) {
+	root := t.TempDir()
+	if _, err := flatfile.New(root); err != nil {
+		t.Fatalf("flatfile.New() setup error = %v", err)
+	}
+	valid := canonicalDiskTask(t, "15c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0001")
+	validLegacyPath := filepath.Join(root, string(core.StatusTodo), valid.ID+".json")
+	validData, err := json.MarshalIndent(valid, "", "  ")
+	if err != nil {
+		t.Fatalf("json.MarshalIndent(valid) error = %v", err)
+	}
+	if err := os.WriteFile(validLegacyPath, append(validData, '\n'), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(valid legacy) error = %v", err)
+	}
+	task := canonicalDiskTask(t, "25c3806a-bd1b-424d-889b-29e5b06679b8", "invalid-short-id")
+	legacyPath := filepath.Join(root, string(core.StatusTodo), task.ID+".json")
+	data, err := json.MarshalIndent(task, "", "  ")
+	if err != nil {
+		t.Fatalf("json.MarshalIndent() error = %v", err)
+	}
+	if err := os.WriteFile(legacyPath, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	if _, err := flatfile.New(root); err == nil || !contains(err.Error(), "invalid task file") {
+		t.Fatalf("flatfile.New() invalid legacy error = %v", err)
+	}
+	if _, err := os.Stat(legacyPath); err != nil {
+		t.Fatalf("invalid legacy file was moved or removed: %v", err)
+	}
+	if _, err := os.Stat(validLegacyPath); err != nil {
+		t.Fatalf("valid legacy file was moved before all migrations were validated: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, string(core.StatusTodo), valid.ShortID+".json")); !os.IsNotExist(err) {
+		t.Fatalf("valid migration ran before later corruption was detected: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, string(core.StatusTodo), task.ShortID+".json")); !os.IsNotExist(err) {
+		t.Fatalf("invalid migration target exists: %v", err)
+	}
+}
+
 func newProvider(t *testing.T) provider.Provider {
 	t.Helper()
 
@@ -816,6 +984,21 @@ func writeTaskFile(t *testing.T, root string, task core.Task) {
 	data = append(data, '\n')
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+}
+
+func canonicalDiskTask(t *testing.T, id, shortID string) core.Task {
+	t.Helper()
+	created := mustTime(t, "2026-03-24T14:10:04Z")
+	return core.Task{
+		ID:           id,
+		ShortID:      shortID,
+		Title:        "Canonical task",
+		Status:       core.StatusTodo,
+		Dependencies: []string{},
+		Comments:     []core.Comment{},
+		CreatedAt:    created,
+		UpdatedAt:    created,
 	}
 }
 

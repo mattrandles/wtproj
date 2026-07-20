@@ -21,60 +21,147 @@ Remaining work and release planning are tracked in the repo-local `.wtp/` backlo
 
 ## Install
 
-For day-to-day local development, install `wtp` into your user `PATH`:
+Published [GitHub Releases](https://github.com/mattrandles/wtproj/releases)
+are the only supported distribution channel. There are no package-manager,
+or installer releases. Contributor source builds are for development only, not
+a supported installation or upgrade channel. Release assets are standalone,
+uncompressed executables; use the exact filename for your operating system and
+architecture:
+
+| Platform | Asset |
+| --- | --- |
+| macOS AMD64 | `wtp_darwin_amd64` |
+| macOS Apple silicon | `wtp_darwin_arm64` |
+| Linux AMD64 | `wtp_linux_amd64` |
+| Linux ARM64 | `wtp_linux_arm64` |
+| Windows AMD64 | `wtp_windows_amd64.exe` |
+| Windows ARM64 | `wtp_windows_arm64.exe` |
+
+Each release also contains `checksums.txt`. Download it with the executable
+and verify the SHA-256 digest before installing. The filenames are stable, so
+the following commands use GitHub's `latest/download` URL; replace `latest`
+with a specific release tag when you need to pin an earlier version.
+
+### Unix (macOS and Linux)
+
+Set `asset` to one of the Unix asset names above. This example selects Linux
+AMD64; macOS users should substitute the matching `darwin` asset.
 
 ```sh
-./scripts/install_local.sh
+asset=wtp_linux_amd64
+base=https://github.com/mattrandles/wtproj/releases/latest/download
+curl --fail --location --remote-name "$base/$asset"
+curl --fail --location --remote-name "$base/checksums.txt"
+grep -F "  $asset" checksums.txt | sha256sum --check --status -
+chmod 755 "$asset"
 ```
 
-That builds the current source tree and installs the binary to `~/.local/bin/wtp` by default. In this repo, `~/.local/bin` is already on `PATH`, so future shells can run `wtp` directly.
-
-To update the installed binary after making code changes, rerun the same script:
+On macOS, replace the checksum command with:
 
 ```sh
-./scripts/install_local.sh
+grep -F "  $asset" checksums.txt | shasum --algorithm 256 --check --status -
 ```
 
-Override the target directory or binary name if needed:
+Only continue when the checksum command exits successfully. Choose one of
+these installation scopes after verification:
 
 ```sh
-WTP_INSTALL_DIR="$HOME/bin" ./scripts/install_local.sh
-WTP_INSTALL_NAME=wtp-dev ./scripts/install_local.sh
+# Project-local: keep the binary in this checkout and use it in this shell.
+mkdir -p .tools/bin
+install -m 755 "$asset" .tools/bin/wtp
+export PATH="$PWD/.tools/bin:$PATH"
+
+# User-local: persist ~/.local/bin in your shell startup file if it is not already on PATH.
+mkdir -p "$HOME/.local/bin"
+install -m 755 "$asset" "$HOME/.local/bin/wtp"
+
+# Global: requires administrator permission and a globally writable PATH directory.
+sudo install -m 755 "$asset" /usr/local/bin/wtp
 ```
 
-On Windows / PowerShell:
+Run `wtp version` to confirm the installed release. `wtp` uses the current
+directory as the project or worktree it manages, not its installation
+directory.
+
+### Windows (PowerShell)
+
+Set `$asset` to the exact Windows asset for your processor. The following is
+the AMD64 example. It downloads and verifies the release before copying it to
+the chosen location.
 
 ```powershell
-./scripts/install_local.ps1
+$asset = "wtp_windows_amd64.exe"
+$base = "https://github.com/mattrandles/wtproj/releases/latest/download"
+Invoke-WebRequest "$base/$asset" -OutFile $asset
+Invoke-WebRequest "$base/checksums.txt" -OutFile checksums.txt
+$line = @(Get-Content checksums.txt | Where-Object { $_ -match "  $([regex]::Escape($asset))$" })
+if ($line.Count -ne 1) { throw "checksums.txt must contain one entry for $asset" }
+$expected = $line[0].Substring(0, 64)
+$actual = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actual -ne $expected) { throw "SHA-256 verification failed for $asset" }
 ```
 
-That installs `wtp.exe` to `$HOME/.local/bin` by default, with the same `WTP_INSTALL_DIR` and `WTP_INSTALL_NAME` overrides available through environment variables.
-
-If you only want a repo-local build artifact instead of installing into `PATH`, build it directly:
-
-```sh
-go build -o wtp ./cmd/wtp
-```
-
-On Windows, build:
+Then choose one scope (the first two commands add the location to the current
+PowerShell session; add the user path permanently if desired):
 
 ```powershell
-go build -o wtp.exe ./cmd/wtp
+# Project-local
+$projectBin = Join-Path $PWD ".tools\\bin"
+New-Item -ItemType Directory -Force $projectBin | Out-Null
+Move-Item $asset (Join-Path $projectBin "wtp.exe")
+$env:Path = "$projectBin;$env:Path"
+
+# User-local
+$userBin = Join-Path $HOME "bin"
+New-Item -ItemType Directory -Force $userBin | Out-Null
+Move-Item $asset (Join-Path $userBin "wtp.exe")
+[Environment]::SetEnvironmentVariable("Path", "$userBin;" + [Environment]::GetEnvironmentVariable("Path", "User"), "User")
+$env:Path = "$userBin;$env:Path"
+
+# Global: run an elevated PowerShell session.
+$globalBin = Join-Path $env:ProgramFiles "wtp"
+New-Item -ItemType Directory -Force $globalBin | Out-Null
+Move-Item $asset (Join-Path $globalBin "wtp.exe")
+[Environment]::SetEnvironmentVariable("Path", "$globalBin;" + [Environment]::GetEnvironmentVariable("Path", "Machine"), "Machine")
 ```
 
-Or run it directly during development:
+Open a new terminal after changing a persistent Windows `PATH`, then run
+`wtp version`. The global install and `wtp update` require permission to write
+both the executable and its containing directory; use an elevated PowerShell
+session or a user-local installation when that is not appropriate.
 
-```sh
-go run ./cmd/wtp task list
-```
+### Updating, stability, and storage
 
-`wtp` assumes the current working directory is the repo or worktree it should manage.
+Released binaries report their embedded version, commit, and build date with
+`wtp version` (`wtp --json version` is machine-readable). Use `wtp update` to
+check the latest published stable GitHub Release and update the executable that
+is actually running. It accepts strict Semantic Versioning: an equal or older
+release is a no-op, and development builds cannot self-update. Prereleases are
+not selected by the GitHub latest-release endpoint, so install a prerelease
+manually from its release page if you intentionally want one.
 
-Supported today:
+The updater selects only the matching platform asset, checks its `checksums.txt`
+SHA-256 entry, and leaves the installed executable untouched if discovery,
+download, or validation fails. On Unix it atomically replaces the resolved
+target while preserving its permission bits; a symlink used to launch `wtp`
+continues to point at that target. On Windows it stages a verified executable,
+then uses a detached helper after `wtp.exe` exits; a failed deferred replacement
+restores the old binary and records the error as
+`wtp.exe.wtp-update-error.txt` next to the executable.
 
-- macOS
-- Linux
-- Windows
+Installing or updating never moves, deletes, or migrates a project's `.wtp/`
+storage. The flat-file provider is the implemented and supported provider; it
+also recognizes legacy UUID-named task files and safely migrates them to the
+current short-ID filenames when the storage is opened. Commit or back up
+`.wtp/` before upgrading so you can review any normal task-storage changes made
+by a newer binary. A `.wtp.json` configuration with `"tool": "trello"` is
+validated, but the Trello provider itself is not implemented and cannot manage
+tasks.
+
+The exact release assets, checksum format, API lookup, and updater contract are
+defined in the [GitHub Release asset contract](docs/release-assets.md).
+The reproducible direct-download release validation harness is documented in
+[Direct-download release QA](docs/release-qa.md).
 
 ## Quick Start
 
@@ -139,6 +226,8 @@ Discover usage or inspect the flat-file contract:
 wtp help
 wtp schema
 wtp graph
+wtp version
+wtp update
 ```
 
 ## Command Surface
@@ -153,14 +242,16 @@ wtp task get <task-id> [--agent Tony]
 wtp task start <task-id> --agent Tony
 wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on wtp-0001,wtp-0002] [--agent Tony]
 wtp task edit <task-id> [same options as update]
-wtp task pause <task-id>
-wtp task done <task-id>
-wtp task comment <task-id> --message "Implemented parser"
+wtp task pause <task-id> [--agent Tony]
+wtp task done <task-id> [--agent Tony]
+wtp task comment <task-id> [--agent Tony] --message "Implemented parser"
 wtp task ready --agent Tony
 wtp task ready --agent Tony --limit 3
 wtp task create --title "New Task" --description "..." --priority high --estimate m --lane backend --model gpt-5 --depends-on wtp-0001,wtp-0002
 wtp graph [--status todo|inProgress|paused|done|all]
 wtp export --out .wtp-export
+wtp version
+wtp update
 wtp help
 wtp schema
 ```
@@ -192,8 +283,8 @@ Canonical statuses:
 
 Identifier rules:
 
-- each task has a canonical UUID in the JSON payload
-- each task also has a stable short ID such as `wtp-0005`
+- each task has a unique canonical lowercase UUID in the JSON payload
+- each task also has a unique stable short ID such as `wtp-0005` (`wtp-` plus at least four digits)
 - tasks may optionally include scheduling metadata (`priority`, `estimate`, and `lane`) plus a free-form suggested `model`
 - CLI input accepts either UUID or short ID
 - flat-file task filenames use the short ID, for example `.wtp/todo/wtp-0005.json`
@@ -209,6 +300,12 @@ Dependency rules:
 - `model` is advisory metadata only; it does not affect task ordering or claimability
 - clear a suggested model with `wtp task update <task-id> --model=`
 - a task cannot be started or claimed while any dependency is not `done`
+
+Lifecycle and comment rules:
+
+- `createdAt` cannot be after `updatedAt`; comment and lifecycle timestamps must fall within that range
+- `todo` has neither lifecycle timestamp; `inProgress` and `paused` require `startedAt`; `done` requires both `startedAt` and `completedAt`
+- comment IDs are unique canonical lowercase UUIDs and messages are non-empty; an empty author represents a legacy anonymous comment
 
 Help and schema output:
 
@@ -275,6 +372,16 @@ Metadata:
 
 The storage is intentionally human-readable and git-friendly, but it is not a database transaction engine. The lock file protects concurrent local agents from racing on create, claim, status update, and comment operations.
 
+## Export Snapshots
+
+`wtp export --out <directory>` treats its destination as a dedicated exact snapshot. After a successful export, the directory contains exactly one `<canonical-task-uuid>.json` file for every current task. Existing files for current tasks are atomically replaced, then stale canonical UUID-named JSON files are removed in lexical order.
+
+Export preflights an existing destination before changing it. A directory, symlink, special file, or filename outside the canonical UUID JSON format is unmanaged; all unmanaged names are reported in sorted order and nothing in the destination is changed. Use a new, empty, or previously generated export directory rather than a directory containing other data.
+
+The destination and active `.wtp` storage paths are resolved through symlinks before comparison. Export rejects the storage directory itself, any destination inside it, and any destination that contains it. Cleanup is limited to preflighted stale files directly inside the resolved export directory.
+
+The policy is the same on Unix and Windows. Individual JSON files use durable atomic replacement (`rename` plus directory sync on Unix and replace-existing/write-through on Windows). The directory as a whole is not a database transaction: an I/O failure can leave a partially refreshed snapshot, but it never triggers broad directory deletion; rerunning export converges it to the exact current snapshot.
+
 ## Configuration
 
 If `.wtp.json` is absent, `wtp` uses the local flat-file backend.
@@ -313,6 +420,7 @@ wtp --json task ready --agent Tony
 wtp --json task ready --agent Tony --limit 3
 wtp --json task next --agent Tony
 wtp --json graph --status all
+wtp --json update
 ```
 
 Errors remain on stderr.

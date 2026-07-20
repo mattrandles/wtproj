@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"wtp/internal/config"
-	"wtp/internal/provider"
-	flatfileprovider "wtp/internal/provider/flatfile"
-	trelloprovider "wtp/internal/provider/trello"
+	"github.com/mattrandles/wtproj/internal/config"
+	"github.com/mattrandles/wtproj/internal/provider"
+	flatfileprovider "github.com/mattrandles/wtproj/internal/provider/flatfile"
+	trelloprovider "github.com/mattrandles/wtproj/internal/provider/trello"
 )
 
 func NewProvider(cwd string, cfg config.Config) (provider.Provider, error) {

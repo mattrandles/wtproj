@@ -1,6 +1,7 @@
 package cli
 
 import (
+	stdcontext "context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -11,10 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"wtp/internal/app"
-	"wtp/internal/config"
-	"wtp/internal/core"
-	"wtp/internal/provider"
+	"github.com/mattrandles/wtproj/internal/app"
+	"github.com/mattrandles/wtproj/internal/buildinfo"
+	"github.com/mattrandles/wtproj/internal/config"
+	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/provider"
+	"github.com/mattrandles/wtproj/internal/updater"
 )
 
 type context struct {
@@ -30,20 +33,6 @@ type legacyParseResult struct {
 }
 
 func Run(args []string, stdout, stderr io.Writer) error {
-	cwd, err := filepath.Abs(".")
-	if err != nil {
-		return fmt.Errorf("resolve cwd: %w", err)
-	}
-
-	cfg, err := config.Discover(cwd)
-	if err != nil {
-		return err
-	}
-	p, err := app.NewProvider(cwd, cfg)
-	if err != nil {
-		return err
-	}
-
 	legacy, err := rewriteLegacyArgs(args)
 	if err != nil {
 		return err
@@ -57,16 +46,45 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	ctx := context{
-		provider: p,
-		stdout:   stdout,
-		stderr:   stderr,
-		jsonOut:  *jsonOut,
+		stdout:  stdout,
+		stderr:  stderr,
+		jsonOut: *jsonOut,
 	}
 
 	rest := rootFlags.Args()
 	if len(rest) == 0 {
 		return usage(stderr)
 	}
+	switch rest[0] {
+	case "help":
+		if err := requireNoArgs("help", rest[1:]); err != nil {
+			return err
+		}
+		return help(stdout)
+	case "schema":
+		if err := requireNoArgs("schema", rest[1:]); err != nil {
+			return err
+		}
+		return schema(stdout)
+	case "version":
+		return runVersion(ctx, rest[1:])
+	case "update":
+		return runSelfUpdate(ctx, rest[1:], updater.Run)
+	}
+
+	cwd, err := filepath.Abs(".")
+	if err != nil {
+		return fmt.Errorf("resolve cwd: %w", err)
+	}
+	cfg, err := config.Discover(cwd)
+	if err != nil {
+		return err
+	}
+	p, err := app.NewProvider(cwd, cfg)
+	if err != nil {
+		return err
+	}
+	ctx.provider = p
 
 	switch rest[0] {
 	case "task":
@@ -75,13 +93,71 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runGraph(ctx, rest[1:])
 	case "export":
 		return runExport(ctx, rest[1:])
-	case "help":
-		return help(stdout)
-	case "schema":
-		return schema(stdout)
 	default:
 		return fmt.Errorf("unknown command %q", rest[0])
 	}
+}
+
+func requireNoArgs(command string, args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: wtp %s", command)
+	}
+	return nil
+}
+
+func runVersion(ctx context, args []string) error {
+	flags := flag.NewFlagSet("version", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	jsonOut := flags.Bool("json", false, "emit JSON output")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("usage: wtp [--json] version")
+	}
+
+	info := buildinfo.Current()
+	if ctx.jsonOut || *jsonOut {
+		encoder := json.NewEncoder(ctx.stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(info)
+	}
+	_, err := fmt.Fprintf(ctx.stdout, "wtp %s\ncommit: %s\nbuildDate: %s\n", info.Version, info.Commit, info.BuildDate)
+	return err
+}
+
+type updateRunner func(stdcontext.Context, string) (updater.Result, error)
+
+func runSelfUpdate(ctx context, args []string, runner updateRunner) error {
+	flags := flag.NewFlagSet("update", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	jsonOut := flags.Bool("json", false, "emit JSON output")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("usage: wtp [--json] update")
+	}
+
+	result, err := runner(stdcontext.Background(), buildinfo.Version)
+	if err != nil {
+		return err
+	}
+	if ctx.jsonOut || *jsonOut {
+		encoder := json.NewEncoder(ctx.stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
+	}
+
+	switch {
+	case result.Updated:
+		_, err = fmt.Fprintf(ctx.stdout, "updated wtp from %s to %s at %s\n", result.CurrentVersion, result.LatestVersion, result.Path)
+	case result.Scheduled:
+		_, err = fmt.Fprintf(ctx.stdout, "downloaded and verified wtp %s; Windows will replace %s after this process exits (failures are written to %s.wtp-update-error.txt)\n", result.LatestVersion, result.Path, result.Path)
+	default:
+		_, err = fmt.Fprintf(ctx.stdout, "no update available (current %s, latest %s)\n", result.CurrentVersion, result.LatestVersion)
+	}
+	return err
 }
 
 type graphNode struct {
@@ -251,11 +327,11 @@ func runTaskList(ctx context, args []string) error {
 }
 
 func runTaskGet(ctx context, args []string, name string) error {
-	id, options, err := splitSinglePositional(args)
+	id, options, err := parseTaskTargetOptions(args, "agent")
 	if err != nil {
-		return fmt.Errorf("usage: wtp task %s <task-id> [--agent Tony]", name)
+		return fmt.Errorf("%w; usage: wtp task %s <task-id> [--agent Tony]", err, name)
 	}
-	task, err := ctx.provider.GetTask(id, firstOption(options, "--agent"))
+	task, err := ctx.provider.GetTask(id, optionValue(options, "agent"))
 	if err != nil {
 		return err
 	}
@@ -263,11 +339,11 @@ func runTaskGet(ctx context, args []string, name string) error {
 }
 
 func runTaskTransition(ctx context, name string, target core.Status, args []string) error {
-	id, options, err := splitSinglePositional(args)
+	id, options, err := parseTaskTargetOptions(args, "agent")
 	if err != nil {
-		return fmt.Errorf("usage: wtp task %s <task-id> [--agent Tony]", name)
+		return fmt.Errorf("%w; usage: wtp task %s <task-id> [--agent Tony]", err, name)
 	}
-	agent := firstOption(options, "--agent")
+	agent := optionValue(options, "agent")
 	task, err := ctx.provider.UpdateTaskStatus(id, target, agent)
 	if err != nil {
 		return err
@@ -276,15 +352,15 @@ func runTaskTransition(ctx context, name string, target core.Status, args []stri
 }
 
 func runTaskComment(ctx context, args []string) error {
-	id, options, err := splitSinglePositional(args)
+	id, options, err := parseTaskTargetOptions(args, "agent", "message")
 	if err != nil {
-		return errors.New("usage: wtp task comment <task-id> --message \"...\"")
+		return fmt.Errorf("%w; usage: wtp task comment <task-id> [--agent Tony] --message \"...\"", err)
 	}
-	message := firstOption(options, "--message")
+	message := optionValue(options, "message")
 	if strings.TrimSpace(message) == "" {
 		return errors.New("comment message is required")
 	}
-	task, err := ctx.provider.AddComment(id, firstOption(options, "--agent"), message)
+	task, err := ctx.provider.AddComment(id, optionValue(options, "agent"), message)
 	if err != nil {
 		return err
 	}
@@ -607,16 +683,18 @@ Commands:
 	wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]
 	wtp task edit <task-id> [same options as update]
   wtp task list [--status todo|inProgress|paused|done] [--agent Tony]
-	wtp task show <task-id> [--agent Tony]
+  wtp task show <task-id> [--agent Tony]
   wtp task get <task-id> [--agent Tony]
   wtp task start <task-id> [--agent Tony]
-  wtp task pause <task-id>
-  wtp task done <task-id>
-  wtp task comment <task-id> --message "..."
+	wtp task pause <task-id> [--agent Tony]
+	wtp task done <task-id> [--agent Tony]
+	wtp task comment <task-id> [--agent Tony] --message "..."
   wtp task ready [--agent Tony] [--limit N]
   wtp task next [--agent Tony]
 	wtp graph [--status todo|inProgress|paused|done|all]
-  wtp export --out .wtp-export
+	wtp export --out .wtp-export
+	wtp version
+	wtp update
 	wtp schema
 	wtp help
 
@@ -629,6 +707,9 @@ task update edits mutable task fields in place; pass --model= to clear a suggest
 The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
 Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
 graph prints dependency trees for matching tasks; it defaults to todo and accepts done, paused, inProgress, todo, or all.
+export writes an exact canonical snapshot to a dedicated directory; unmanaged entries and paths overlapping active .wtp storage are rejected.
+version reports the binary's version, commit, and build date; use wtp --json version for machine-readable output.
+update installs a newer checksum-verified GitHub release over the running executable; use wtp --json update for machine-readable output.
 
 Usage Guide:
 	1. Create tasks with title and optional metadata, including --model when a particular execution model is suggested.
@@ -681,6 +762,8 @@ Task file rules:
 Compatibility rule:
 	- dependencies are stored as canonical UUID strings.
 	- task files created before model metadata remain valid; an omitted model means no suggestion.
+	- legacy task files named by canonical UUID are validated before migration to short-ID filenames.
+	- comments created without an agent remain valid with an empty author.
 
 Task JSON schema:
 	{
@@ -710,8 +793,8 @@ Task JSON schema:
 	}
 
 Field semantics:
-	- id: required UUID string.
-	- shortId: required stable human-friendly identifier, format wtp-NNNN.
+	- id: required canonical lowercase UUID string.
+	- shortId: required stable human-friendly identifier, format wtp-NNNN (at least four digits).
 	- title: required non-empty string.
 	- description: optional string.
 	- priority: optional enum low|medium|high|urgent.
@@ -721,19 +804,31 @@ Field semantics:
 	  Set it with --model VALUE on task create/update/edit, or clear it with --model=.
 	- status: required enum todo|inProgress|paused|done.
 	- assignee: optional string.
-	- dependencies: array of task UUIDs.
-	- comments: array of comment objects with id, author, message, createdAt.
+	- dependencies: array of canonical lowercase task UUIDs.
+	- comments: array of comment objects with a canonical lowercase UUID id, optional non-blank author,
+	  required non-blank message, and required UTC createdAt.
 	- createdAt, updatedAt: required RFC3339 timestamps in UTC.
 	- startedAt, completedAt: optional RFC3339 timestamps in UTC.
 
 Behavioral rules:
+	- Task UUIDs and short IDs must be unique. A newer, valid status-move copy may coexist temporarily
+	  with its older copy after interrupted cleanup; readers select the newer copy.
+	- Comment UUIDs must be unique within a task.
 	- A task cannot depend on itself.
 	- Dependencies must reference existing task UUIDs.
 	- Cyclic dependency graphs are invalid.
 	- A task cannot start or be claimed until all dependencies are done.
 	- Status determines the directory where the task file is stored.
+	- createdAt must not be after updatedAt; comments and lifecycle timestamps must fall within that range.
+	- todo has no lifecycle timestamps; inProgress and paused require startedAt but no completedAt;
+	  done requires both, with completedAt not before startedAt.
 	- task next prefers paused tasks before todo, then higher priority, then older tasks.
 	- model is advisory metadata and does not affect task ordering or claimability.
+
+Export rules:
+	- A successful export directory contains exactly one canonical UUID-named JSON file per current task.
+	- Current snapshot files are atomically replaced; stale canonical UUID-named JSON files are removed.
+	- Unmanaged entries are reported before changes, and export paths overlapping active .wtp storage are rejected.
 
 Interoperability guidance:
 	- Programs that write wtp flat files should preserve unknown future fields when possible.
@@ -984,27 +1079,49 @@ func displayBool(value bool) string {
 	return "no"
 }
 
-func splitSinglePositional(args []string) (string, map[string]string, error) {
-	options := map[string]string{}
-	positionals := []string{}
+// parseTaskTargetOptions accepts one task ID plus a deliberately small set of
+// long options. It supports both --name value and --name=value so command
+// handlers can keep the documented task-id-first spelling while still letting
+// callers put options first.
+func parseTaskTargetOptions(args []string, allowedNames ...string) (string, map[string]string, error) {
+	allowed := make(map[string]struct{}, len(allowedNames))
+	for _, name := range allowedNames {
+		allowed[name] = struct{}{}
+	}
+
+	options := make(map[string]string, len(allowedNames))
+	positionals := make([]string, 0, 1)
 	for i := 0; i < len(args); i++ {
-		arg := strings.TrimSpace(args[i])
+		arg := args[i]
 		if arg == "" {
 			continue
 		}
 		if strings.HasPrefix(arg, "--") {
-			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
-				options[arg] = ""
-				continue
+			nameAndValue := strings.TrimPrefix(arg, "--")
+			name, value, hasValue := strings.Cut(nameAndValue, "=")
+			if _, ok := allowed[name]; !ok {
+				return "", nil, fmt.Errorf("unknown option %q", arg)
 			}
-			options[arg] = args[i+1]
-			i++
+			if !hasValue {
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+					return "", nil, fmt.Errorf("option %q requires a value", "--"+name)
+				}
+				value = args[i+1]
+				i++
+			}
+			if strings.TrimSpace(value) == "" {
+				return "", nil, fmt.Errorf("option %q requires a value", "--"+name)
+			}
+			options[name] = value
 			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			return "", nil, fmt.Errorf("unknown option %q", arg)
 		}
 		positionals = append(positionals, arg)
 	}
 	if len(positionals) != 1 {
-		return "", nil, errors.New("expected exactly one positional argument")
+		return "", nil, errors.New("expected exactly one task ID")
 	}
 	return positionals[0], options, nil
 }
@@ -1033,7 +1150,7 @@ func splitSinglePositionalArgs(args []string) (string, []string, error) {
 	return positionals[0], remaining, nil
 }
 
-func firstOption(options map[string]string, name string) string {
+func optionValue(options map[string]string, name string) string {
 	if options == nil {
 		return ""
 	}

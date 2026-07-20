@@ -44,6 +44,32 @@ try {
 
     Push-Location $testRepo
     try {
+        & $binaryPath help | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        if (Test-Path ".wtp") {
+            Fail "help initialized .wtp storage"
+        }
+        & $binaryPath schema | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        if (Test-Path ".wtp") {
+            Fail "schema initialized .wtp storage"
+        }
+
+        try {
+            & $binaryPath task show wtp-9999 --unknown 2> $errOut | Out-Null
+            $invalidShowExitCode = $LASTEXITCODE
+        } catch {
+            $invalidShowExitCode = $LASTEXITCODE
+        }
+        if ($invalidShowExitCode -ne 1) {
+            Fail "unknown show option exited $invalidShowExitCode, want 1"
+        }
+        Assert-Contains 'unknown option "--unknown"' $errOut
+
         & $binaryPath --json task create `
             --title "Bootstrap provider" `
             --description "Initial task for smoke testing" | Set-Content -NoNewline -Path $taskAJson

@@ -1,0 +1,44 @@
+version: 2
+
+project_name: wtp
+
+builds:
+  - id: wtp
+    main: ./cmd/wtp
+    binary: wtp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v1
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/mattrandles/wtproj/internal/buildinfo.Version={{ .Version }} -X github.com/mattrandles/wtproj/internal/buildinfo.Commit={{ .Commit }} -X github.com/mattrandles/wtproj/internal/buildinfo.BuildDate={{ .Date }} -X github.com/mattrandles/wtproj/internal/updater.latestReleaseURL={{ envOrDefault "WTP_QA_LATEST_RELEASE_URL" "https://api.github.com/repos/mattrandles/wtproj/releases/latest" }} -X github.com/mattrandles/wtproj/internal/updater.allowInsecureHTTP={{ envOrDefault "WTP_QA_ALLOW_HTTP" "false" }}
+
+snapshot:
+  version_template: '{{ envOrDefault "WTP_QA_SNAPSHOT_VERSION" "0.0.0-qa" }}'
+
+archives:
+  - ids:
+      - wtp
+    formats:
+      - binary
+    name_template: "wtp_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: github-native
+
+release:
+  draft: false
+  prerelease: auto

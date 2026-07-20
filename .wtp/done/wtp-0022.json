@@ -1,0 +1,25 @@
+{
+  "id": "50c385cc-9f9c-412f-8b31-b3412daadd61",
+  "shortId": "wtp-0022",
+  "title": "Harden flat-file replacement and read consistency",
+  "description": "Make task and index replacement crash-safe and genuinely atomic on Unix and Windows, without deleting the only task copy before the replacement is durable. Prevent concurrent readers from observing missing or duplicate task states and add failure/concurrency tests.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "storage",
+  "model": "GPT 5.6 Sol High",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "d576454b-8752-482a-a5b3-85cee71a5b2d",
+      "author": "",
+      "message": "Implemented durable same-directory temp+fsync atomic replacement (Unix rename; Windows MoveFileExW replace/write-through), lock-consistent readers, publish-before-cleanup status moves with non-destructive crash-residue handling, conflict-safe migration, and injected failure/concurrency tests. Verified full race suite, project check/smoke script, Go 1.22 storage tests, and Windows/amd64 cross-compilation.",
+      "createdAt": "2026-07-20T22:07:30.21073817Z"
+    }
+  ],
+  "createdAt": "2026-07-20T21:00:05.475209246Z",
+  "updatedAt": "2026-07-20T22:07:30.213741559Z",
+  "startedAt": "2026-07-20T21:59:33.747923305Z",
+  "completedAt": "2026-07-20T22:07:30.213741559Z"
+}
