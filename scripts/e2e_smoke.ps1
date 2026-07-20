@@ -1,6 +1,12 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# Expected negative-path CLI checks inspect $LASTEXITCODE themselves. Do not
+# turn their native stderr into terminating PowerShell errors.
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $workDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 $binaryPath = Join-Path $workDir "wtp.exe"
