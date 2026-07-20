@@ -22,6 +22,11 @@ function Read-TextFile([string] $Path) {
     return [System.IO.File]::ReadAllText($Path)
 }
 
+function Write-NativeOutput([object[]] $Output, [string] $Path) {
+    $text = ($Output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+    [System.IO.File]::WriteAllText($Path, $text)
+}
+
 function Assert-Contains([string] $Needle, [string] $Path) {
     $content = Read-TextFile $Path
     if (-not $content.Contains($Needle)) {
@@ -66,12 +71,9 @@ try {
             Fail "schema initialized .wtp storage"
         }
 
-        try {
-            & $binaryPath task show wtp-9999 --unknown 2> $errOut | Out-Null
-            $invalidShowExitCode = $LASTEXITCODE
-        } catch {
-            $invalidShowExitCode = $LASTEXITCODE
-        }
+        $invalidShowOutput = @(& $binaryPath task show wtp-9999 --unknown 2>&1)
+        $invalidShowExitCode = $LASTEXITCODE
+        Write-NativeOutput $invalidShowOutput $errOut
         if ($invalidShowExitCode -ne 1) {
             Fail "unknown show option exited $invalidShowExitCode, want 1"
         }
@@ -112,16 +114,10 @@ try {
         Assert-Contains $taskAShortID $listOut
         Assert-Contains $taskBShortID $listOut
 
-        $startSucceeded = $true
-        try {
-            & $binaryPath task start $taskBShortID --agent Bob 2> $errOut | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                $startSucceeded = $false
-            }
-        } catch {
-            $startSucceeded = $false
-        }
-        if ($startSucceeded) {
+        $startOutput = @(& $binaryPath task start $taskBShortID --agent Bob 2>&1)
+        $startExitCode = $LASTEXITCODE
+        Write-NativeOutput $startOutput $errOut
+        if ($startExitCode -eq 0) {
             Fail "blocked dependency start unexpectedly succeeded"
         }
         Assert-Contains "blocked by unresolved dependencies" $errOut
