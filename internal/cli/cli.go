@@ -127,13 +127,14 @@ func runTaskCreate(ctx context, args []string) error {
 	priorityValue := flags.String("priority", "", "task priority (low|medium|high|urgent)")
 	estimateValue := flags.String("estimate", "", "task estimate (xs|s|m|l|xl)")
 	lane := flags.String("lane", "", "task lane or area")
+	model := flags.String("model", "", "suggested model for completing the task")
 	agent := flags.String("agent", "", "assignee")
 	dependsOn := flags.String("depends-on", "", "comma-separated task identifiers")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task create --title \"...\" [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task create --title \"...\" [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]")
 	}
 	if strings.TrimSpace(*title) == "" {
 		return errors.New("task title is required")
@@ -152,6 +153,7 @@ func runTaskCreate(ctx context, args []string) error {
 		Priority:     priority,
 		Estimate:     estimate,
 		Lane:         *lane,
+		Model:        *model,
 		Assignee:     *agent,
 		Dependencies: splitCSV(*dependsOn),
 	})
@@ -164,7 +166,7 @@ func runTaskCreate(ctx context, args []string) error {
 func runTaskUpdate(ctx context, args []string) error {
 	id, options, err := splitSinglePositionalArgs(args)
 	if err != nil {
-		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]")
 	}
 	flags := flag.NewFlagSet("task update", flag.ContinueOnError)
 	flags.SetOutput(ctx.stderr)
@@ -174,6 +176,7 @@ func runTaskUpdate(ctx context, args []string) error {
 	var priorityValue optionString
 	var estimateValue optionString
 	var lane optionString
+	var model optionString
 	var dependsOn optionString
 	var agent optionString
 
@@ -182,15 +185,16 @@ func runTaskUpdate(ctx context, args []string) error {
 	flags.Var(&priorityValue, "priority", "task priority (low|medium|high|urgent)")
 	flags.Var(&estimateValue, "estimate", "task estimate (xs|s|m|l|xl)")
 	flags.Var(&lane, "lane", "task lane or area")
+	flags.Var(&model, "model", "suggested model for completing the task")
 	flags.Var(&dependsOn, "depends-on", "comma-separated task identifiers")
 	flags.Var(&agent, "agent", "assignee")
 	if err := flags.Parse(options); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]")
 	}
-	if !title.set && !description.set && !priorityValue.set && !estimateValue.set && !lane.set && !dependsOn.set && !agent.set {
+	if !title.set && !description.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !dependsOn.set && !agent.set {
 		return errors.New("task update requires at least one field to change")
 	}
 
@@ -209,6 +213,7 @@ func runTaskUpdate(ctx context, args []string) error {
 		Priority:     core.OptionalPriority{Set: priorityValue.set, Value: priority},
 		Estimate:     core.OptionalEstimate{Set: estimateValue.set, Value: estimate},
 		Lane:         core.OptionalString{Set: lane.set, Value: lane.value},
+		Model:        core.OptionalString{Set: model.set, Value: model.value},
 		Assignee:     core.OptionalString{Set: agent.set, Value: agent.value},
 		Dependencies: core.OptionalString{Set: dependsOn.set, Value: dependsOn.value},
 	})
@@ -524,7 +529,7 @@ func printValue(ctx context, value any) error {
 		return printTask(ctx.stdout, typed)
 	case []core.TaskView:
 		for _, task := range typed {
-			if _, err := fmt.Fprintf(ctx.stdout, "%s\t%s\t%s\t%s\t%s\t%s", task.ShortID, task.Status, displayPriority(task.Priority), displayClaimable(task.Readiness.Claimable), displayAssignee(task.Assignee), task.Title); err != nil {
+			if _, err := fmt.Fprintf(ctx.stdout, "%s\t%s\t%s\t%s\t%s\t%s\t%s", task.ShortID, task.Status, displayPriority(task.Priority), displayClaimable(task.Readiness.Claimable), displayAssignee(task.Assignee), displayModel(task.Model), task.Title); err != nil {
 				return err
 			}
 			if task.Readiness.BlockedReason != "" {
@@ -567,6 +572,9 @@ func printTask(w io.Writer, task core.TaskView) error {
 	if task.Lane != "" {
 		lines = append(lines, fmt.Sprintf("lane: %s", task.Lane))
 	}
+	if task.Model != "" {
+		lines = append(lines, fmt.Sprintf("model: %s", task.Model))
+	}
 	if task.Readiness.BlockedReason != "" {
 		lines = append(lines, fmt.Sprintf("blockedReason: %s", task.Readiness.BlockedReason))
 	}
@@ -595,8 +603,8 @@ func help(w io.Writer) error {
 	_, err := io.WriteString(w, `wtp
 
 Commands:
-  wtp task create --title "..." [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--depends-on a,b] [--agent Tony]
-	wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--depends-on a,b] [--agent Tony]
+  wtp task create --title "..." [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]
+	wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]
 	wtp task edit <task-id> [same options as update]
   wtp task list [--status todo|inProgress|paused|done] [--agent Tony]
 	wtp task show <task-id> [--agent Tony]
@@ -617,11 +625,13 @@ Use --limit N to inspect multiple ready tasks in the same order; batch ready is 
 task show prints one specific task without claiming it; task get remains available as an alias.
 task next claims the returned task by moving it to inProgress.
 When --agent is supplied, list/get/ready/next compute claimability using that same assignee-safety rule.
-task update edits mutable task fields in place; dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
+task update edits mutable task fields in place; pass --model= to clear a suggestion.
+The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
+Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
 graph prints dependency trees for matching tasks; it defaults to todo and accepts done, paused, inProgress, todo, or all.
 
 Usage Guide:
-	1. Create tasks with title and optional metadata.
+	1. Create tasks with title and optional metadata, including --model when a particular execution model is suggested.
 	2. Inspect work with task list, task show, or task ready.
 	3. Use graph to inspect dependency trees by status.
 	4. Claim or move work with task next, start, pause, and done.
@@ -639,7 +649,7 @@ Legacy Compatibility Mode:
   wtp --agent Tony --set-task-paused --task-id wtp-0001
   wtp --agent Tony --set-task-done --task-id wtp-0001
   wtp --agent Tony --add-comment --task-id wtp-0001 --comment "..."
-  wtp --agent Tony --create-task --title "..." --description "..." --dependencies wtp-0001
+  wtp --agent Tony --create-task --title "..." --description "..." --model gpt-5 --dependencies wtp-0001
   wtp --export-tasks=.wtp-export
 `)
 	return err
@@ -670,6 +680,7 @@ Task file rules:
 
 Compatibility rule:
 	- dependencies are stored as canonical UUID strings.
+	- task files created before model metadata remain valid; an omitted model means no suggestion.
 
 Task JSON schema:
 	{
@@ -680,6 +691,7 @@ Task JSON schema:
 		"priority": "high",
 		"estimate": "m",
 		"lane": "cli",
+		"model": "gpt-5",
 		"status": "todo",
 		"assignee": "Tony",
 		"dependencies": ["7f13f5e2-6d9d-4630-84e1-7aef10c637e4"],
@@ -705,6 +717,8 @@ Field semantics:
 	- priority: optional enum low|medium|high|urgent.
 	- estimate: optional enum xs|s|m|l|xl.
 	- lane: optional string for area/team grouping.
+	- model: optional free-form string naming the suggested model for completing the task.
+	  Set it with --model VALUE on task create/update/edit, or clear it with --model=.
 	- status: required enum todo|inProgress|paused|done.
 	- assignee: optional string.
 	- dependencies: array of task UUIDs.
@@ -719,6 +733,7 @@ Behavioral rules:
 	- A task cannot start or be claimed until all dependencies are done.
 	- Status determines the directory where the task file is stored.
 	- task next prefers paused tasks before todo, then higher priority, then older tasks.
+	- model is advisory metadata and does not affect task ordering or claimability.
 
 Interoperability guidance:
 	- Programs that write wtp flat files should preserve unknown future fields when possible.
@@ -754,6 +769,7 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 	priority := ""
 	estimate := ""
 	lane := ""
+	model := ""
 	dependencies := ""
 	status := ""
 	exportOut := ""
@@ -817,6 +833,11 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 			i++
 			if i < len(args) {
 				lane = args[i]
+			}
+		case "--model":
+			i++
+			if i < len(args) {
+				model = args[i]
 			}
 		case "--dependencies":
 			i++
@@ -898,6 +919,7 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 		out = append(out, withValue("--priority", priority)...)
 		out = append(out, withValue("--estimate", estimate)...)
 		out = append(out, withValue("--lane", lane)...)
+		out = append(out, withValue("--model", model)...)
 		out = append(out, withValue("--depends-on", dependencies)...)
 		return legacyParseResult{
 			args:  append(out, withValue("--agent", agent)...),
@@ -928,6 +950,13 @@ func splitCSV(value string) []string {
 }
 
 func displayAssignee(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "-"
+	}
+	return value
+}
+
+func displayModel(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return "-"
 	}

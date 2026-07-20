@@ -1,0 +1,27 @@
+{
+  "id": "838f7208-2f4e-46cc-a68a-7ebcfad9a775",
+  "shortId": "wtp-0028",
+  "title": "Publish executables with GitHub Release automation",
+  "description": "Add a maintained GoReleaser configuration and least-privilege tag workflow that publishes directly downloadable wtp executables for supported darwin, linux, and windows architectures, injects version metadata, attaches checksums and release notes, and validates the build matrix before publishing.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "release",
+  "model": "GPT 5.6 Sol High",
+  "status": "todo",
+  "dependencies": [
+    "3ec8f165-6150-4019-bd4e-07844c8cd567",
+    "50c385cc-9f9c-412f-8b31-b3412daadd61",
+    "8daaaf6f-62a5-4681-92da-37e7ffd827c8",
+    "9f45abc1-4717-4288-a3cc-dc3e37be5bd6",
+    "b65df269-50cc-45e8-b589-eee8a57e04e3",
+    "bc133f37-b722-417b-88f5-db0d4df79701",
+    "e710b408-6a76-4555-88f7-44816d9d73e1",
+    "f36b6e5e-b370-4581-89ba-38a0cf4fcfc4",
+    "f883375b-4179-4f88-9f44-05361df49e32"
+  ],
+  "comments": [],
+  "createdAt": "2026-07-20T21:00:20.223141012Z",
+  "updatedAt": "2026-07-20T21:41:22.170855402Z",
+  "startedAt": null,
+  "completedAt": null
+}

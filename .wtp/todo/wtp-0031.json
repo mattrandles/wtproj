@@ -1,0 +1,21 @@
+{
+  "id": "def73f82-84ff-49ed-9467-05947a50aed1",
+  "shortId": "wtp-0031",
+  "title": "Implement the wtp update command",
+  "description": "Add wtp update to query the repository latest release, compare semantic versions, select the executable for the current OS and architecture, verify its published checksum, preserve executable permissions, and safely replace the currently installed binary whether it is project-local, user-local, or global. Report permission and Windows replacement constraints clearly and test no-op, upgrade, checksum-failure, and unsupported-platform paths.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "release",
+  "model": "GPT 5.6 Sol High",
+  "status": "todo",
+  "dependencies": [
+    "838f7208-2f4e-46cc-a68a-7ebcfad9a775",
+    "bc133f37-b722-417b-88f5-db0d4df79701",
+    "f883375b-4179-4f88-9f44-05361df49e32"
+  ],
+  "comments": [],
+  "createdAt": "2026-07-20T21:00:20.231530036Z",
+  "updatedAt": "2026-07-20T21:41:22.176092045Z",
+  "startedAt": null,
+  "completedAt": null
+}

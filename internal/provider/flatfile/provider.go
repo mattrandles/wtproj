@@ -134,6 +134,7 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 			Priority:     input.Priority,
 			Estimate:     input.Estimate,
 			Lane:         strings.TrimSpace(input.Lane),
+			Model:        strings.TrimSpace(input.Model),
 			Status:       core.StatusTodo,
 			Assignee:     strings.TrimSpace(input.Assignee),
 			Dependencies: resolvedDependencies,
@@ -187,6 +188,9 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 		}
 		if input.Lane.Set {
 			task.Lane = strings.TrimSpace(input.Lane.Value)
+		}
+		if input.Model.Set {
+			task.Model = strings.TrimSpace(input.Model.Value)
 		}
 		if input.Assignee.Set {
 			task.Assignee = strings.TrimSpace(input.Assignee.Value)

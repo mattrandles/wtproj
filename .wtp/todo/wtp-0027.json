@@ -1,0 +1,21 @@
+{
+  "id": "81496832-ac9f-409d-9b73-a6593deb9e0b",
+  "shortId": "wtp-0027",
+  "title": "Document direct GitHub Release installation and updates",
+  "description": "Document GitHub Releases as the sole distribution channel, list supported platforms and asset names, and show how to place the downloaded executable in a project-local, user-local, or global PATH location on Unix and Windows. Document wtp version, wtp update, permissions, checksums, upgrades, stability, storage compatibility, and the unimplemented Trello provider.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "docs",
+  "model": "GPT 5.6 Terra High",
+  "status": "todo",
+  "dependencies": [
+    "8daaaf6f-62a5-4681-92da-37e7ffd827c8",
+    "bc133f37-b722-417b-88f5-db0d4df79701",
+    "def73f82-84ff-49ed-9467-05947a50aed1"
+  ],
+  "comments": [],
+  "createdAt": "2026-07-20T21:00:05.490431755Z",
+  "updatedAt": "2026-07-20T21:41:22.190926206Z",
+  "startedAt": null,
+  "completedAt": null
+}

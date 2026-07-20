@@ -17,7 +17,7 @@ Implemented today:
 - atomic `task next` claim behavior
 - Windows-compatible build and verification flow with PowerShell scripts and CI coverage
 
-The broader scope and roadmap remain in [PLAN.md](/home/matty/dev/wtproj/PLAN.md).
+Remaining work and release planning are tracked in the repo-local `.wtp/` backlog.
 
 ## Install
 
@@ -86,7 +86,8 @@ wtp task create \
   --description "Add provider selection parsing" \
   --priority high \
   --estimate m \
-  --lane cli
+  --lane cli \
+  --model gpt-5.2-codex
 ```
 
 List tasks:
@@ -116,8 +117,9 @@ Work a task explicitly:
 
 ```sh
 wtp task start wtp-0002 --agent Tony
-wtp task update wtp-0002 --depends-on wtp-0001 --priority high
+wtp task update wtp-0002 --depends-on wtp-0001 --priority high --model gpt-5.2-codex
 wtp task edit wtp-0002 --description "Parser now handles provider selection"
+wtp task edit wtp-0002 --model=
 wtp task comment wtp-0002 --agent Tony --message "Implemented parser"
 wtp task pause wtp-0002
 wtp task done wtp-0002
@@ -149,14 +151,14 @@ wtp task list --status todo --agent Tony
 wtp task show <task-id> [--agent Tony]
 wtp task get <task-id> [--agent Tony]
 wtp task start <task-id> --agent Tony
-wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--depends-on wtp-0001,wtp-0002] [--agent Tony]
+wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on wtp-0001,wtp-0002] [--agent Tony]
 wtp task edit <task-id> [same options as update]
 wtp task pause <task-id>
 wtp task done <task-id>
 wtp task comment <task-id> --message "Implemented parser"
 wtp task ready --agent Tony
 wtp task ready --agent Tony --limit 3
-wtp task create --title "New Task" --description "..." --priority high --estimate m --lane backend --depends-on wtp-0001,wtp-0002
+wtp task create --title "New Task" --description "..." --priority high --estimate m --lane backend --model gpt-5 --depends-on wtp-0001,wtp-0002
 wtp graph [--status todo|inProgress|paused|done|all]
 wtp export --out .wtp-export
 wtp help
@@ -173,7 +175,7 @@ wtp --agent Tony --set-task-in-progress --task-id wtp-0001
 wtp --agent Tony --set-task-paused --task-id wtp-0001
 wtp --agent Tony --set-task-done --task-id wtp-0001
 wtp --agent Tony --add-comment --task-id wtp-0001 --comment "Implemented parser"
-wtp --agent Tony --create-task --title "..." --description "..." --priority high --estimate m --lane backend --dependencies wtp-0001
+wtp --agent Tony --create-task --title "..." --description "..." --priority high --estimate m --lane backend --model gpt-5 --dependencies wtp-0001
 wtp --export-tasks=.wtp-export
 ```
 
@@ -192,7 +194,7 @@ Identifier rules:
 
 - each task has a canonical UUID in the JSON payload
 - each task also has a stable short ID such as `wtp-0005`
-- tasks may optionally include scheduling metadata: `priority`, `estimate`, and `lane`
+- tasks may optionally include scheduling metadata (`priority`, `estimate`, and `lane`) plus a free-form suggested `model`
 - CLI input accepts either UUID or short ID
 - flat-file task filenames use the short ID, for example `.wtp/todo/wtp-0005.json`
 
@@ -204,6 +206,8 @@ Dependency rules:
 - create rejects cyclic dependencies
 - update/edit reject cyclic dependencies
 - update/edit preserve status history while changing mutable task fields
+- `model` is advisory metadata only; it does not affect task ordering or claimability
+- clear a suggested model with `wtp task update <task-id> --model=`
 - a task cannot be started or claimed while any dependency is not `done`
 
 Help and schema output:

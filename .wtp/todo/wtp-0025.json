@@ -1,0 +1,17 @@
+{
+  "id": "f36b6e5e-b370-4581-89ba-38a0cf4fcfc4",
+  "shortId": "wtp-0025",
+  "title": "Define safe deterministic export semantics",
+  "description": "Specify and implement exact-snapshot versus overwrite behavior for existing export directories, prevent export destinations from overlapping active .wtp storage, remove or report stale files deterministically, and cover the policy on Unix and Windows.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "storage",
+  "model": "GPT 5.6 Sol High",
+  "status": "todo",
+  "dependencies": [],
+  "comments": [],
+  "createdAt": "2026-07-20T21:00:05.485015283Z",
+  "updatedAt": "2026-07-20T21:41:22.168260216Z",
+  "startedAt": null,
+  "completedAt": null
+}

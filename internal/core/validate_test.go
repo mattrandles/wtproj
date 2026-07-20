@@ -105,6 +105,42 @@ func TestTaskValidateRejectsInvalidSchedulingMetadata(t *testing.T) {
 	}
 }
 
+func TestTaskValidateRejectsWhitespaceSuggestedModel(t *testing.T) {
+	task := Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "Invalid model metadata",
+		Model:        "   ",
+		Status:       StatusTodo,
+		Dependencies: []string{},
+		Comments:     []Comment{},
+		CreatedAt:    mustValidationTime(t, "2026-03-24T14:10:04Z"),
+		UpdatedAt:    mustValidationTime(t, "2026-03-24T14:10:04Z"),
+	}
+
+	if err := task.Validate(); err == nil {
+		t.Fatal("expected whitespace model validation error")
+	}
+}
+
+func TestTaskValidateAcceptsFreeFormSuggestedModel(t *testing.T) {
+	task := Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "Free-form model metadata",
+		Model:        "provider/custom-model:latest",
+		Status:       StatusTodo,
+		Dependencies: []string{},
+		Comments:     []Comment{},
+		CreatedAt:    mustValidationTime(t, "2026-03-24T14:10:04Z"),
+		UpdatedAt:    mustValidationTime(t, "2026-03-24T14:10:04Z"),
+	}
+
+	if err := task.Validate(); err != nil {
+		t.Fatalf("Task.Validate() error = %v", err)
+	}
+}
+
 func mustValidationTime(t *testing.T, value string) time.Time {
 	t.Helper()
 

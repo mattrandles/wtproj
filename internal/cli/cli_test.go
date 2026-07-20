@@ -64,6 +64,7 @@ func TestRewriteLegacyArgsCreatePreservesSchedulingMetadata(t *testing.T) {
 		"--priority", "high",
 		"--estimate", "m",
 		"--lane", "backend",
+		"--model", "gpt-5",
 		"--dependencies", "wtp-0001",
 		"--agent", "Jim",
 	})
@@ -77,11 +78,32 @@ func TestRewriteLegacyArgsCreatePreservesSchedulingMetadata(t *testing.T) {
 		"--priority", "high",
 		"--estimate", "m",
 		"--lane", "backend",
+		"--model", "gpt-5",
 		"--depends-on", "wtp-0001",
 		"--agent", "Jim",
 	}
 	if !reflect.DeepEqual(got.args, want) {
 		t.Fatalf("rewriteLegacyArgs args = %v, want %v", got.args, want)
+	}
+}
+
+func TestRunTaskCreatePassesSuggestedModelToProvider(t *testing.T) {
+	provider := &updateTestProvider{}
+	ctx := context{
+		provider: provider,
+		stdout:   &bytes.Buffer{},
+		stderr:   &bytes.Buffer{},
+	}
+
+	err := runTaskCreate(ctx, []string{"--title", "Model-aware task", "--model", "gpt-5.2-codex"})
+	if err != nil {
+		t.Fatalf("runTaskCreate() error = %v", err)
+	}
+	if provider.gotCreateInput.Model != "gpt-5.2-codex" {
+		t.Fatalf("model input = %q, want %q", provider.gotCreateInput.Model, "gpt-5.2-codex")
+	}
+	if provider.createCalls != 1 {
+		t.Fatalf("createCalls = %d, want 1", provider.createCalls)
 	}
 }
 
@@ -126,7 +148,7 @@ func TestRunTaskUpdatePassesMutableFieldsToProvider(t *testing.T) {
 		stderr:   &bytes.Buffer{},
 	}
 
-	err := runTaskUpdate(ctx, []string{"wtp-0028", "--depends-on", "wtp-0020", "--priority", "high", "--agent", "Tony"})
+	err := runTaskUpdate(ctx, []string{"wtp-0028", "--depends-on", "wtp-0020", "--priority", "high", "--model", "o3", "--agent", "Tony"})
 	if err != nil {
 		t.Fatalf("runTaskUpdate() error = %v", err)
 	}
@@ -141,6 +163,21 @@ func TestRunTaskUpdatePassesMutableFieldsToProvider(t *testing.T) {
 	}
 	if !provider.gotInput.Assignee.Set || provider.gotInput.Assignee.Value != "Tony" {
 		t.Fatalf("assignee input = %#v", provider.gotInput.Assignee)
+	}
+	if !provider.gotInput.Model.Set || provider.gotInput.Model.Value != "o3" {
+		t.Fatalf("model input = %#v", provider.gotInput.Model)
+	}
+}
+
+func TestRunTaskUpdateCanClearSuggestedModel(t *testing.T) {
+	provider := &updateTestProvider{}
+	ctx := context{provider: provider, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+
+	if err := runTaskUpdate(ctx, []string{"wtp-0028", "--model="}); err != nil {
+		t.Fatalf("runTaskUpdate() error = %v", err)
+	}
+	if !provider.gotInput.Model.Set || provider.gotInput.Model.Value != "" {
+		t.Fatalf("model input = %#v, want explicitly empty", provider.gotInput.Model)
 	}
 }
 
@@ -243,29 +280,68 @@ func TestRunGraphRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
-func TestHelpMentionsShowUpdateEditAndSchema(t *testing.T) {
+func TestHelpMentionsShowUpdateEditSchemaAndModel(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := help(&stdout); err != nil {
 		t.Fatalf("help() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"wtp task show", "wtp task update", "wtp task edit", "wtp graph", "wtp schema", "Usage Guide:"} {
+	for _, needle := range []string{"wtp task show", "wtp task update", "wtp task edit", "wtp graph", "wtp schema", "--model", "Usage Guide:"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("help output missing %q", needle)
 		}
 	}
 }
 
-func TestSchemaMentionsDependenciesAndIndex(t *testing.T) {
+func TestSchemaMentionsDependenciesIndexAndModel(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := schema(&stdout); err != nil {
 		t.Fatalf("schema() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:"} {
+	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, "model: optional free-form string", "--model"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("schema output missing %q", needle)
 		}
+	}
+}
+
+func TestPrintValueIncludesSuggestedModelInHumanAndJSONOutput(t *testing.T) {
+	now := time.Date(2026, time.July, 20, 12, 0, 0, 0, time.UTC)
+	task := core.TaskView{Task: core.Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "Model-aware task",
+		Model:        "gpt-5.2-codex",
+		Status:       core.StatusTodo,
+		Dependencies: []string{},
+		Comments:     []core.Comment{},
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}}
+
+	var human bytes.Buffer
+	if err := printValue(context{stdout: &human}, task); err != nil {
+		t.Fatalf("printValue(human) error = %v", err)
+	}
+	if !strings.Contains(human.String(), "model: gpt-5.2-codex") {
+		t.Fatalf("human output missing model: %q", human.String())
+	}
+
+	var summary bytes.Buffer
+	if err := printValue(context{stdout: &summary}, []core.TaskView{task}); err != nil {
+		t.Fatalf("printValue(summary) error = %v", err)
+	}
+	if !strings.Contains(summary.String(), "\tgpt-5.2-codex\tModel-aware task") {
+		t.Fatalf("summary output missing model: %q", summary.String())
+	}
+
+	var jsonOutput bytes.Buffer
+	if err := printValue(context{stdout: &jsonOutput, jsonOut: true}, task); err != nil {
+		t.Fatalf("printValue(JSON) error = %v", err)
+	}
+	if !strings.Contains(jsonOutput.String(), `"model": "gpt-5.2-codex"`) {
+		t.Fatalf("JSON output missing model: %q", jsonOutput.String())
 	}
 }
 
@@ -281,15 +357,17 @@ type getTestProvider struct {
 }
 
 type updateTestProvider struct {
-	gotID       string
-	gotInput    core.UpdateTaskInput
-	updateCalls int
+	gotCreateInput core.CreateTaskInput
+	gotID          string
+	gotInput       core.UpdateTaskInput
+	createCalls    int
+	updateCalls    int
 }
 
 type graphTestProvider struct {
-	tasks       []core.TaskView
-	lastFilter  provider.TaskFilter
-	listCalls   int
+	tasks      []core.TaskView
+	lastFilter provider.TaskFilter
+	listCalls  int
 }
 
 func (p *updateTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
@@ -301,7 +379,20 @@ func (p *updateTestProvider) GetTask(idOrShortID, agent string) (core.TaskView, 
 }
 
 func (p *updateTestProvider) CreateTask(input core.CreateTaskInput) (core.TaskView, error) {
-	return core.TaskView{}, errors.New("unexpected call")
+	p.gotCreateInput = input
+	p.createCalls++
+	now := time.Date(2026, time.April, 21, 12, 0, 0, 0, time.UTC)
+	return core.TaskView{Task: core.Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0028",
+		Title:        input.Title,
+		Model:        input.Model,
+		Status:       core.StatusTodo,
+		Dependencies: []string{},
+		Comments:     []core.Comment{},
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}}, nil
 }
 
 func (p *updateTestProvider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error) {
@@ -500,4 +591,3 @@ func (p *getTestProvider) GetNextTask(agent string) (core.TaskView, error) {
 func (p *getTestProvider) ExportCanonical(outDir string) error {
 	return errors.New("unexpected call")
 }
-

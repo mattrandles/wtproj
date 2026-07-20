@@ -1,0 +1,30 @@
+{
+  "id": "bd298d46-1aa5-46d7-921b-43a3b017766e",
+  "shortId": "wtp-0033",
+  "title": "Add suggested model metadata to tasks",
+  "description": "Extend the canonical task model with an optional free-form model field that records the suggested model for completing the task. Support --model on task create and task update/edit, persist it in flat-file JSON, and include it in human and JSON output. Update the wtp help command, wtp schema output, README, and skills/task-management/skill.md with model guidance and examples. Preserve backward compatibility for existing task files and add validation plus provider and CLI tests, including assertions that help and schema advertise --model.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "core",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "9208fb20-e8d7-4d9d-8214-83936cd0c163",
+      "author": "Codex",
+      "message": "Claimed task; extending the canonical model, CLI create/update/edit paths, output, documentation, and tests for optional suggested-model metadata.",
+      "createdAt": "2026-07-20T21:27:56.483446662Z"
+    },
+    {
+      "id": "49f90188-a27d-48cb-a2f9-1c3504c2690f",
+      "author": "Codex",
+      "message": "Implemented optional free-form model metadata across the canonical model, flat-file persistence, create/update/edit CLI paths, human and JSON output, help/schema, README, and task-management guidance. Added validation, backward-compatibility, provider, CLI, and output coverage; verified with ./scripts/check.sh and an installed-binary create/update/show smoke test.",
+      "createdAt": "2026-07-20T21:32:48.972248907Z"
+    }
+  ],
+  "createdAt": "2026-07-20T21:12:00.062904802Z",
+  "updatedAt": "2026-07-20T21:32:48.975239393Z",
+  "startedAt": "2026-07-20T21:27:56.480797245Z",
+  "completedAt": "2026-07-20T21:32:48.975239393Z"
+}

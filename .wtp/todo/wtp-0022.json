@@ -1,0 +1,17 @@
+{
+  "id": "50c385cc-9f9c-412f-8b31-b3412daadd61",
+  "shortId": "wtp-0022",
+  "title": "Harden flat-file replacement and read consistency",
+  "description": "Make task and index replacement crash-safe and genuinely atomic on Unix and Windows, without deleting the only task copy before the replacement is durable. Prevent concurrent readers from observing missing or duplicate task states and add failure/concurrency tests.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "storage",
+  "model": "GPT 5.6 Sol High",
+  "status": "todo",
+  "dependencies": [],
+  "comments": [],
+  "createdAt": "2026-07-20T21:00:05.475209246Z",
+  "updatedAt": "2026-07-20T21:41:22.163166644Z",
+  "startedAt": null,
+  "completedAt": null
+}

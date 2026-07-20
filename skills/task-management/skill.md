@@ -12,7 +12,7 @@ Apply this skill whenever work in this repository needs to be planned, claimed, 
 1. Break plans into concrete tasks before starting implementation.
 2. Prefer short IDs like `wtp-0005` in human discussion and CLI usage.
 3. Use dependencies for ordering, not for loose notes.
-4. Revise task metadata with `wtp task update` or `wtp task edit` when scope, dependencies, or ownership change.
+4. Revise task metadata with `wtp task update` or `wtp task edit` when scope, dependencies, ownership, or the suggested model changes.
 5. Add progress comments when the task state materially changes.
 6. Pause blocked work instead of leaving it in progress.
 7. Mark a task done only after implementation and verification are both complete.
@@ -70,7 +70,8 @@ Example:
 ```sh
 wtp task create \
   --title "Add config validation" \
-  --description "Validate provider-specific env vars and fail with actionable messages"
+  --description "Validate provider-specific env vars and fail with actionable messages" \
+  --model gpt-5.2-codex
 
 wtp task create \
   --title "Add provider tests" \
@@ -100,7 +101,8 @@ Revise the task itself when requirements, dependencies, or ownership move:
 
 ```sh
 wtp task update wtp-0008 --depends-on wtp-0007 --priority high
-wtp task edit wtp-0008 --description "Cover provider config validation and CLI wiring"
+wtp task edit wtp-0008 --description "Cover provider config validation and CLI wiring" --model gpt-5.2-codex
+wtp task update wtp-0008 --model=
 ```
 
 Pause when blocked:
@@ -121,6 +123,8 @@ wtp task done wtp-0008
 - Keep tasks small enough to finish in one focused pass.
 - Use clear, imperative titles.
 - Keep descriptions concrete and testable.
+- Use the optional free-form `model` field when a particular execution model is a useful recommendation; it is advisory and does not change readiness or ordering.
+- Clear a stale model recommendation with `--model=`.
 - Avoid combining unrelated changes into one task.
 - Create follow-up tasks instead of stretching a task beyond its original scope.
 

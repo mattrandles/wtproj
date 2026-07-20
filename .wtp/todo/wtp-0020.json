@@ -1,0 +1,17 @@
+{
+  "id": "8daaaf6f-62a5-4681-92da-37e7ffd827c8",
+  "shortId": "wtp-0020",
+  "title": "Establish repository hygiene and publication policy",
+  "description": "Add LICENSE, .gitignore, CHANGELOG.md, SECURITY.md, CONTRIBUTING.md, issue and PR templates; fix the absolute local README link; remove or generalize the user-specific VS Code command approval; and explicitly reconcile whether the dogfooded .wtp backlog is tracked or ignored.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "repo",
+  "model": "GPT 5.6 Terra High",
+  "status": "todo",
+  "dependencies": [],
+  "comments": [],
+  "createdAt": "2026-07-20T21:00:05.469988167Z",
+  "updatedAt": "2026-07-20T21:41:22.18103296Z",
+  "startedAt": null,
+  "completedAt": null
+}

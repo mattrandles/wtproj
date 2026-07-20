@@ -52,6 +52,7 @@ func TestCreateTaskPersistsSchedulingMetadata(t *testing.T) {
 		Priority:    core.PriorityHigh,
 		Estimate:    core.EstimateM,
 		Lane:        "backend",
+		Model:       "gpt-5.2-codex",
 		Description: "metadata coverage",
 	})
 	if err != nil {
@@ -70,6 +71,9 @@ func TestCreateTaskPersistsSchedulingMetadata(t *testing.T) {
 	}
 	if got.Lane != "backend" {
 		t.Fatalf("lane = %q, want backend", got.Lane)
+	}
+	if got.Model != "gpt-5.2-codex" {
+		t.Fatalf("model = %q, want gpt-5.2-codex", got.Model)
 	}
 }
 
@@ -470,6 +474,7 @@ func TestUpdateTaskPersistsDependenciesAndMetadata(t *testing.T) {
 	updated, err := p.UpdateTask(task.ShortID, core.UpdateTaskInput{
 		Description:  core.OptionalString{Set: true, Value: "new description"},
 		Priority:     core.OptionalPriority{Set: true, Value: core.PriorityHigh},
+		Model:        core.OptionalString{Set: true, Value: "o3"},
 		Dependencies: core.OptionalString{Set: true, Value: dependency.ShortID},
 	})
 	if err != nil {
@@ -480,6 +485,9 @@ func TestUpdateTaskPersistsDependenciesAndMetadata(t *testing.T) {
 	}
 	if updated.Priority != core.PriorityHigh {
 		t.Fatalf("priority = %s, want %s", updated.Priority, core.PriorityHigh)
+	}
+	if updated.Model != "o3" {
+		t.Fatalf("model = %q, want o3", updated.Model)
 	}
 	if len(updated.Dependencies) != 1 || updated.Dependencies[0] != dependency.ID {
 		t.Fatalf("dependencies = %v, want [%s]", updated.Dependencies, dependency.ID)
@@ -492,8 +500,48 @@ func TestUpdateTaskPersistsDependenciesAndMetadata(t *testing.T) {
 	if stored.Description != "new description" {
 		t.Fatalf("stored description = %q, want %q", stored.Description, "new description")
 	}
+	if stored.Model != "o3" {
+		t.Fatalf("stored model = %q, want o3", stored.Model)
+	}
 	if len(stored.Dependencies) != 1 || stored.Dependencies[0] != dependency.ID {
 		t.Fatalf("stored dependencies = %v, want [%s]", stored.Dependencies, dependency.ID)
+	}
+}
+
+func TestUpdateTaskCanClearSuggestedModel(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	task, err := p.CreateTask(core.CreateTaskInput{Title: "Model-aware", Model: "gpt-5"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	createdData, err := os.ReadFile(filepath.Join(root, string(core.StatusTodo), task.ShortID+".json"))
+	if err != nil {
+		t.Fatalf("ReadFile(created task) error = %v", err)
+	}
+	if !strings.Contains(string(createdData), `"model": "gpt-5"`) {
+		t.Fatalf("created task JSON missing model: %s", createdData)
+	}
+
+	updated, err := p.UpdateTask(task.ShortID, core.UpdateTaskInput{
+		Model: core.OptionalString{Set: true, Value: ""},
+	})
+	if err != nil {
+		t.Fatalf("UpdateTask() error = %v", err)
+	}
+	if updated.Model != "" {
+		t.Fatalf("model = %q, want empty", updated.Model)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, string(core.StatusTodo), task.ShortID+".json"))
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if strings.Contains(string(data), `"model"`) {
+		t.Fatalf("cleared model should be omitted from JSON: %s", data)
 	}
 }
 
@@ -543,7 +591,8 @@ func TestNewMigratesLegacyUUIDFilename(t *testing.T) {
 		t.Fatalf("write legacy task error = %v", err)
 	}
 
-	if _, err := flatfile.New(root); err != nil {
+	p, err := flatfile.New(root)
+	if err != nil {
 		t.Fatalf("flatfile.New() migration error = %v", err)
 	}
 
@@ -552,6 +601,13 @@ func TestNewMigratesLegacyUUIDFilename(t *testing.T) {
 	}
 	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
 		t.Fatalf("expected legacy path removed, got err=%v", err)
+	}
+	got, err := p.GetTask(task.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask() for pre-model task error = %v", err)
+	}
+	if got.Model != "" {
+		t.Fatalf("pre-model task model = %q, want empty", got.Model)
 	}
 }
 

@@ -1,0 +1,17 @@
+{
+  "id": "3ec8f165-6150-4019-bd4e-07844c8cd567",
+  "shortId": "wtp-0023",
+  "title": "Fix readiness metadata returned by task creation",
+  "description": "Decorate a newly created task against the complete task set so a task with unfinished dependencies is returned as blocked and non-claimable. Add provider and CLI regression coverage.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "core",
+  "model": "GPT 5.6 Terra High",
+  "status": "todo",
+  "dependencies": [],
+  "comments": [],
+  "createdAt": "2026-07-20T21:00:05.478707152Z",
+  "updatedAt": "2026-07-20T21:41:22.186014861Z",
+  "startedAt": null,
+  "completedAt": null
+}

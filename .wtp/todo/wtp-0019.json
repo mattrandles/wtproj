@@ -1,0 +1,17 @@
+{
+  "id": "9f45abc1-4717-4288-a3cc-dc3e37be5bd6",
+  "shortId": "wtp-0019",
+  "title": "Restore green CI and modernize GitHub Actions",
+  "description": "Run gofmt on the failing CLI test, upgrade checkout and setup-go to Node 24 action majors, and configure dependency caching for a dependency-free module without expecting go.sum. Verify both scripts/check.sh and scripts/check.ps1.",
+  "priority": "urgent",
+  "estimate": "s",
+  "lane": "ci",
+  "model": "GPT 5.6 Terra High",
+  "status": "todo",
+  "dependencies": [],
+  "comments": [],
+  "createdAt": "2026-07-20T21:00:05.461019682Z",
+  "updatedAt": "2026-07-20T21:41:22.178575404Z",
+  "startedAt": null,
+  "completedAt": null
+}

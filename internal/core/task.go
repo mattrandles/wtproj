@@ -77,6 +77,7 @@ type Task struct {
 	Priority     Priority   `json:"priority,omitempty"`
 	Estimate     Estimate   `json:"estimate,omitempty"`
 	Lane         string     `json:"lane,omitempty"`
+	Model        string     `json:"model,omitempty"`
 	Status       Status     `json:"status"`
 	Assignee     string     `json:"assignee,omitempty"`
 	Dependencies []string   `json:"dependencies"`
@@ -98,6 +99,7 @@ type CreateTaskInput struct {
 	Priority     Priority
 	Estimate     Estimate
 	Lane         string
+	Model        string
 	Assignee     string
 	Dependencies []string
 }
@@ -123,6 +125,7 @@ type UpdateTaskInput struct {
 	Priority     OptionalPriority
 	Estimate     OptionalEstimate
 	Lane         OptionalString
+	Model        OptionalString
 	Assignee     OptionalString
 	Dependencies OptionalString
 }
@@ -178,6 +181,9 @@ func (t Task) Validate() error {
 	}
 	if t.Lane != "" && strings.TrimSpace(t.Lane) == "" {
 		return errors.New("task lane cannot be blank")
+	}
+	if t.Model != "" && strings.TrimSpace(t.Model) == "" {
+		return errors.New("task model cannot be blank")
 	}
 	if t.CreatedAt.IsZero() || t.UpdatedAt.IsZero() {
 		return errors.New("task timestamps are required")
