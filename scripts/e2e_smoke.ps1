@@ -1,12 +1,6 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-# Expected negative-path CLI checks inspect $LASTEXITCODE themselves. Do not
-# turn their native stderr into terminating PowerShell errors.
-if ($PSVersionTable.PSVersion.Major -ge 7) {
-    $PSNativeCommandUseErrorActionPreference = $false
-}
-
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $workDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 $binaryPath = Join-Path $workDir "wtp.exe"
@@ -31,6 +25,16 @@ function Read-TextFile([string] $Path) {
 function Write-NativeOutput([object[]] $Output, [string] $Path) {
     $text = ($Output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
     [System.IO.File]::WriteAllText($Path, $text)
+}
+
+function Invoke-ExpectedFailure([scriptblock] $Command) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        return @(& $Command 2>&1)
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 }
 
 function Assert-Contains([string] $Needle, [string] $Path) {
@@ -77,7 +81,7 @@ try {
             Fail "schema initialized .wtp storage"
         }
 
-        $invalidShowOutput = @(& $binaryPath task show wtp-9999 --unknown 2>&1)
+        $invalidShowOutput = @(Invoke-ExpectedFailure { & $binaryPath task show wtp-9999 --unknown })
         $invalidShowExitCode = $LASTEXITCODE
         Write-NativeOutput $invalidShowOutput $errOut
         if ($invalidShowExitCode -ne 1) {
@@ -120,7 +124,7 @@ try {
         Assert-Contains $taskAShortID $listOut
         Assert-Contains $taskBShortID $listOut
 
-        $startOutput = @(& $binaryPath task start $taskBShortID --agent Bob 2>&1)
+        $startOutput = @(Invoke-ExpectedFailure { & $binaryPath task start $taskBShortID --agent Bob })
         $startExitCode = $LASTEXITCODE
         Write-NativeOutput $startOutput $errOut
         if ($startExitCode -eq 0) {
