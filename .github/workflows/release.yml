@@ -54,6 +54,12 @@ jobs:
         env:
           WTP_RELEASE_DIST: dist
         run: go test ./internal/releaseasset -run '^TestGoReleaserSnapshotMatchesPlatformContract$' -count=1
+      - name: Install GoReleaser for release QA
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: v2.17.0
+          install-only: true
       - name: Exercise direct-download release QA
         run: ./scripts/release_qa.sh
 
