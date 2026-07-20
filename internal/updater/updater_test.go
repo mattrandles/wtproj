@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -90,7 +91,7 @@ func TestRunUpgradeSelectsExactAssetVerifiesChecksumAndPreservesPermissions(t *t
 	if err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
-	if !result.Updated || result.Scheduled || result.Path != target || result.LatestVersion != "1.3.0" {
+	if !result.Updated || result.Scheduled || result.Path != resolvedTestPath(t, target) || result.LatestVersion != "1.3.0" {
 		t.Fatalf("result = %#v", result)
 	}
 	assertFile(t, target, string(replacement), 0o751)
@@ -226,8 +227,8 @@ func TestRunReplacementFailureRollsBackSafely(t *testing.T) {
 	checksums := sha256Hex(replacement) + "  wtp_linux_amd64\n"
 	deps := baseTestDependencies(target, releaseServer(testRelease("v1.1.0"), []byte(checksums), replacement))
 	deps.replace = func(source, destination string) (bool, error) {
-		if destination != target {
-			t.Fatalf("replacement target = %q, want %q", destination, target)
+		if destination != resolvedTestPath(t, target) {
+			t.Fatalf("replacement target = %q, want %q", destination, resolvedTestPath(t, target))
 		}
 		assertFile(t, target, "known good", 0o700)
 		if _, err := os.Stat(source); err != nil {
@@ -286,8 +287,8 @@ func TestRunResolvesExecutableSymlinkBeforeReplacing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
-	if result.Path != target {
-		t.Fatalf("result path = %q, want symlink target %q", result.Path, target)
+	if result.Path != resolvedTestPath(t, target) {
+		t.Fatalf("result path = %q, want symlink target %q", result.Path, resolvedTestPath(t, target))
 	}
 	linkInfo, err := os.Lstat(link)
 	if err != nil || linkInfo.Mode()&os.ModeSymlink == 0 {
@@ -393,13 +394,24 @@ func assertFile(t *testing.T, path, wantContents string, wantMode os.FileMode) {
 	if string(contents) != wantContents {
 		t.Fatalf("contents of %s = %q, want %q", path, contents, wantContents)
 	}
-	info, err := os.Stat(path)
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat %s: %v", path, err)
+		}
+		if got := info.Mode().Perm(); got != wantMode.Perm() {
+			t.Fatalf("mode of %s = %o, want %o", path, got, wantMode.Perm())
+		}
+	}
+}
+
+func resolvedTestPath(t *testing.T, path string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		t.Fatalf("stat %s: %v", path, err)
+		t.Fatalf("resolve test executable %s: %v", path, err)
 	}
-	if got := info.Mode().Perm(); got != wantMode.Perm() {
-		t.Fatalf("mode of %s = %o, want %o", path, got, wantMode.Perm())
-	}
+	return resolved
 }
 
 func assertNoUpdateStages(t *testing.T, directory string) {
