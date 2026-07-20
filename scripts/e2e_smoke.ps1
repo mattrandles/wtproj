@@ -11,12 +11,19 @@ function Fail([string] $Message) {
 }
 
 function Extract-JsonString([string] $Path, [string] $Key) {
-    $json = Get-Content -Raw -Path $Path | ConvertFrom-Json
+    $json = (Read-TextFile $Path) | ConvertFrom-Json
     return $json.$Key
 }
 
+function Read-TextFile([string] $Path) {
+    if (-not (Test-Path -LiteralPath $Path)) {
+        Fail "missing expected output file $Path"
+    }
+    return [System.IO.File]::ReadAllText($Path)
+}
+
 function Assert-Contains([string] $Needle, [string] $Path) {
-    $content = Get-Content -Raw -Path $Path
+    $content = Read-TextFile $Path
     if (-not $content.Contains($Needle)) {
         Fail "expected '$Needle' in $Path"
     }
@@ -72,7 +79,10 @@ try {
 
         & $binaryPath --json task create `
             --title "Bootstrap provider" `
-            --description "Initial task for smoke testing" | Set-Content -NoNewline -Path $taskAJson
+            --description "Initial task for smoke testing" > $taskAJson
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
 
         $taskAShortID = Extract-JsonString $taskAJson "shortId"
         if (-not $taskAShortID) {
@@ -85,14 +95,20 @@ try {
         & $binaryPath --json task create `
             --title "Follow-up task" `
             --description "Depends on task A" `
-            --depends-on $taskAShortID | Set-Content -NoNewline -Path $taskBJson
+            --depends-on $taskAShortID > $taskBJson
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
 
         $taskBShortID = Extract-JsonString $taskBJson "shortId"
         if (-not $taskBShortID) {
             Fail "could not extract task B shortId"
         }
 
-        & $binaryPath task list | Set-Content -NoNewline -Path $listOut
+        & $binaryPath task list > $listOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
         Assert-Contains $taskAShortID $listOut
         Assert-Contains $taskBShortID $listOut
 
@@ -110,7 +126,10 @@ try {
         }
         Assert-Contains "blocked by unresolved dependencies" $errOut
 
-        & $binaryPath --json task next --agent Alice | Set-Content -NoNewline -Path $taskOut
+        & $binaryPath --json task next --agent Alice > $taskOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
         Assert-Contains ('"shortId": "{0}"' -f $taskAShortID) $taskOut
         Assert-Contains '"status": "inProgress"' $taskOut
         Assert-Contains '"assignee": "Alice"' $taskOut
@@ -118,13 +137,19 @@ try {
         & $binaryPath task comment $taskAShortID --agent Alice --message "smoke progress" | Out-Null
         & $binaryPath task done $taskAShortID --agent Alice | Out-Null
 
-        & $binaryPath --json --get-next-task --agent Bob | Set-Content -NoNewline -Path $taskOut
+        & $binaryPath --json --get-next-task --agent Bob > $taskOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
         Assert-Contains ('"shortId": "{0}"' -f $taskBShortID) $taskOut
         Assert-Contains '"status": "inProgress"' $taskOut
         Assert-Contains '"assignee": "Bob"' $taskOut
 
         & $binaryPath task pause $taskBShortID | Out-Null
-        & $binaryPath --json task next --agent Bob | Set-Content -NoNewline -Path $taskOut
+        & $binaryPath --json task next --agent Bob > $taskOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
         Assert-Contains ('"shortId": "{0}"' -f $taskBShortID) $taskOut
         Assert-Contains '"status": "inProgress"' $taskOut
 
