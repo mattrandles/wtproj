@@ -7,7 +7,7 @@
   "estimate": "l",
   "lane": "security",
   "model": "GPT 5.6 Sol High",
-  "status": "inProgress",
+  "status": "done",
   "assignee": "Codex",
   "dependencies": [
     "93b71ec6-5620-42ac-a6e2-f1f24605ca3e"
@@ -18,10 +18,16 @@
       "author": "Codex",
       "message": "Pre-public audit progress, fully redacted: checksum-verified Gitleaks 8.30.1 using the complete 222-rule upstream default configuration with no repository allowlists reported 0 findings in the final filesystem tree and 0 across git --all --full-history. Checksum-verified TruffleHog 3.95.9 with all detectors, recursive decoding, archive inspection, no exclusions, and no external verification reported 0 findings in the tree and history. Both scanners also reported 0 findings for all 20 materialized non-commit tree refs, the published v0.1.0 checksum-verified assets, and the checkpoint-only historical executable. Targeted regex, entropy, commit/tag metadata, deleted-file, workflow/config/docs/example, internal-host/private-IP, embedded-credential, private-key, personal-data, and absolute-path review found no credential or secret material. False positives reviewed: runtime Trello credential variable names contain no literals; SECURITY.md contact and LICENSE attribution are intentionally public; public repository URLs/names are expected; a checkpoint-only generated Windows executable embeds non-secret compiler paths whose username is already public attribution and is absent from public branch/tag release binaries. Current-tree remediation replaced one literal home path in .wtp/done/wtp-0014.json with $HOME. Durable prevention adds .gitleaks.toml, checksum-pinned CI tree/history scanning, and contributor guidance. Unix check.sh, PowerShell check.ps1, actionlint 1.7.12, JSON/WTP validation, and final rescans pass. BLOCKER: commits a7ed7a667d52 and 7f61f95915c8, reachable from main, origin/main, and v0.1.0, expose one non-noreply author mailbox in Git metadata. The value is omitted. It does not match the explicit SECURITY.md contact and GitHub does not associate those commit authors with the repository owner. User decision required: explicitly approve that mailbox for public history, or separately authorize history rewrite plus tag/release reconciliation. No history, tag, release, visibility, credential, commit, or push mutation was performed.",
       "createdAt": "2026-07-21T00:19:42.513311778Z"
+    },
+    {
+      "id": "a9ed892a-20f3-4935-a5bf-971c7ca0a16d",
+      "author": "Codex",
+      "message": "Pre-public audit completed, fully redacted. User authorized metadata rewrite and GitHub replacement operations while the repository remained private. Offline recovery is preserved at /home/matty/dev/wtp-0035-recovery-before-rewrite with the exact pre-rewrite .git directory, working tree, ref/object inventories, release API metadata, all v0.1.0 assets, validated checksums, and a SHA-256 manifest. git-filter-repo 2.47.0 changed only the explicitly identified mailbox in author and committer metadata to the authorized GitHub noreply identity; no value from the old mailbox is recorded here. All 51 commit mappings preserve trees, messages, names, author/committer dates, and parent topology exactly. Safe mappings: original remote main 518c8ca2bc4c to rewritten 11333ffb246f; preservation commit bb6567a90e46 to c87888543293; exposed commits a7ed7a667d52 to d3e06499c89a and 7f61f95915c8 to 7171db3c43d1. Exact old-mailbox occurrences are author=0, committer=0, tagger=0 across every reachable ref. Old exposed commit objects are absent; backup/replace refs=0; reflog entries to old commits=0; files inside live .git containing the old mailbox=0. Checksum-verified Gitleaks 8.30.1 reported tree=0, history=0, and 21 materialized non-commit ref trees=0. Checksum-verified TruffleHog 3.95.9 with all detectors, no external verification, recursive decoding, and archive coverage reported the same zero results. Targeted regex, entropy, metadata, deleted-file, path/network, configuration, workflow, documentation, generated-binary, and published-asset review remains clean with reviewed false positives documented in the prior comment. The v0.1.0 release metadata/assets were captured offline; the GitHub release and remote/local tag were deleted and were not recreated. Main was force-pushed from 518c8ca2bc4c to c87888543293 using an explicit force-with-lease expectation for the full old remote SHA. Remote main equals local main, remote tags=0, and repository visibility remains PRIVATE. actionlint 1.7.12, check.sh, check.ps1, JSON/WTP validation, git fsck, and final scans pass. The existing release task owns rebuilding and republishing v0.1.0.",
+      "createdAt": "2026-07-21T00:31:14.728606572Z"
     }
   ],
   "createdAt": "2026-07-21T00:04:31.463064318Z",
-  "updatedAt": "2026-07-21T00:19:42.513311778Z",
+  "updatedAt": "2026-07-21T00:31:14.732021511Z",
   "startedAt": "2026-07-21T00:07:04.66080844Z",
-  "completedAt": null
+  "completedAt": "2026-07-21T00:31:14.732021511Z"
 }
