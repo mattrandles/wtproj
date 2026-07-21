@@ -1,11 +1,10 @@
 # wtp
 
-`wtp` is a small, cheerful command-line task board for repositories. Keep work
-close to the code, let agents coordinate safely, and get on with the good bit:
-making things.
+`wtp` is a small command-line task manager for repositories. Keep work close to the code, let agents coordinate safely, and get on with the good bit: making things.
 
-It stores tasks as readable files in the repository, so there is no hosted
-service or account to set up.
+It stores tasks as readable files in the repository, so there is no hosted service or account to set up.
+
+![wtp demo](demo.gif)
 
 ## Install
 
