@@ -9,7 +9,7 @@
     {
       "id": "1d4a6aa3-7f97-487f-9d90-bf2276c8fd39",
       "author": "Codex",
-      "message": "Added local install scripts for shell and PowerShell, documented install/update usage in the README, installed the binary to /home/matty/.local/bin/wtp, and verified with go test ./... plus a direct command run from the installed binary.",
+      "message": "Added local install scripts for shell and PowerShell, documented install/update usage in the README, installed the binary to $HOME/.local/bin/wtp, and verified with go test ./... plus a direct command run from the installed binary.",
       "createdAt": "2026-03-25T15:40:25Z"
     }
   ],

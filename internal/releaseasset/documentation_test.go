@@ -29,11 +29,24 @@ func TestReleaseDocumentationMatchesContract(t *testing.T) {
 		"sole supported distribution channel",
 		"latest/download",
 		"wtp update",
-		`"tool": "trello"`,
 	} {
 		if !strings.Contains(documentation, strings.Join(strings.Fields(text), " ")) {
 			t.Errorf("release documentation missing %q", text)
 		}
+	}
+
+	for _, text := range []string{
+		"GitHub Release asset contract",
+		"direct-download release QA guide",
+		"implemented, supported backend is local flat-file storage",
+	} {
+		if !strings.Contains(readme, text) {
+			t.Errorf("README missing %q", text)
+		}
+	}
+
+	if strings.Contains(strings.ToLower(readme), "trello") {
+		t.Error("README must not document the unimplemented Trello provider")
 	}
 }
 

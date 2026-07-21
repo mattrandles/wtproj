@@ -1,0 +1,31 @@
+{
+  "id": "93b71ec6-5620-42ac-a6e2-f1f24605ca3e",
+  "shortId": "wtp-0034",
+  "title": "Streamline README for the public release",
+  "description": "Rewrite README.md to contain only essential, implemented guidance for installing and using wtp. Remove the unimplemented Trello configuration section and other stale or unnecessary detail. Add a concise, friendly, jovial introduction while keeping exact release asset, checksum, update, storage, and core workflow information accurate. Preserve deeper contract details in linked docs where appropriate and keep documentation consistency tests green.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "docs",
+  "model": "GPT 5.6 Terra High",
+  "status": "done",
+  "assignee": "Codex",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "62434939-cd04-4921-92f0-3a682aea910f",
+      "author": "Codex",
+      "message": "Streamlined the public README; retained release install, checksum, update, workflow, and storage guidance, linked detailed contracts, and verified Unix plus PowerShell checks.",
+      "createdAt": "2026-07-21T00:06:31.298747777Z"
+    },
+    {
+      "id": "2d37d893-4d53-418c-a0d1-9ba0c19d3a50",
+      "author": "Codex",
+      "message": "Added the complete CLI command and option reference, then reran the Unix and PowerShell verification entrypoints successfully.",
+      "createdAt": "2026-07-21T00:10:40.682468137Z"
+    }
+  ],
+  "createdAt": "2026-07-21T00:04:19.151341582Z",
+  "updatedAt": "2026-07-21T00:10:40.682468137Z",
+  "startedAt": "2026-07-21T00:04:31.566542945Z",
+  "completedAt": "2026-07-21T00:06:31.301770118Z"
+}

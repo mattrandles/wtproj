@@ -1,0 +1,6 @@
+title = "wtp secret scanning"
+
+# Retain the complete upstream ruleset. Repository-specific exclusions should
+# only be added for reviewed false positives and must stay narrowly scoped.
+[extend]
+useDefault = true
