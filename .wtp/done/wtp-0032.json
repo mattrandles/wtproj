@@ -7,15 +7,22 @@
   "estimate": "s",
   "lane": "release",
   "model": "GPT 5.6 Terra High",
-  "status": "inProgress",
+  "status": "done",
   "assignee": "Codex",
   "dependencies": [
     "c9deea94-d6ab-489c-aaaa-11ae6786e5b7",
     "dee276ef-06ea-44d0-a75c-ae041b61a88d"
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0eac23b0-a318-433f-8f39-e8336136dc11",
+      "author": "Codex",
+      "message": "Published public v0.1.0; verified all six assets/checksums, host metadata, unauthenticated release discovery, safe update, CI, and release workflow.",
+      "createdAt": "2026-07-21T00:43:26.082935154Z"
+    }
+  ],
   "createdAt": "2026-07-20T21:09:04.047251567Z",
-  "updatedAt": "2026-07-21T00:04:31.520044077Z",
+  "updatedAt": "2026-07-21T00:43:26.150205621Z",
   "startedAt": "2026-07-20T23:10:47.146969187Z",
-  "completedAt": null
+  "completedAt": "2026-07-21T00:43:26.150205621Z"
 }
