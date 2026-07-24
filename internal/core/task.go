@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -84,6 +85,10 @@ type Task struct {
 	Estimate     Estimate   `json:"estimate,omitempty"`
 	Lane         string     `json:"lane,omitempty"`
 	Model        string     `json:"model,omitempty"`
+	GitRepo      string     `json:"gitRepo,omitempty"`
+	GitBranch    string     `json:"gitBranch,omitempty"`
+	WorktreeName string     `json:"worktreeName,omitempty"`
+	WorktreeDir  string     `json:"worktreeDir,omitempty"`
 	Status       Status     `json:"status"`
 	Assignee     string     `json:"assignee,omitempty"`
 	Dependencies []string   `json:"dependencies"`
@@ -106,6 +111,10 @@ type CreateTaskInput struct {
 	Estimate     Estimate
 	Lane         string
 	Model        string
+	GitRepo      string
+	GitBranch    string
+	WorktreeName string
+	WorktreeDir  string
 	Assignee     string
 	Dependencies []string
 }
@@ -132,6 +141,10 @@ type UpdateTaskInput struct {
 	Estimate     OptionalEstimate
 	Lane         OptionalString
 	Model        OptionalString
+	GitRepo      OptionalString
+	GitBranch    OptionalString
+	WorktreeName OptionalString
+	WorktreeDir  OptionalString
 	Assignee     OptionalString
 	Dependencies OptionalString
 }
@@ -191,6 +204,18 @@ func (t Task) Validate() error {
 	if t.Model != "" && strings.TrimSpace(t.Model) == "" {
 		return errors.New("task model cannot be blank")
 	}
+	if err := validateOptionalAbsolutePath("gitRepo", t.GitRepo); err != nil {
+		return err
+	}
+	if t.GitBranch != "" && strings.TrimSpace(t.GitBranch) == "" {
+		return errors.New("task gitBranch cannot be blank")
+	}
+	if t.WorktreeName != "" && strings.TrimSpace(t.WorktreeName) == "" {
+		return errors.New("task worktreeName cannot be blank")
+	}
+	if err := validateOptionalAbsolutePath("worktreeDir", t.WorktreeDir); err != nil {
+		return err
+	}
 	if t.CreatedAt.IsZero() || t.UpdatedAt.IsZero() {
 		return errors.New("task timestamps are required")
 	}
@@ -232,6 +257,19 @@ func (t Task) Validate() error {
 	}
 	if err := t.validateLifecycleTimestamps(); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateOptionalAbsolutePath(field, value string) error {
+	if value == "" {
+		return nil
+	}
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("task %s cannot be blank", field)
+	}
+	if !filepath.IsAbs(value) {
+		return fmt.Errorf("task %s %q must be an absolute path", field, value)
 	}
 	return nil
 }

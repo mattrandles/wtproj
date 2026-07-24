@@ -47,7 +47,7 @@ jobs:
           go-version-file: go.mod
           cache: false
       - name: Run checks
-        run: ./scripts/check.sh
+        run: ./scripts/verify.sh commit
 
   test-windows:
     runs-on: windows-latest
@@ -59,4 +59,4 @@ jobs:
           cache: false
       - name: Run checks
         shell: powershell
-        run: ./scripts/check.ps1
+        run: ./scripts/verify.ps1 commit

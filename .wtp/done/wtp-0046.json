@@ -1,0 +1,27 @@
+{
+  "id": "e9dc4b30-340d-4e2c-b04f-b3e379953cd9",
+  "shortId": "wtp-0046",
+  "title": "Bump release version to v0.2.0 and install locally",
+  "description": "Set the repository release version to v0.2.0 in the appropriate release metadata/documentation, preserve development-build behavior where intended, rebuild the Linux AMD64 binary with embedded 0.2.0 metadata, install it at the currently active local wtp path, and verify version output plus focused tests. Do not alter unrelated existing worktree changes.",
+  "status": "done",
+  "assignee": "codex-version-bump",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7a9aaa3c-df40-4e29-b59d-a0e7e154034b",
+      "author": "codex-version-bump",
+      "message": "Inspected release/version plumbing: ordinary source builds intentionally report dev; release version is injected by GoReleaser from the release tag. Preparing v0.2.0 release metadata/documentation and a local linker-injected build without changing unrelated worktree edits.",
+      "createdAt": "2026-07-23T22:21:34.228797422Z"
+    },
+    {
+      "id": "49a36475-a9cc-4a40-bcee-61215d29fb9e",
+      "author": "codex-version-bump",
+      "message": "Added CHANGELOG.md v0.2.0 release entry. Verified go test ./... and go vet ./.... Built current checkout with embedded Version=0.2.0, current commit, and UTC build date; installed to /home/matty/.local/bin/wtp. wtp version and --json version both report 0.2.0. Existing unrelated worktree changes were preserved.",
+      "createdAt": "2026-07-23T22:22:19.376679031Z"
+    }
+  ],
+  "createdAt": "2026-07-23T22:21:29.387808458Z",
+  "updatedAt": "2026-07-23T22:22:19.396604518Z",
+  "startedAt": "2026-07-23T22:21:34.212375973Z",
+  "completedAt": "2026-07-23T22:22:19.396604518Z"
+}

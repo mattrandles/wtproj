@@ -1,0 +1,39 @@
+{
+  "id": "07f66a5d-826d-441a-bd30-873cd51476dd",
+  "shortId": "wtp-0045",
+  "title": "Execute final release-readiness verification",
+  "description": "After the verification-gate and behavioral-coverage tasks complete, run all Go tests, vet, formatting checks, Unix checks, Windows checks, smoke tests, and release QA. Exercise the new verification script in commit and release modes, validate source-built and GoReleaser-produced binaries where supported, and record exact commands, results, platform or tool limitations, and remaining failures. Keep unresolved failures out of done and create follow-up tasks for required fixes. Acceptance: all required checks pass with evidence before this task is completed; no task is marked done without implementation and verification evidence.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "qa",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "61827bab-96f2-420b-b2c0-37afb173b26b",
+    "d0041da3-1d91-41bc-a4cb-e6fadb7aa83e"
+  ],
+  "comments": [
+    {
+      "id": "95b38abe-73c6-481c-9207-39a83d97df55",
+      "author": "codex-wtp-loop",
+      "message": "Release-readiness verification evidence (tool-independent/platform):\n- `gofmt -l ./cmd ./internal` -\u003e passed.\n- `go test -count=1 ./...` -\u003e passed.\n- `go vet ./...` -\u003e passed.\n- `go test -race ./...` -\u003e passed.\n- `git diff --check` -\u003e passed (only the existing CRLF conversion warning for scripts/check.ps1).\n- `./scripts/verify.sh commit` -\u003e passed; `pwsh -NoProfile -File ./scripts/verify.ps1 commit` -\u003e passed.\n- `./scripts/check.sh` -\u003e passed; `pwsh -NoProfile -File ./scripts/check.ps1` -\u003e passed.\n- `bash -n scripts/verify.sh scripts/check.sh scripts/e2e_smoke.sh scripts/release_qa.sh scripts/install_local.sh` and PowerShell parser checks for verify/check/e2e/release QA -\u003e passed.\n- Source `go build -trimpath -o \u003ctemp\u003e/wtp ./cmd/wtp`, then host `version`, task create/list workflow -\u003e passed; host artifact identified as Linux x86-64 ELF.\n- `GOOS=windows GOARCH=amd64 go build ... ./cmd/wtp` and `GOOS=windows GOARCH=arm64 go build ... ./cmd/wtp` -\u003e passed; artifacts identified as PE32+ amd64/ARM64.\n- `GOOS=windows GOARCH=amd64 go test -exec /bin/true ./... -run ^` and the arm64 equivalent -\u003e passed.\n- No repository-generated dist or fixture files remained after the checks.",
+      "createdAt": "2026-07-23T22:14:07.941250055Z"
+    },
+    {
+      "id": "50bb610f-150b-42cf-ba8c-9e8dc3600cfe",
+      "author": "codex-wtp-loop",
+      "message": "Release-mode evidence and limitations:\n- Official `goreleaser_Linux_x86_64.tar.gz` for GoReleaser v2.17.0 was downloaded to a disposable directory and SHA-256 checked against its official checksums.txt; `goreleaser --version` reported GitVersion 2.17.0, GoVersion go1.26.4, Platform linux/amd64.\n- `./scripts/verify.sh release` -\u003e passed. This ran formatting, `go test ./...`, `go vet ./...`, Unix smoke, `goreleaser check`, `goreleaser release --snapshot --clean --skip=publish`, `WTP_RELEASE_DIST=\u003ctemp\u003e go test ./internal/releaseasset -run ^TestGoReleaserSnapshotMatchesPlatformContract -count=1`, and Unix release QA.\n- `pwsh -NoProfile -File ./scripts/verify.ps1 release` -\u003e passed. This ran the PowerShell release gate, snapshot contract test, and PowerShell release QA.\n- `WTP_QA_GLOBAL_DIR=\u003cdisposable\u003e/global/bin ./scripts/release_qa.sh` -\u003e passed: six direct-download assets, checksum and Mach-O/ELF/PE validation, project/user/global install scopes, create/claim/export workflow, in-place update with byte-stable .wtp storage, and Windows amd64/arm64 test compilation.\n- `PATH=/usr/bin:/bin ./scripts/verify.sh release` and `PATH=/usr/bin:/bin pwsh -NoProfile -File ./scripts/verify.ps1 release` were intentionally run as negative checks; both failed as designed with `release verification requires 'goreleaser'; install it and retry`.\\n- Initial `GOBIN=\u003ctemp\u003e/bin go install github.com/goreleaser/goreleaser/v2@v2.17.0` was blocked by host Go 1.25.11 versus the tool requirement Go \u003e=1.26.4. This was an environment/tool bootstrap limitation, resolved without changing the user environment by using the verified official GoReleaser v2.17.0 binary.\\n- Platform limitation: PowerShell release QA on this Linux host validates all Windows assets but reports `Windows execution requires a Windows host`; Windows executable runtime was not available here. Windows source/test compilation and PE validation passed.\\nAll required checks passed; no unresolved project failure or follow-up task remains.",
+      "createdAt": "2026-07-23T22:14:07.99037016Z"
+    },
+    {
+      "id": "c73a206e-338c-42b1-a743-f8a63f1dcd95",
+      "author": "codex-wtp-loop",
+      "message": "Command syntax correction/evidence: GOOS=windows GOARCH=amd64 go test -exec /bin/true ./... -run '^$' and GOOS=windows GOARCH=arm64 go test -exec /bin/true ./... -run '^$' both passed. WTP_RELEASE_DIST=\u003cabsolute-temp-dist\u003e go test ./internal/releaseasset -run '^TestGoReleaserSnapshotMatchesPlatformContract$' -count=1 passed. PATH=/usr/bin:/bin ./scripts/verify.sh release and PATH=/usr/bin:/bin pwsh -NoProfile -File ./scripts/verify.ps1 release intentionally exited nonzero with the required goreleaser diagnostic. Windows runtime execution remains unavailable on this Linux host; PowerShell QA explicitly passed asset validation and reported that limitation.",
+      "createdAt": "2026-07-23T22:14:22.48271847Z"
+    }
+  ],
+  "createdAt": "2026-07-23T16:42:28.022306047Z",
+  "updatedAt": "2026-07-23T22:14:26.231495949Z",
+  "startedAt": "2026-07-23T22:04:45.597946122Z",
+  "completedAt": "2026-07-23T22:14:26.231495949Z"
+}

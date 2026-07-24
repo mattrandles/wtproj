@@ -152,6 +152,41 @@ If another tool or agent needs the exact storage contract, prefer `wtp schema` o
 
 If you need a dependency-oriented view instead of raw files, prefer `wtp graph` over manually reconstructing task trees.
 
+## Storage, Context, and Shared Stores
+
+`wtp` discovers `.wtp.json` at the root of the current Git worktree, even
+when invoked from a nested directory. A linked worktree has its own root and
+therefore its own configuration lookup. Outside Git, discovery is limited to
+the invocation directory; parent directories are not searched.
+
+Without configuration, task storage is `.wtp/` beside that discovery point.
+Use `wtpDir` in `.wtp.json` to select another flat-file store. A relative path
+is resolved from the configuration file's directory; an absolute path is used
+as written. Multiple projects can intentionally use one absolute directory:
+
+```json
+{
+  "wtpDir": "/srv/wtp/engineering-tasks"
+}
+```
+
+When a task is created in Git, `gitRepo`, `gitBranch`, `worktreeName`, and
+`worktreeDir` are filled from the current context. `gitRepo` and `worktreeDir`
+are absolute paths. A detached HEAD has an empty `gitBranch`; a non-Git
+invocation leaves all four fields empty unless explicitly overridden. Supply
+any one of `--git-repo`, `--git-branch`, `--worktree-name`, or
+`--worktree-dir` to override just that field. Update and edit preserve these
+values unless explicitly changed; clear one with an empty assignment:
+
+```sh
+wtp task update wtp-0008 --git-branch= --worktree-name=
+```
+
+Adding or removing `.wtp.json` never moves or deletes a store. To migrate an
+existing `.wtp/`, back it up, move it deliberately, configure `wtpDir`, and
+run `wtp task list` to confirm it. Do not hand-merge stores because short IDs
+must be unique within a shared store.
+
 ## Notes on Safety
 
 - `wtp` uses a repo-local lock file for mutating operations.

@@ -1,0 +1,33 @@
+{
+  "id": "3c1cdcb6-713b-4181-9853-9152a8e52f1c",
+  "shortId": "wtp-0038",
+  "title": "Add explicit CLI editing for Git and worktree metadata",
+  "description": "Add --git-repo, --git-branch, --worktree-name, and --worktree-dir to task create, task update, and task edit. Preserve existing metadata on update/edit unless a flag is supplied, allow empty values to clear fields, wire the same options through legacy --create-task rewriting, and include metadata in human-readable task output and command help. This task covers explicit CLI input/output only; automatic context defaults are handled separately.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "cli",
+  "model": "GPT 5.6 Terra High",
+  "status": "done",
+  "assignee": "pm-monitor",
+  "dependencies": [
+    "bc49b54c-eef1-4740-b956-eee42c8a7182"
+  ],
+  "comments": [
+    {
+      "id": "4e6a8dfe-8ed4-4f9a-8ad7-5e47fba92893",
+      "author": "pm-monitor",
+      "message": "Wired create/update/edit metadata flags, legacy create rewriting, task rendering, help, and CLI tests. Running verification now.",
+      "createdAt": "2026-07-23T14:51:22.661140104Z"
+    },
+    {
+      "id": "cf7d93d8-9cc4-4d40-afc3-a000f5fb053e",
+      "author": "pm-monitor",
+      "message": "Verification complete: go test ./... and ./scripts/check.sh passed, including the smoke test.",
+      "createdAt": "2026-07-23T14:51:46.060014485Z"
+    }
+  ],
+  "createdAt": "2026-07-23T12:41:15.227772027Z",
+  "updatedAt": "2026-07-23T14:51:46.073897642Z",
+  "startedAt": "2026-07-23T14:48:51.989012861Z",
+  "completedAt": "2026-07-23T14:51:46.073897642Z"
+}

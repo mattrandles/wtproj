@@ -1,0 +1,39 @@
+{
+  "id": "b516f43f-d6b4-427e-95d1-3ea80dec50a6",
+  "shortId": "wtp-0039",
+  "title": "Document centralized storage and run release verification",
+  "description": "Update README, wtp help and schema output, sample configuration, and skills/task-management/skill.md for Git-root discovery, wtpDir resolution, centralized multi-project storage, and the four task metadata fields. Document linked-worktree, detached-HEAD, non-Git, override, preservation, and clearing semantics with copyable examples and migration guidance for existing .wtp stores. After the integration task is complete, run go test ./..., go vet ./..., the Unix and PowerShell repository check scripts where available, and targeted CLI smoke tests; record any platform limitation rather than silently skipping it.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "docs",
+  "model": "GPT 5.6 Terra High",
+  "status": "done",
+  "assignee": "pm-monitor",
+  "dependencies": [
+    "0a51f855-bb1c-498f-bb47-2c03ab427ce6"
+  ],
+  "comments": [
+    {
+      "id": "49aae1c0-bdf7-44d5-8738-c9b50090b8bd",
+      "author": "pm-monitor",
+      "message": "Started documentation and release-verification pass; inspecting integrated storage/configuration behavior and repository checks.",
+      "createdAt": "2026-07-23T15:04:55.591975879Z"
+    },
+    {
+      "id": "55e7e91b-339e-49ae-b84a-4b300be24451",
+      "author": "pm-monitor",
+      "message": "Documented Git-root/worktree discovery, wtpDir resolution and shared-store migration, origin metadata defaults/overrides/preservation/clearing, and added help/schema regression assertions. Starting release verification.",
+      "createdAt": "2026-07-23T15:06:29.209623698Z"
+    },
+    {
+      "id": "692a154d-14eb-4ac3-be18-90982976ceda",
+      "author": "pm-monitor",
+      "message": "Verification passed: go test ./..., go vet ./..., ./scripts/check.sh, pwsh -NoProfile -File ./scripts/check.ps1, ./scripts/e2e_smoke.sh, and targeted CLI storage/context tests. PowerShell checks ran under pwsh on Linux; native Windows executable execution was not available on this host, but no requested check was skipped.",
+      "createdAt": "2026-07-23T15:07:05.572188983Z"
+    }
+  ],
+  "createdAt": "2026-07-23T12:41:19.902022336Z",
+  "updatedAt": "2026-07-23T15:07:05.582626748Z",
+  "startedAt": "2026-07-23T15:04:30.196468614Z",
+  "completedAt": "2026-07-23T15:07:05.582626748Z"
+}

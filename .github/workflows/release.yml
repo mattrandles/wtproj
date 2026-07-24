@@ -36,32 +36,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.mod
-      - name: Run repository checks
-        run: ./scripts/check.sh
-      - name: Check GoReleaser configuration
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: v2.17.0
-          args: check
-      - name: Build release snapshot
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: v2.17.0
-          args: release --snapshot --clean
-      - name: Validate snapshot against release contract
-        env:
-          WTP_RELEASE_DIST: dist
-        run: go test ./internal/releaseasset -run '^TestGoReleaserSnapshotMatchesPlatformContract$' -count=1
       - name: Install GoReleaser for release QA
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: v2.17.0
           install-only: true
-      - name: Exercise direct-download release QA
-        run: ./scripts/release_qa.sh
+      - name: Run unified release verification
+        run: ./scripts/verify.sh release
 
   publish:
     name: Publish GitHub Release

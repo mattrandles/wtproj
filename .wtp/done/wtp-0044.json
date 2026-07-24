@@ -1,0 +1,30 @@
+{
+  "id": "d0041da3-1d91-41bc-a4cb-e6fadb7aa83e",
+  "shortId": "wtp-0044",
+  "title": "Audit and expand behavioral test coverage",
+  "description": "Audit public CLI, task persistence, Git/worktree discovery, configuration, storage, legacy compatibility, export, updater, and release-contract behavior, then add deterministic focused tests for meaningful gaps. Prioritize nested paths, linked worktrees, detached HEAD, non-Git directories, paths with spaces, metadata defaults/overrides/clearing/preservation, .wtp.json and wtpDir failures, legacy commands, shell-script success and failure, backward-compatible task files, and no unintended storage or installation changes. Do not enforce a numeric coverage threshold; every new behavior and regression must have focused coverage. Acceptance: reviewable tests cover the identified gaps without external state or flaky dependencies.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "qa",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "65f5a326-97b4-4497-b4a4-ab7b794d52b8",
+      "author": "codex-wtp-loop",
+      "message": "Audit underway: existing coverage is strong for storage/context metadata and provider invariants; remaining gaps are full legacy command round-trips, shell-script success/failure contracts, updater/release negative paths, and public export/backward-compatibility behavior.",
+      "createdAt": "2026-07-23T21:59:33.708647426Z"
+    },
+    {
+      "id": "d9b1ac39-7800-4862-967b-2f04e14a0d0b",
+      "author": "codex-wtp-loop",
+      "message": "Implemented focused coverage and fixed the discovered legacy pause-agent rewrite regression. Added public legacy round-trip coverage for create/get/list/comment/start/pause/next/done/export; spaced-path export with byte-stable storage; config and wtpDir failure/no-migration checks; updater unsafe-URL rejection; and isolated Bash smoke/install success and failure tests. Verified go test ./..., go vet ./..., scripts/verify.sh commit, uncached targeted tests, race tests, Windows amd64/arm64 cross-compilation, and git diff --check.",
+      "createdAt": "2026-07-23T22:04:25.741506452Z"
+    }
+  ],
+  "createdAt": "2026-07-23T16:42:20.330409753Z",
+  "updatedAt": "2026-07-23T22:04:25.750810786Z",
+  "startedAt": "2026-07-23T21:58:13.127534585Z",
+  "completedAt": "2026-07-23T22:04:25.750810786Z"
+}

@@ -40,6 +40,34 @@ func TestLoopbackHTTPURL(t *testing.T) {
 	}
 }
 
+func TestRunRejectsUnsafeLatestReleaseURLBeforeNetwork(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantErr string
+	}{
+		{name: "plain HTTP", url: "http://updates.example/releases/latest", wantErr: "must use HTTPS"},
+		{name: "embedded credentials", url: "https://user:secret@updates.example/releases/latest", wantErr: "without user information"},
+		{name: "non-HTTP scheme", url: "file:///tmp/releases/latest", wantErr: "absolute URL"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			target := writeTestExecutable(t, "known good", 0o755)
+			deps := baseTestDependencies(target, func(request *http.Request) (*http.Response, error) {
+				t.Fatalf("unsafe URL made a network request: %s", request.URL)
+				return nil, errors.New("unexpected request")
+			})
+			deps.latestReleaseURL = test.url
+
+			_, err := run(context.Background(), "1.0.0", deps)
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("run() error = %v, want containing %q", err, test.wantErr)
+			}
+			assertFile(t, target, "known good", 0o755)
+		})
+	}
+}
+
 func TestRunNoOpDoesNotDownloadAssets(t *testing.T) {
 	target := writeTestExecutable(t, "current", 0o751)
 	requests := []string{}

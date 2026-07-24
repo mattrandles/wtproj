@@ -1,0 +1,37 @@
+{
+  "id": "bc49b54c-eef1-4740-b956-eee42c8a7182",
+  "shortId": "wtp-0037",
+  "title": "Extend task model with Git and worktree metadata",
+  "description": "Add optional persisted task fields gitRepo, gitBranch, worktreeName, and worktreeDir. Extend the core task plus create/update inputs and provider contract, implement flat-file create/update/round-trip persistence, normalize and validate values without breaking older task JSON when fields are absent, and preserve valid explicit values. Define generated gitRepo and worktreeDir values as absolute paths. Add focused core and flat-file provider tests; CLI flags, display, automatic defaults, and documentation are handled by dependent tasks.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "core",
+  "model": "GPT 5.6 Sol High",
+  "status": "done",
+  "assignee": "pm-monitor",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1feceb0e-56cd-4ff2-a9ec-e5027806f972",
+      "author": "pm-monitor",
+      "message": "Implementation started: inspected core task validation, provider contract, flat-file create/update/load paths, and repository guidance. Scope will remain limited to optional persisted Git/worktree metadata plus focused tests.",
+      "createdAt": "2026-07-23T14:45:17.496746139Z"
+    },
+    {
+      "id": "8271ca44-cc5f-4183-b932-eda3970bc039",
+      "author": "pm-monitor",
+      "message": "Implemented the four optional task/input fields and flat-file create/update persistence. Added absolute-path validation for gitRepo/worktreeDir, whitespace normalization, preservation/clearing behavior, legacy JSON compatibility, and on-disk round-trip tests. Focused core and flat-file tests pass.",
+      "createdAt": "2026-07-23T14:47:45.069451599Z"
+    },
+    {
+      "id": "1667d519-1866-4a21-9a29-6f0e078b16e0",
+      "author": "pm-monitor",
+      "message": "Verification complete: focused core/flat-file tests and go test ./... pass; go vet ./... and ./scripts/check.sh (including smoke test) also pass. Diff validation is clean, and a flat-file regression confirms older task JSON loads with all new fields absent.",
+      "createdAt": "2026-07-23T14:48:30.37550258Z"
+    }
+  ],
+  "createdAt": "2026-07-23T12:41:08.260325913Z",
+  "updatedAt": "2026-07-23T14:48:30.387003968Z",
+  "startedAt": "2026-07-23T14:44:41.956327329Z",
+  "completedAt": "2026-07-23T14:48:30.387003968Z"
+}

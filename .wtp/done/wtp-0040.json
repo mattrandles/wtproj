@@ -1,0 +1,39 @@
+{
+  "id": "fc3def53-9934-43d8-ab36-745ffaaf291d",
+  "shortId": "wtp-0040",
+  "title": "Resolve repository config and configurable task storage",
+  "description": "Use discovered invocation context to choose the configuration anchor: the enclosing Git worktree root in Git and the invocation directory outside Git. Load .wtp.json only from that anchor, add the optional wtpDir setting, resolve relative values against the configuration file directory, accept absolute values, preserve the default anchor/.wtp location, and pass the resolved storage directory explicitly into flat-file provider construction without affecting non-flat-file providers. Return actionable errors for unreadable or invalid config and invalid storage paths. Cover missing config, repository and nested invocation, linked worktrees, non-Git invocation, and relative/absolute external storage.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "config",
+  "model": "GPT 5.6 Sol High",
+  "status": "done",
+  "assignee": "pm-monitor",
+  "dependencies": [
+    "8cc71d3f-35a3-4ccc-889b-8b18e8a5c562"
+  ],
+  "comments": [
+    {
+      "id": "87d700b7-51b2-41a1-9f4f-53b254f9c160",
+      "author": "pm-monitor",
+      "message": "Started implementation. Confirmed runtime context discovery is available from the prerequisite; integrating worktree-root/non-Git anchors with config loading and explicit flat-file storage resolution, while preserving existing shared changes.",
+      "createdAt": "2026-07-23T14:52:45.282977179Z"
+    },
+    {
+      "id": "e596ee06-ebbb-44af-b85b-956fa9ef658e",
+      "author": "pm-monitor",
+      "message": "Core implementation complete: CLI runtime discovery now selects the current Git worktree root (or exact non-Git invocation directory), config loading is anchor-only, wtpDir resolves to an absolute default/relative/absolute path, and only flat-file provider construction consumes and validates that resolved storage path. Focused config, factory, repository/nested, linked-worktree, non-Git, and error-path tests pass.",
+      "createdAt": "2026-07-23T14:56:33.739591407Z"
+    },
+    {
+      "id": "08137381-6ed1-492f-8154-04c6459c83ce",
+      "author": "pm-monitor",
+      "message": "Verification complete: go test ./..., go vet ./..., ./scripts/check.sh (including smoke test), and git diff --check all pass. README documents worktree/non-Git config anchoring and wtpDir relative/absolute behavior; scope review confirms non-flat-file provider behavior is unchanged.",
+      "createdAt": "2026-07-23T14:57:01.966782679Z"
+    }
+  ],
+  "createdAt": "2026-07-23T12:45:22.453439411Z",
+  "updatedAt": "2026-07-23T14:57:01.97765306Z",
+  "startedAt": "2026-07-23T14:51:58.315304007Z",
+  "completedAt": "2026-07-23T14:57:01.97765306Z"
+}

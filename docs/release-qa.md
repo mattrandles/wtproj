@@ -1,15 +1,39 @@
 # Direct-download release QA
 
-Run the complete, self-contained release check before publishing:
+The recommended complete release check is the unified gate. It includes the
+commit checks, GoReleaser configuration validation, a non-publishing snapshot,
+the release-asset contract test, and this direct-download QA:
+
+```sh
+./scripts/verify.sh release
+```
+
+```powershell
+./scripts/verify.ps1 release
+```
+
+The legacy harness remains available when only the direct-download fixture is
+needed:
 
 ```sh
 ./scripts/release_qa.sh
 ```
 
-It requires Go, Git, curl, `sha256sum` (or `shasum`), PowerShell, and
-GoReleaser. Use the GoReleaser version pinned by the release workflow. The
-harness creates only a temporary workspace and local loopback HTTP server; it
-does not publish, tag, change a user installation, or contact GitHub.
+The Unix harness requires Go, Git, curl, `sha256sum` (or `shasum`), PowerShell,
+and GoReleaser. The unified Unix gate also checks for `file`. The PowerShell
+gate requires Go, Git, PowerShell, and GoReleaser; it uses the PowerShell QA
+implementation and does not require a Unix shell. Use GoReleaser 2.17.0, the
+version pinned by the release workflow.
+
+The harness creates only temporary workspaces and a local loopback HTTP server;
+it does not publish, tag, change a user installation, or contact GitHub. The
+unified gate also places the GoReleaser snapshot and normalized assets in a
+temporary directory, so a failed run cannot leave `dist/` or other generated
+files in the checkout.
+
+Commit verification normally takes under a minute with a warm Go cache. Allow
+several minutes for the full release gate because it builds and exercises
+multiple snapshots.
 
 The harness makes two real GoReleaser snapshots: `0.0.0-qa` and `0.0.1`. It
 uses their standalone artifacts and `checksums.txt` exactly as release users
@@ -31,7 +55,10 @@ runs the PowerShell verifier against both PE artifacts. When run on Windows,
 the PowerShell portion also starts the matching Windows executable and runs
 the install/create/claim/export workflow. A Windows updater's deferred helper
 is covered by its compiled Windows source and unit tests; Unix exercises the
-completed in-place replacement end to end.
+completed in-place replacement end to end. The PowerShell verification gate
+has the complementary limitation: it executes the Windows workflow only on a
+Windows host, while non-Windows PowerShell validates asset checksums and file
+formats.
 
 ## Testing a future published release
 

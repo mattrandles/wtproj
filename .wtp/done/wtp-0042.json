@@ -1,0 +1,34 @@
+{
+  "id": "0a51f855-bb1c-498f-bb47-2c03ab427ce6",
+  "shortId": "wtp-0042",
+  "title": "Add centralized multi-project storage integration coverage",
+  "description": "Add end-to-end and regression tests that invoke wtp from repository roots, nested directories, linked worktrees, and non-Git directories while using default plus external relative and absolute wtpDir locations. Verify that multiple projects can share one store without losing their originating task metadata; cover automatic defaults, partial and full CLI overrides, update/edit preservation and clearing, detached HEAD, legacy compatibility, backward-compatible task JSON, missing/invalid config, and unchanged Trello/provider behavior. Keep environment and Git fixtures isolated and deterministic across Unix and Windows-compatible test paths.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "qa",
+  "model": "GPT 5.6 Terra High",
+  "status": "done",
+  "assignee": "pm-monitor",
+  "dependencies": [
+    "6a86e82a-43a1-4a0c-a36e-aad3eb1c9582",
+    "fc3def53-9934-43d8-ab36-745ffaaf291d"
+  ],
+  "comments": [
+    {
+      "id": "6a029b26-3709-49fe-b350-941f7b099a5d",
+      "author": "",
+      "message": "Started QA coverage review: inspecting the centralized storage implementation and existing tests to add isolated end-to-end/regression cases.",
+      "createdAt": "2026-07-23T15:02:11.075343873Z"
+    },
+    {
+      "id": "40dae027-a3d1-4957-826e-3b722b7499fc",
+      "author": "",
+      "message": "Added process-isolated CLI integration coverage for default, relative, and absolute storage; linked worktree and multi-project shared stores; detached/non-Git contexts; legacy create; metadata preservation/clearing; and invalid config failures. Verified with go test ./... and ./scripts/check.sh.",
+      "createdAt": "2026-07-23T15:04:14.916220973Z"
+    }
+  ],
+  "createdAt": "2026-07-23T12:45:22.487178409Z",
+  "updatedAt": "2026-07-23T15:04:14.92968978Z",
+  "startedAt": "2026-07-23T15:01:47.531728825Z",
+  "completedAt": "2026-07-23T15:04:14.92968978Z"
+}

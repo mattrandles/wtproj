@@ -1,6 +1,8 @@
 package core
 
 import (
+	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -142,6 +144,70 @@ func TestTaskValidateAcceptsFreeFormSuggestedModel(t *testing.T) {
 	}
 }
 
+func TestTaskValidateAcceptsGitAndWorktreeMetadata(t *testing.T) {
+	task := validValidationTask(t)
+	task.GitRepo = filepath.Join(t.TempDir(), "repository")
+	task.GitBranch = "feature/task-metadata"
+	task.WorktreeName = "task-metadata"
+	task.WorktreeDir = filepath.Join(t.TempDir(), "task-metadata")
+
+	if err := task.Validate(); err != nil {
+		t.Fatalf("Task.Validate() error = %v", err)
+	}
+}
+
+func TestTaskValidateRejectsInvalidGitAndWorktreeMetadata(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Task)
+		want   string
+	}{
+		{name: "relative git repo", mutate: func(task *Task) { task.GitRepo = "relative/repository" }, want: "gitRepo"},
+		{name: "blank git repo", mutate: func(task *Task) { task.GitRepo = "   " }, want: "gitRepo cannot be blank"},
+		{name: "blank git branch", mutate: func(task *Task) { task.GitBranch = "   " }, want: "gitBranch cannot be blank"},
+		{name: "blank worktree name", mutate: func(task *Task) { task.WorktreeName = "   " }, want: "worktreeName cannot be blank"},
+		{name: "relative worktree dir", mutate: func(task *Task) { task.WorktreeDir = "relative/worktree" }, want: "worktreeDir"},
+		{name: "blank worktree dir", mutate: func(task *Task) { task.WorktreeDir = "   " }, want: "worktreeDir cannot be blank"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			task := validValidationTask(t)
+			test.mutate(&task)
+			err := task.Validate()
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Task.Validate() error = %v, want containing %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestTaskJSONWithoutGitAndWorktreeMetadataRemainsValid(t *testing.T) {
+	legacyJSON := `{
+		"id": "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		"shortId": "wtp-0001",
+		"title": "Legacy task",
+		"status": "todo",
+		"dependencies": [],
+		"comments": [],
+		"createdAt": "2026-03-24T14:10:04Z",
+		"updatedAt": "2026-03-24T14:10:04Z",
+		"startedAt": null,
+		"completedAt": null
+	}`
+
+	var task Task
+	if err := json.Unmarshal([]byte(legacyJSON), &task); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if err := task.Validate(); err != nil {
+		t.Fatalf("Task.Validate() legacy JSON error = %v", err)
+	}
+	if task.GitRepo != "" || task.GitBranch != "" || task.WorktreeName != "" || task.WorktreeDir != "" {
+		t.Fatalf("legacy task contains Git/worktree metadata: %#v", task)
+	}
+}
+
 func TestTaskValidateRejectsCanonicalInvariantViolations(t *testing.T) {
 	created := mustValidationTime(t, "2026-03-24T14:10:04Z")
 	updated := created.Add(2 * time.Minute)
@@ -194,6 +260,21 @@ func TestTaskValidateRejectsCanonicalInvariantViolations(t *testing.T) {
 				t.Fatalf("Task.Validate() error = %v, want containing %q", err, test.want)
 			}
 		})
+	}
+}
+
+func validValidationTask(t *testing.T) Task {
+	t.Helper()
+	created := mustValidationTime(t, "2026-03-24T14:10:04Z")
+	return Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "Valid task",
+		Status:       StatusTodo,
+		Dependencies: []string{},
+		Comments:     []Comment{},
+		CreatedAt:    created,
+		UpdatedAt:    created,
 	}
 }
 

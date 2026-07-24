@@ -1,0 +1,37 @@
+{
+  "id": "8cc71d3f-35a3-4ccc-889b-8b18e8a5c562",
+  "shortId": "wtp-0036",
+  "title": "Discover Git repository and worktree context",
+  "description": "Add a focused runtime context discovery layer that starts from the invocation directory and detects whether it is inside Git. Record the absolute invocation directory, canonical repository root shared by linked worktrees, current worktree root, current branch when attached, and a stable worktree name; represent detached HEAD and non-Git directories explicitly without treating them as errors. Keep discovery separate from config loading and provider construction so callers can reuse and unit test it. Cover repository roots, nested directories, main and linked worktrees, detached HEAD, paths with spaces, and non-Git directories.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "config",
+  "model": "GPT 5.6 Sol High",
+  "status": "done",
+  "assignee": "pm-monitor",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3140ca08-4b65-4cfa-83fd-4b7be4f81020",
+      "author": "pm-monitor",
+      "message": "Implementation started: inspected task and repository guidance; next I am defining a standalone, unit-testable Git runtime context discovery package and its edge-case test matrix.",
+      "createdAt": "2026-07-23T14:41:11.116104665Z"
+    },
+    {
+      "id": "2f3dc7af-13ff-4899-9784-4dcc658f8ceb",
+      "author": "pm-monitor",
+      "message": "Core implementation complete: added independent internal/runtimecontext discovery with explicit InGit/DetachedHEAD state, primary repository and current worktree roots, attached branch, and stable linked-worktree administrative names. Focused Git fixtures now pass for root/nested paths, spaces, main/linked worktrees, detached HEAD, and non-Git directories.",
+      "createdAt": "2026-07-23T14:44:09.392827317Z"
+    },
+    {
+      "id": "664845f2-d03b-498e-8ab4-c5c6228d5028",
+      "author": "pm-monitor",
+      "message": "Verification complete: go test ./..., go vet ./..., and ./scripts/check.sh all pass, including the repository smoke test. Reviewed scope: only the standalone runtime context package and focused tests were added; config loading and provider construction remain unchanged.",
+      "createdAt": "2026-07-23T14:44:30.104665351Z"
+    }
+  ],
+  "createdAt": "2026-07-23T12:41:04.088459609Z",
+  "updatedAt": "2026-07-23T14:44:30.115221387Z",
+  "startedAt": "2026-07-23T14:40:43.2155101Z",
+  "completedAt": "2026-07-23T14:44:30.115221387Z"
+}

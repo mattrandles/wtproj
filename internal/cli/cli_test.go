@@ -16,6 +16,7 @@ import (
 	"github.com/mattrandles/wtproj/internal/core"
 	"github.com/mattrandles/wtproj/internal/provider"
 	"github.com/mattrandles/wtproj/internal/provider/flatfile"
+	"github.com/mattrandles/wtproj/internal/runtimecontext"
 	"github.com/mattrandles/wtproj/internal/updater"
 )
 
@@ -223,6 +224,22 @@ func TestRewriteLegacyArgsRequiresTaskID(t *testing.T) {
 	}
 }
 
+func TestRewriteLegacyArgsPausePreservesAgent(t *testing.T) {
+	got, err := rewriteLegacyArgs([]string{
+		"--agent", "Jim",
+		"--set-task-paused",
+		"--task-id", "wtp-0003",
+	})
+	if err != nil {
+		t.Fatalf("rewriteLegacyArgs() error = %v", err)
+	}
+
+	want := []string{"task", "pause", "--agent", "Jim", "wtp-0003"}
+	if !reflect.DeepEqual(got.args, want) {
+		t.Fatalf("rewriteLegacyArgs() args = %v, want %v", got.args, want)
+	}
+}
+
 func TestRewriteLegacyArgsRequiresComment(t *testing.T) {
 	_, err := rewriteLegacyArgs([]string{"--add-comment", "--task-id", "wtp-0003"})
 	if err == nil {
@@ -230,7 +247,7 @@ func TestRewriteLegacyArgsRequiresComment(t *testing.T) {
 	}
 }
 
-func TestRewriteLegacyArgsCreatePreservesSchedulingMetadata(t *testing.T) {
+func TestRewriteLegacyArgsCreatePreservesTaskMetadata(t *testing.T) {
 	got, err := rewriteLegacyArgs([]string{
 		"--create-task",
 		"--title", "New task",
@@ -238,6 +255,10 @@ func TestRewriteLegacyArgsCreatePreservesSchedulingMetadata(t *testing.T) {
 		"--estimate", "m",
 		"--lane", "backend",
 		"--model", "gpt-5",
+		"--git-repo", "/workspace/repo",
+		"--git-branch", "feature/task-metadata",
+		"--worktree-name", "task-metadata",
+		"--worktree-dir", "/workspace/task-metadata",
 		"--dependencies", "wtp-0001",
 		"--agent", "Jim",
 	})
@@ -252,6 +273,10 @@ func TestRewriteLegacyArgsCreatePreservesSchedulingMetadata(t *testing.T) {
 		"--estimate", "m",
 		"--lane", "backend",
 		"--model", "gpt-5",
+		"--git-repo", "/workspace/repo",
+		"--git-branch", "feature/task-metadata",
+		"--worktree-name", "task-metadata",
+		"--worktree-dir", "/workspace/task-metadata",
 		"--depends-on", "wtp-0001",
 		"--agent", "Jim",
 	}
@@ -260,7 +285,31 @@ func TestRewriteLegacyArgsCreatePreservesSchedulingMetadata(t *testing.T) {
 	}
 }
 
-func TestRunTaskCreatePassesSuggestedModelToProvider(t *testing.T) {
+func TestRewriteLegacyArgsCreatePreservesExplicitEmptyContextOverride(t *testing.T) {
+	got, err := rewriteLegacyArgs([]string{
+		"--create-task",
+		"--title", "Legacy task",
+		"--git-repo", "/explicit/repository",
+		"--git-branch=",
+		"--worktree-dir", "",
+	})
+	if err != nil {
+		t.Fatalf("rewriteLegacyArgs() error = %v", err)
+	}
+
+	want := []string{
+		"task", "create",
+		"--title", "Legacy task",
+		"--git-repo", "/explicit/repository",
+		"--git-branch=",
+		"--worktree-dir=",
+	}
+	if !reflect.DeepEqual(got.args, want) {
+		t.Fatalf("rewriteLegacyArgs() args = %v, want %v", got.args, want)
+	}
+}
+
+func TestRunTaskCreatePassesTaskMetadataToProvider(t *testing.T) {
 	provider := &updateTestProvider{}
 	ctx := context{
 		provider: provider,
@@ -268,15 +317,207 @@ func TestRunTaskCreatePassesSuggestedModelToProvider(t *testing.T) {
 		stderr:   &bytes.Buffer{},
 	}
 
-	err := runTaskCreate(ctx, []string{"--title", "Model-aware task", "--model", "gpt-5.2-codex"})
+	err := runTaskCreate(ctx, []string{
+		"--title", "Metadata-aware task",
+		"--model", "gpt-5.2-codex",
+		"--git-repo", "/workspace/repo",
+		"--git-branch", "feature/task-metadata",
+		"--worktree-name", "task-metadata",
+		"--worktree-dir", "/workspace/task-metadata",
+	})
 	if err != nil {
 		t.Fatalf("runTaskCreate() error = %v", err)
 	}
 	if provider.gotCreateInput.Model != "gpt-5.2-codex" {
 		t.Fatalf("model input = %q, want %q", provider.gotCreateInput.Model, "gpt-5.2-codex")
 	}
+	if provider.gotCreateInput.GitRepo != "/workspace/repo" ||
+		provider.gotCreateInput.GitBranch != "feature/task-metadata" ||
+		provider.gotCreateInput.WorktreeName != "task-metadata" ||
+		provider.gotCreateInput.WorktreeDir != "/workspace/task-metadata" {
+		t.Fatalf("Git/worktree metadata = %#v", provider.gotCreateInput)
+	}
 	if provider.createCalls != 1 {
 		t.Fatalf("createCalls = %d, want 1", provider.createCalls)
+	}
+}
+
+func TestRunTaskCreateDefaultsEachOmittedContextFieldIndependently(t *testing.T) {
+	provider := &updateTestProvider{}
+	ctx := context{
+		provider: provider,
+		invocation: runtimecontext.Context{
+			InGit:          true,
+			RepositoryRoot: "/discovered/repository",
+			WorktreeRoot:   "/discovered/worktree",
+			Branch:         "discovered-branch",
+			WorktreeName:   "discovered-worktree",
+		},
+		stdout: &bytes.Buffer{},
+		stderr: &bytes.Buffer{},
+	}
+
+	err := runTaskCreate(ctx, []string{
+		"--title", "Partially overridden task",
+		"--git-branch=",
+		"--worktree-name", "explicit-worktree",
+	})
+	if err != nil {
+		t.Fatalf("runTaskCreate() error = %v", err)
+	}
+
+	got := provider.gotCreateInput
+	if got.GitRepo != "/discovered/repository" {
+		t.Fatalf("gitRepo = %q, want discovered repository", got.GitRepo)
+	}
+	if got.GitBranch != "" {
+		t.Fatalf("gitBranch = %q, want explicitly empty", got.GitBranch)
+	}
+	if got.WorktreeName != "explicit-worktree" {
+		t.Fatalf("worktreeName = %q, want explicit-worktree", got.WorktreeName)
+	}
+	if got.WorktreeDir != "/discovered/worktree" {
+		t.Fatalf("worktreeDir = %q, want discovered worktree", got.WorktreeDir)
+	}
+}
+
+func TestRunTaskCreateDefaultsDetachedAndNonGitContexts(t *testing.T) {
+	tests := []struct {
+		name       string
+		invocation runtimecontext.Context
+		want       core.CreateTaskInput
+	}{
+		{
+			name: "detached HEAD",
+			invocation: runtimecontext.Context{
+				InGit:          true,
+				RepositoryRoot: "/repository",
+				WorktreeRoot:   "/worktree",
+				DetachedHEAD:   true,
+				WorktreeName:   "detached-worktree",
+			},
+			want: core.CreateTaskInput{
+				GitRepo:      "/repository",
+				GitBranch:    "",
+				WorktreeName: "detached-worktree",
+				WorktreeDir:  "/worktree",
+			},
+		},
+		{
+			name:       "non-Git invocation",
+			invocation: runtimecontext.Context{InvocationDir: "/outside-git"},
+			want:       core.CreateTaskInput{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			provider := &updateTestProvider{}
+			ctx := context{
+				provider:   provider,
+				invocation: test.invocation,
+				stdout:     &bytes.Buffer{},
+				stderr:     &bytes.Buffer{},
+			}
+			if err := runTaskCreate(ctx, []string{"--title", test.name}); err != nil {
+				t.Fatalf("runTaskCreate() error = %v", err)
+			}
+
+			got := provider.gotCreateInput
+			if got.GitRepo != test.want.GitRepo ||
+				got.GitBranch != test.want.GitBranch ||
+				got.WorktreeName != test.want.WorktreeName ||
+				got.WorktreeDir != test.want.WorktreeDir {
+				t.Fatalf("context metadata = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRunTaskCreateDefaultsLinkedWorktreeMetadata(t *testing.T) {
+	requireGitForConfigTest(t)
+
+	fixture := t.TempDir()
+	mainRoot := filepath.Join(fixture, "main-repository")
+	linkedRoot := filepath.Join(fixture, "linked-context")
+	runConfigGit(t, fixture, "init", mainRoot)
+	runConfigGit(t, mainRoot, "config", "user.name", "WTP Test")
+	runConfigGit(t, mainRoot, "config", "user.email", "wtp-test@example.invalid")
+	if err := os.WriteFile(filepath.Join(mainRoot, "tracked.txt"), []byte("fixture\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	runConfigGit(t, mainRoot, "add", "tracked.txt")
+	runConfigGit(t, mainRoot, "commit", "-m", "fixture")
+	runConfigGit(t, mainRoot, "worktree", "add", "-b", "linked-context-branch", linkedRoot)
+
+	nested := filepath.Join(linkedRoot, "nested", "invocation")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	p, invocation, err := providerAndContextForInvocation(nested)
+	if err != nil {
+		t.Fatalf("providerAndContextForInvocation() error = %v", err)
+	}
+	ctx := context{
+		provider:   p,
+		invocation: invocation,
+		stdout:     &bytes.Buffer{},
+		stderr:     &bytes.Buffer{},
+	}
+	if err := runTaskCreate(ctx, []string{"--title", "Linked worktree task"}); err != nil {
+		t.Fatalf("runTaskCreate() error = %v", err)
+	}
+
+	tasks, err := p.ListTasks(provider.TaskFilter{})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("task count = %d, want 1", len(tasks))
+	}
+	task := tasks[0]
+	if task.GitRepo != mainRoot ||
+		task.GitBranch != "linked-context-branch" ||
+		task.WorktreeName != "linked-context" ||
+		task.WorktreeDir != linkedRoot {
+		t.Fatalf("linked worktree metadata = %#v", task.Task)
+	}
+}
+
+func TestLegacyCreateUsesTheSameContextDefaultsAndOverrides(t *testing.T) {
+	legacy, err := rewriteLegacyArgs([]string{
+		"--create-task",
+		"--title", "Legacy context task",
+		"--git-branch=",
+		"--worktree-name", "legacy-explicit",
+	})
+	if err != nil {
+		t.Fatalf("rewriteLegacyArgs() error = %v", err)
+	}
+
+	provider := &updateTestProvider{}
+	ctx := context{
+		provider: provider,
+		invocation: runtimecontext.Context{
+			InGit:          true,
+			RepositoryRoot: "/discovered/repository",
+			WorktreeRoot:   "/discovered/worktree",
+			Branch:         "discovered-branch",
+			WorktreeName:   "discovered-worktree",
+		},
+		stdout: &bytes.Buffer{},
+		stderr: &bytes.Buffer{},
+	}
+	if err := runTaskCreate(ctx, legacy.args[2:]); err != nil {
+		t.Fatalf("runTaskCreate(rewritten legacy args) error = %v", err)
+	}
+
+	got := provider.gotCreateInput
+	if got.GitRepo != "/discovered/repository" ||
+		got.GitBranch != "" ||
+		got.WorktreeName != "legacy-explicit" ||
+		got.WorktreeDir != "/discovered/worktree" {
+		t.Fatalf("legacy context metadata = %#v", got)
 	}
 }
 
@@ -354,7 +595,17 @@ func TestRunTaskUpdatePassesMutableFieldsToProvider(t *testing.T) {
 		stderr:   &bytes.Buffer{},
 	}
 
-	err := runTaskUpdate(ctx, []string{"wtp-0028", "--depends-on", "wtp-0020", "--priority", "high", "--model", "o3", "--agent", "Tony"})
+	err := runTaskUpdate(ctx, []string{
+		"wtp-0028",
+		"--depends-on", "wtp-0020",
+		"--priority", "high",
+		"--model", "o3",
+		"--git-repo", "/workspace/repo",
+		"--git-branch", "feature/task-metadata",
+		"--worktree-name", "task-metadata",
+		"--worktree-dir", "/workspace/task-metadata",
+		"--agent", "Tony",
+	})
 	if err != nil {
 		t.Fatalf("runTaskUpdate() error = %v", err)
 	}
@@ -373,17 +624,64 @@ func TestRunTaskUpdatePassesMutableFieldsToProvider(t *testing.T) {
 	if !provider.gotInput.Model.Set || provider.gotInput.Model.Value != "o3" {
 		t.Fatalf("model input = %#v", provider.gotInput.Model)
 	}
+	if !provider.gotInput.GitRepo.Set || provider.gotInput.GitRepo.Value != "/workspace/repo" ||
+		!provider.gotInput.GitBranch.Set || provider.gotInput.GitBranch.Value != "feature/task-metadata" ||
+		!provider.gotInput.WorktreeName.Set || provider.gotInput.WorktreeName.Value != "task-metadata" ||
+		!provider.gotInput.WorktreeDir.Set || provider.gotInput.WorktreeDir.Value != "/workspace/task-metadata" {
+		t.Fatalf("Git/worktree update input = %#v", provider.gotInput)
+	}
 }
 
-func TestRunTaskUpdateCanClearSuggestedModel(t *testing.T) {
+func TestRunTaskUpdateCanClearMetadataFields(t *testing.T) {
 	provider := &updateTestProvider{}
-	ctx := context{provider: provider, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	ctx := context{
+		provider: provider,
+		invocation: runtimecontext.Context{
+			InGit:          true,
+			RepositoryRoot: "/current/repository",
+			WorktreeRoot:   "/current/worktree",
+			Branch:         "current-branch",
+			WorktreeName:   "current-worktree",
+		},
+		stdout: &bytes.Buffer{},
+		stderr: &bytes.Buffer{},
+	}
 
-	if err := runTaskUpdate(ctx, []string{"wtp-0028", "--model="}); err != nil {
+	if err := runTaskUpdate(ctx, []string{"wtp-0028", "--model=", "--git-repo=", "--git-branch=", "--worktree-name=", "--worktree-dir="}); err != nil {
 		t.Fatalf("runTaskUpdate() error = %v", err)
 	}
 	if !provider.gotInput.Model.Set || provider.gotInput.Model.Value != "" {
 		t.Fatalf("model input = %#v, want explicitly empty", provider.gotInput.Model)
+	}
+	if !provider.gotInput.GitRepo.Set || provider.gotInput.GitRepo.Value != "" ||
+		!provider.gotInput.GitBranch.Set || provider.gotInput.GitBranch.Value != "" ||
+		!provider.gotInput.WorktreeName.Set || provider.gotInput.WorktreeName.Value != "" ||
+		!provider.gotInput.WorktreeDir.Set || provider.gotInput.WorktreeDir.Value != "" {
+		t.Fatalf("Git/worktree clear input = %#v", provider.gotInput)
+	}
+}
+
+func TestRunTaskUpdateDoesNotRefreshContextMetadata(t *testing.T) {
+	provider := &updateTestProvider{}
+	ctx := context{
+		provider: provider,
+		invocation: runtimecontext.Context{
+			InGit:          true,
+			RepositoryRoot: "/current/repository",
+			WorktreeRoot:   "/current/worktree",
+			Branch:         "current-branch",
+			WorktreeName:   "current-worktree",
+		},
+		stdout: &bytes.Buffer{},
+		stderr: &bytes.Buffer{},
+	}
+
+	if err := runTaskUpdate(ctx, []string{"wtp-0028", "--description", "preserve stored context"}); err != nil {
+		t.Fatalf("runTaskUpdate() error = %v", err)
+	}
+	got := provider.gotInput
+	if got.GitRepo.Set || got.GitBranch.Set || got.WorktreeName.Set || got.WorktreeDir.Set {
+		t.Fatalf("update injected invocation context: %#v", got)
 	}
 }
 
@@ -561,13 +859,13 @@ func TestRunGraphRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
-func TestHelpMentionsShowTaskUpdateSelfUpdateEditSchemaAndModel(t *testing.T) {
+func TestHelpMentionsTaskMetadataOptions(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := help(&stdout); err != nil {
 		t.Fatalf("help() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "Usage Guide:"} {
+	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "--git-repo", "--git-branch", "--worktree-name", "--worktree-dir", "current Git worktree root", "wtpDir selects storage", "Usage Guide:"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("help output missing %q", needle)
 		}
@@ -580,20 +878,24 @@ func TestSchemaMentionsDependenciesIndexAndModel(t *testing.T) {
 		t.Fatalf("schema() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, "model: optional free-form string", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid"} {
+	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, `"gitRepo": "/workspace/repo"`, "Configuration and discovery:", "linked worktrees use that worktree's configuration", "model: optional free-form string", "gitRepo: optional absolute path", "worktreeDir: optional absolute path", "--git-branch=", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("schema output missing %q", needle)
 		}
 	}
 }
 
-func TestPrintValueIncludesSuggestedModelInHumanAndJSONOutput(t *testing.T) {
+func TestPrintValueIncludesTaskMetadataInHumanAndJSONOutput(t *testing.T) {
 	now := time.Date(2026, time.July, 20, 12, 0, 0, 0, time.UTC)
 	task := core.TaskView{Task: core.Task{
 		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
 		ShortID:      "wtp-0001",
 		Title:        "Model-aware task",
 		Model:        "gpt-5.2-codex",
+		GitRepo:      "/workspace/repo",
+		GitBranch:    "feature/task-metadata",
+		WorktreeName: "task-metadata",
+		WorktreeDir:  "/workspace/task-metadata",
 		Status:       core.StatusTodo,
 		Dependencies: []string{},
 		Comments:     []core.Comment{},
@@ -605,8 +907,16 @@ func TestPrintValueIncludesSuggestedModelInHumanAndJSONOutput(t *testing.T) {
 	if err := printValue(context{stdout: &human}, task); err != nil {
 		t.Fatalf("printValue(human) error = %v", err)
 	}
-	if !strings.Contains(human.String(), "model: gpt-5.2-codex") {
-		t.Fatalf("human output missing model: %q", human.String())
+	for _, needle := range []string{
+		"model: gpt-5.2-codex",
+		"gitRepo: /workspace/repo",
+		"gitBranch: feature/task-metadata",
+		"worktreeName: task-metadata",
+		"worktreeDir: /workspace/task-metadata",
+	} {
+		if !strings.Contains(human.String(), needle) {
+			t.Fatalf("human output missing %q: %q", needle, human.String())
+		}
 	}
 
 	var summary bytes.Buffer
@@ -621,8 +931,16 @@ func TestPrintValueIncludesSuggestedModelInHumanAndJSONOutput(t *testing.T) {
 	if err := printValue(context{stdout: &jsonOutput, jsonOut: true}, task); err != nil {
 		t.Fatalf("printValue(JSON) error = %v", err)
 	}
-	if !strings.Contains(jsonOutput.String(), `"model": "gpt-5.2-codex"`) {
-		t.Fatalf("JSON output missing model: %q", jsonOutput.String())
+	for _, needle := range []string{
+		`"model": "gpt-5.2-codex"`,
+		`"gitRepo": "/workspace/repo"`,
+		`"gitBranch": "feature/task-metadata"`,
+		`"worktreeName": "task-metadata"`,
+		`"worktreeDir": "/workspace/task-metadata"`,
+	} {
+		if !strings.Contains(jsonOutput.String(), needle) {
+			t.Fatalf("JSON output missing %q: %q", needle, jsonOutput.String())
+		}
 	}
 }
 

@@ -151,6 +151,10 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 			Estimate:     input.Estimate,
 			Lane:         strings.TrimSpace(input.Lane),
 			Model:        strings.TrimSpace(input.Model),
+			GitRepo:      strings.TrimSpace(input.GitRepo),
+			GitBranch:    strings.TrimSpace(input.GitBranch),
+			WorktreeName: strings.TrimSpace(input.WorktreeName),
+			WorktreeDir:  strings.TrimSpace(input.WorktreeDir),
 			Status:       core.StatusTodo,
 			Assignee:     strings.TrimSpace(input.Assignee),
 			Dependencies: resolvedDependencies,
@@ -208,6 +212,18 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 		}
 		if input.Model.Set {
 			task.Model = strings.TrimSpace(input.Model.Value)
+		}
+		if input.GitRepo.Set {
+			task.GitRepo = strings.TrimSpace(input.GitRepo.Value)
+		}
+		if input.GitBranch.Set {
+			task.GitBranch = strings.TrimSpace(input.GitBranch.Value)
+		}
+		if input.WorktreeName.Set {
+			task.WorktreeName = strings.TrimSpace(input.WorktreeName.Value)
+		}
+		if input.WorktreeDir.Set {
+			task.WorktreeDir = strings.TrimSpace(input.WorktreeDir.Value)
 		}
 		if input.Assignee.Set {
 			task.Assignee = strings.TrimSpace(input.Assignee.Value)

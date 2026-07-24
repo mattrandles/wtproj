@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-23
+
+### Added
+
+- Git and worktree context metadata with configurable centralized task storage.
+- Unified Unix and PowerShell commit and release verification gates.
+- Expanded behavioral coverage for CLI, storage, updater, installation, and
+  release-contract workflows.
+
 ## [0.1.0] - 2026-07-21
 
 ### Added

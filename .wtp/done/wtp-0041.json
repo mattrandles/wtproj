@@ -1,0 +1,34 @@
+{
+  "id": "6a86e82a-43a1-4a0c-a36e-aad3eb1c9582",
+  "shortId": "wtp-0041",
+  "title": "Auto-populate task Git and worktree metadata",
+  "description": "On task creation, default each omitted gitRepo, gitBranch, worktreeName, and worktreeDir field from the discovered invocation context while allowing every explicit CLI value, including an intentional empty value, to override its individual default. Outside Git, leave omitted metadata empty. Ensure task update/edit never refresh or overwrite stored context implicitly, and keep legacy --create-task behavior equivalent to task create. Add focused tests for partial overrides, detached HEAD, linked worktrees, non-Git invocation, preservation, and clearing.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "cli",
+  "model": "GPT 5.6 Sol High",
+  "status": "done",
+  "assignee": "pm-monitor",
+  "dependencies": [
+    "3c1cdcb6-713b-4181-9853-9152a8e52f1c",
+    "8cc71d3f-35a3-4ccc-889b-8b18e8a5c562"
+  ],
+  "comments": [
+    {
+      "id": "6f6f4bbc-0314-4171-806b-9fc508cca166",
+      "author": "pm-monitor",
+      "message": "Inspected repository guidance and prerequisite changes. Baseline go test ./... passes. Implementing creation-only defaults from runtime context with per-flag presence tracking so explicit empty values win; update/edit will remain context-free, including legacy create coverage.",
+      "createdAt": "2026-07-23T14:58:54.98439086Z"
+    },
+    {
+      "id": "f0509d36-876c-4952-baff-efcee081539f",
+      "author": "pm-monitor",
+      "message": "Implemented creation-only Git/worktree defaults from the discovered invocation context with independent presence-aware overrides, including explicit empty values and legacy --create-task rewriting. Added focused tests for partial overrides, detached HEAD, non-Git, a real linked worktree, preservation, clearing, and legacy equivalence; documented behavior. Verification passed: git diff --check, go vet ./..., go test ./... -count=1.",
+      "createdAt": "2026-07-23T15:01:39.041420174Z"
+    }
+  ],
+  "createdAt": "2026-07-23T12:45:22.47238535Z",
+  "updatedAt": "2026-07-23T15:01:39.054669268Z",
+  "startedAt": "2026-07-23T14:57:15.718218484Z",
+  "completedAt": "2026-07-23T15:01:39.054669268Z"
+}

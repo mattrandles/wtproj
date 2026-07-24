@@ -7,10 +7,15 @@ so the proposed change can be discussed and tracked.
 
 1. Fork the repository and create a focused branch.
 2. Keep changes small, documented, and covered by tests where behavior changes.
-3. Run `./scripts/check.sh` before opening a pull request. On Windows, run
-   `./scripts/check.ps1`.
+3. Run `./scripts/verify.sh commit` before opening a pull request. On Windows,
+   run `./scripts/verify.ps1 commit`.
 4. Describe the problem, solution, verification, and any follow-up work in the
    pull request.
+
+Before creating a release tag, run the full, non-publishing gate with
+`./scripts/verify.sh release` or `./scripts/verify.ps1 release`. See the
+[verification section in the README](README.md#verification) for required
+tools, runtime expectations, and platform limitations.
 
 ## Secret scanning
 

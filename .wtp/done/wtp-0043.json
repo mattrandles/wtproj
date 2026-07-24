@@ -1,0 +1,30 @@
+{
+  "id": "61827bab-96f2-420b-b2c0-37afb173b26b",
+  "shortId": "wtp-0043",
+  "title": "Add unified cross-platform verification gate",
+  "description": "Create Unix and PowerShell verification entrypoints for the pre-commit and release gates. Run formatting validation, go test ./..., go vet ./..., existing Unix and Windows smoke tests, and release QA including GoReleaser checks in release mode. Fail clearly when required release tools are missing; use temporary isolated fixtures and never mutate the repository or user installations. Document commit and release usage, required tools, expected runtime, and platform limitations. Acceptance: one documented reliable gate supports both platforms and distinguishes commit versus full release verification.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "qa",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "f4bc694e-2f3b-4963-b8f5-2222bb71ba8b",
+      "author": "codex-wtp-loop",
+      "message": "Inspected repository guidance and existing check/release-QA scripts. Implementing unified scripts/verify.sh and verify.ps1 with commit/release modes; release mode will use temporary GoReleaser output and existing isolated QA, while preserving check.sh/check.ps1 as commit aliases.",
+      "createdAt": "2026-07-23T21:51:17.086536296Z"
+    },
+    {
+      "id": "e61ca038-10ad-49ba-802a-381ca2e5c7ac",
+      "author": "codex-wtp-loop",
+      "message": "Implemented scripts/verify.sh and verify.ps1 with commit/release modes; check scripts remain commit aliases; CI and release workflow now use the unified gate; documented tools, runtime, isolation, and platform limits. Verified Bash and PowerShell commit gates, both full release gates with GoReleaser 2.17.0 in disposable temp directories, explicit missing-GoReleaser failures, and git diff --check.",
+      "createdAt": "2026-07-23T21:57:57.587282122Z"
+    }
+  ],
+  "createdAt": "2026-07-23T16:42:20.260063763Z",
+  "updatedAt": "2026-07-23T21:57:57.597927155Z",
+  "startedAt": "2026-07-23T21:50:10.595509647Z",
+  "completedAt": "2026-07-23T21:57:57.597927155Z"
+}

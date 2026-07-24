@@ -107,6 +107,109 @@ func TestCreateTaskPersistsSchedulingMetadata(t *testing.T) {
 	}
 }
 
+func TestCreateTaskPersistsNormalizedGitAndWorktreeMetadata(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	gitRepo := filepath.Join(t.TempDir(), "repository")
+	worktreeDir := filepath.Join(t.TempDir(), "worktree")
+
+	created, err := p.CreateTask(core.CreateTaskInput{
+		Title:        "Git-aware task",
+		GitRepo:      "  " + gitRepo + "  ",
+		GitBranch:    "  feature/task-metadata  ",
+		WorktreeName: "  task-metadata  ",
+		WorktreeDir:  "  " + worktreeDir + "  ",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	stored, err := p.GetTask(created.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", created.ShortID, err)
+	}
+	if stored.GitRepo != gitRepo {
+		t.Fatalf("gitRepo = %q, want %q", stored.GitRepo, gitRepo)
+	}
+	if stored.GitBranch != "feature/task-metadata" {
+		t.Fatalf("gitBranch = %q, want feature/task-metadata", stored.GitBranch)
+	}
+	if stored.WorktreeName != "task-metadata" {
+		t.Fatalf("worktreeName = %q, want task-metadata", stored.WorktreeName)
+	}
+	if stored.WorktreeDir != worktreeDir {
+		t.Fatalf("worktreeDir = %q, want %q", stored.WorktreeDir, worktreeDir)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, string(core.StatusTodo), created.ShortID+".json"))
+	if err != nil {
+		t.Fatalf("os.ReadFile() error = %v", err)
+	}
+	var roundTripped core.Task
+	if err := json.Unmarshal(data, &roundTripped); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if roundTripped.GitRepo != gitRepo ||
+		roundTripped.GitBranch != "feature/task-metadata" ||
+		roundTripped.WorktreeName != "task-metadata" ||
+		roundTripped.WorktreeDir != worktreeDir {
+		t.Fatalf("round-tripped metadata = %#v", roundTripped)
+	}
+}
+
+func TestCreateTaskRejectsRelativeGitAndWorktreePaths(t *testing.T) {
+	p := newProvider(t)
+
+	if _, err := p.CreateTask(core.CreateTaskInput{
+		Title:   "Relative repository",
+		GitRepo: "relative/repository",
+	}); err == nil || !strings.Contains(err.Error(), "gitRepo") {
+		t.Fatalf("CreateTask(relative gitRepo) error = %v", err)
+	}
+	if _, err := p.CreateTask(core.CreateTaskInput{
+		Title:       "Relative worktree",
+		WorktreeDir: "relative/worktree",
+	}); err == nil || !strings.Contains(err.Error(), "worktreeDir") {
+		t.Fatalf("CreateTask(relative worktreeDir) error = %v", err)
+	}
+}
+
+func TestLoadTaskWithoutGitAndWorktreeMetadata(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	legacyJSON := `{
+		"id": "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		"shortId": "wtp-0001",
+		"title": "Legacy flat-file task",
+		"description": "",
+		"status": "todo",
+		"dependencies": [],
+		"comments": [],
+		"createdAt": "2026-03-24T14:10:04Z",
+		"updatedAt": "2026-03-24T14:10:04Z",
+		"startedAt": null,
+		"completedAt": null
+	}`
+	path := filepath.Join(root, string(core.StatusTodo), "wtp-0001.json")
+	if err := os.WriteFile(path, []byte(legacyJSON), 0o644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	got, err := p.GetTask("wtp-0001", "")
+	if err != nil {
+		t.Fatalf("GetTask() legacy JSON error = %v", err)
+	}
+	if got.GitRepo != "" || got.GitBranch != "" || got.WorktreeName != "" || got.WorktreeDir != "" {
+		t.Fatalf("legacy task contains Git/worktree metadata: %#v", got)
+	}
+}
+
 func TestUpdateTaskStatusRejectsBlockedStart(t *testing.T) {
 	p := newProvider(t)
 
@@ -535,6 +638,58 @@ func TestUpdateTaskPersistsDependenciesAndMetadata(t *testing.T) {
 	}
 	if len(stored.Dependencies) != 1 || stored.Dependencies[0] != dependency.ID {
 		t.Fatalf("stored dependencies = %v, want [%s]", stored.Dependencies, dependency.ID)
+	}
+}
+
+func TestUpdateTaskPreservesAndClearsGitAndWorktreeMetadata(t *testing.T) {
+	p := newProvider(t)
+	gitRepo := filepath.Join(t.TempDir(), "repository")
+	worktreeDir := filepath.Join(t.TempDir(), "worktree")
+	task, err := p.CreateTask(core.CreateTaskInput{
+		Title:        "Git-aware task",
+		GitRepo:      gitRepo,
+		GitBranch:    "feature/original",
+		WorktreeName: "original",
+		WorktreeDir:  worktreeDir,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	preserved, err := p.UpdateTask(task.ShortID, core.UpdateTaskInput{
+		Description: core.OptionalString{Set: true, Value: "metadata unchanged"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateTask(preserve) error = %v", err)
+	}
+	if preserved.GitRepo != gitRepo ||
+		preserved.GitBranch != "feature/original" ||
+		preserved.WorktreeName != "original" ||
+		preserved.WorktreeDir != worktreeDir {
+		t.Fatalf("preserved metadata = %#v", preserved)
+	}
+
+	updatedRepo := filepath.Join(t.TempDir(), "updated-repository")
+	updated, err := p.UpdateTask(task.ShortID, core.UpdateTaskInput{
+		GitRepo:      core.OptionalString{Set: true, Value: "  " + updatedRepo + "  "},
+		GitBranch:    core.OptionalString{Set: true, Value: ""},
+		WorktreeName: core.OptionalString{Set: true, Value: "  updated  "},
+		WorktreeDir:  core.OptionalString{Set: true, Value: ""},
+	})
+	if err != nil {
+		t.Fatalf("UpdateTask(change and clear) error = %v", err)
+	}
+	if updated.GitRepo != updatedRepo {
+		t.Fatalf("gitRepo = %q, want %q", updated.GitRepo, updatedRepo)
+	}
+	if updated.GitBranch != "" {
+		t.Fatalf("gitBranch = %q, want empty", updated.GitBranch)
+	}
+	if updated.WorktreeName != "updated" {
+		t.Fatalf("worktreeName = %q, want updated", updated.WorktreeName)
+	}
+	if updated.WorktreeDir != "" {
+		t.Fatalf("worktreeDir = %q, want empty", updated.WorktreeDir)
 	}
 }
 

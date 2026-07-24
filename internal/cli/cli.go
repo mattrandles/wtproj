@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -17,14 +16,16 @@ import (
 	"github.com/mattrandles/wtproj/internal/config"
 	"github.com/mattrandles/wtproj/internal/core"
 	"github.com/mattrandles/wtproj/internal/provider"
+	"github.com/mattrandles/wtproj/internal/runtimecontext"
 	"github.com/mattrandles/wtproj/internal/updater"
 )
 
 type context struct {
-	provider provider.Provider
-	stdout   io.Writer
-	stderr   io.Writer
-	jsonOut  bool
+	provider   provider.Provider
+	invocation runtimecontext.Context
+	stdout     io.Writer
+	stderr     io.Writer
+	jsonOut    bool
 }
 
 type legacyParseResult struct {
@@ -72,19 +73,12 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runSelfUpdate(ctx, rest[1:], updater.Run)
 	}
 
-	cwd, err := filepath.Abs(".")
-	if err != nil {
-		return fmt.Errorf("resolve cwd: %w", err)
-	}
-	cfg, err := config.Discover(cwd)
-	if err != nil {
-		return err
-	}
-	p, err := app.NewProvider(cwd, cfg)
+	p, invocation, err := providerAndContextForInvocation(".")
 	if err != nil {
 		return err
 	}
 	ctx.provider = p
+	ctx.invocation = invocation
 
 	switch rest[0] {
 	case "task":
@@ -96,6 +90,32 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	default:
 		return fmt.Errorf("unknown command %q", rest[0])
 	}
+}
+
+func providerForInvocation(invocationDir string) (provider.Provider, error) {
+	p, _, err := providerAndContextForInvocation(invocationDir)
+	return p, err
+}
+
+func providerAndContextForInvocation(invocationDir string) (provider.Provider, runtimecontext.Context, error) {
+	runtime, err := runtimecontext.Discover(invocationDir)
+	if err != nil {
+		return nil, runtimecontext.Context{}, err
+	}
+
+	configAnchor := runtime.InvocationDir
+	if runtime.InGit {
+		configAnchor = runtime.WorktreeRoot
+	}
+	cfg, err := config.Discover(configAnchor)
+	if err != nil {
+		return nil, runtimecontext.Context{}, err
+	}
+	p, err := app.NewProvider(cfg.WTPDir, cfg)
+	if err != nil {
+		return nil, runtimecontext.Context{}, err
+	}
+	return p, runtime, nil
 }
 
 func requireNoArgs(command string, args []string) error {
@@ -204,13 +224,21 @@ func runTaskCreate(ctx context, args []string) error {
 	estimateValue := flags.String("estimate", "", "task estimate (xs|s|m|l|xl)")
 	lane := flags.String("lane", "", "task lane or area")
 	model := flags.String("model", "", "suggested model for completing the task")
+	var gitRepo optionString
+	var gitBranch optionString
+	var worktreeName optionString
+	var worktreeDir optionString
+	flags.Var(&gitRepo, "git-repo", "absolute path to the Git repository")
+	flags.Var(&gitBranch, "git-branch", "Git branch name")
+	flags.Var(&worktreeName, "worktree-name", "Git worktree name")
+	flags.Var(&worktreeDir, "worktree-dir", "absolute path to the Git worktree")
 	agent := flags.String("agent", "", "assignee")
 	dependsOn := flags.String("depends-on", "", "comma-separated task identifiers")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task create --title \"...\" [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task create --title \"...\" [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
 	}
 	if strings.TrimSpace(*title) == "" {
 		return errors.New("task title is required")
@@ -230,6 +258,10 @@ func runTaskCreate(ctx context, args []string) error {
 		Estimate:     estimate,
 		Lane:         *lane,
 		Model:        *model,
+		GitRepo:      defaultedOption(gitRepo, ctx.invocation.RepositoryRoot),
+		GitBranch:    defaultedOption(gitBranch, ctx.invocation.Branch),
+		WorktreeName: defaultedOption(worktreeName, ctx.invocation.WorktreeName),
+		WorktreeDir:  defaultedOption(worktreeDir, ctx.invocation.WorktreeRoot),
 		Assignee:     *agent,
 		Dependencies: splitCSV(*dependsOn),
 	})
@@ -242,7 +274,7 @@ func runTaskCreate(ctx context, args []string) error {
 func runTaskUpdate(ctx context, args []string) error {
 	id, options, err := splitSinglePositionalArgs(args)
 	if err != nil {
-		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
 	}
 	flags := flag.NewFlagSet("task update", flag.ContinueOnError)
 	flags.SetOutput(ctx.stderr)
@@ -253,6 +285,10 @@ func runTaskUpdate(ctx context, args []string) error {
 	var estimateValue optionString
 	var lane optionString
 	var model optionString
+	var gitRepo optionString
+	var gitBranch optionString
+	var worktreeName optionString
+	var worktreeDir optionString
 	var dependsOn optionString
 	var agent optionString
 
@@ -262,15 +298,19 @@ func runTaskUpdate(ctx context, args []string) error {
 	flags.Var(&estimateValue, "estimate", "task estimate (xs|s|m|l|xl)")
 	flags.Var(&lane, "lane", "task lane or area")
 	flags.Var(&model, "model", "suggested model for completing the task")
+	flags.Var(&gitRepo, "git-repo", "absolute path to the Git repository")
+	flags.Var(&gitBranch, "git-branch", "Git branch name")
+	flags.Var(&worktreeName, "worktree-name", "Git worktree name")
+	flags.Var(&worktreeDir, "worktree-dir", "absolute path to the Git worktree")
 	flags.Var(&dependsOn, "depends-on", "comma-separated task identifiers")
 	flags.Var(&agent, "agent", "assignee")
 	if err := flags.Parse(options); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
 	}
-	if !title.set && !description.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !dependsOn.set && !agent.set {
+	if !title.set && !description.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !gitRepo.set && !gitBranch.set && !worktreeName.set && !worktreeDir.set && !dependsOn.set && !agent.set {
 		return errors.New("task update requires at least one field to change")
 	}
 
@@ -290,6 +330,10 @@ func runTaskUpdate(ctx context, args []string) error {
 		Estimate:     core.OptionalEstimate{Set: estimateValue.set, Value: estimate},
 		Lane:         core.OptionalString{Set: lane.set, Value: lane.value},
 		Model:        core.OptionalString{Set: model.set, Value: model.value},
+		GitRepo:      core.OptionalString{Set: gitRepo.set, Value: gitRepo.value},
+		GitBranch:    core.OptionalString{Set: gitBranch.set, Value: gitBranch.value},
+		WorktreeName: core.OptionalString{Set: worktreeName.set, Value: worktreeName.value},
+		WorktreeDir:  core.OptionalString{Set: worktreeDir.set, Value: worktreeDir.value},
 		Assignee:     core.OptionalString{Set: agent.set, Value: agent.value},
 		Dependencies: core.OptionalString{Set: dependsOn.set, Value: dependsOn.value},
 	})
@@ -651,6 +695,18 @@ func printTask(w io.Writer, task core.TaskView) error {
 	if task.Model != "" {
 		lines = append(lines, fmt.Sprintf("model: %s", task.Model))
 	}
+	if task.GitRepo != "" {
+		lines = append(lines, fmt.Sprintf("gitRepo: %s", task.GitRepo))
+	}
+	if task.GitBranch != "" {
+		lines = append(lines, fmt.Sprintf("gitBranch: %s", task.GitBranch))
+	}
+	if task.WorktreeName != "" {
+		lines = append(lines, fmt.Sprintf("worktreeName: %s", task.WorktreeName))
+	}
+	if task.WorktreeDir != "" {
+		lines = append(lines, fmt.Sprintf("worktreeDir: %s", task.WorktreeDir))
+	}
 	if task.Readiness.BlockedReason != "" {
 		lines = append(lines, fmt.Sprintf("blockedReason: %s", task.Readiness.BlockedReason))
 	}
@@ -679,8 +735,8 @@ func help(w io.Writer) error {
 	_, err := io.WriteString(w, `wtp
 
 Commands:
-  wtp task create --title "..." [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]
-	wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--depends-on a,b] [--agent Tony]
+  wtp task create --title "..." [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]
+	wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]
 	wtp task edit <task-id> [same options as update]
   wtp task list [--status todo|inProgress|paused|done] [--agent Tony]
   wtp task show <task-id> [--agent Tony]
@@ -703,7 +759,9 @@ Use --limit N to inspect multiple ready tasks in the same order; batch ready is 
 task show prints one specific task without claiming it; task get remains available as an alias.
 task next claims the returned task by moving it to inProgress.
 When --agent is supplied, list/get/ready/next compute claimability using that same assignee-safety rule.
-task update edits mutable task fields in place; pass --model= to clear a suggestion.
+task update edits mutable task fields in place; pass --model= or any Git/worktree metadata option with = to clear that field.
+On task create, omitted Git/worktree fields default independently from the current Git context; explicit empty values override those defaults.
+Configuration is read from .wtp.json at the current Git worktree root (or the invocation directory outside Git); wtpDir selects storage and is relative to that file when not absolute.
 The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
 Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
 graph prints dependency trees for matching tasks; it defaults to todo and accepts done, paused, inProgress, todo, or all.
@@ -753,6 +811,13 @@ Storage layout:
 			index.json
 			locks/
 
+Configuration and discovery:
+	- In Git, .wtp.json is read only from the current worktree root; nested directories and linked worktrees use that worktree's configuration.
+	- Outside Git, .wtp.json is read only from the invocation directory. Parent directories are not searched.
+	- Without configuration, storage is <discovery directory>/.wtp.
+	- The optional .wtp.json wtpDir property selects storage. Relative wtpDir values are resolved from the configuration file; absolute values are accepted.
+	- Adding, changing, or removing .wtp.json never moves or deletes an existing store.
+
 Task file rules:
 	- Each task is stored as JSON in the directory matching its status.
 	- Flat-file task filenames use the short ID: .wtp/<status>/wtp-0001.json
@@ -775,6 +840,10 @@ Task JSON schema:
 		"estimate": "m",
 		"lane": "cli",
 		"model": "gpt-5",
+		"gitRepo": "/workspace/repo",
+		"gitBranch": "feature/parser",
+		"worktreeName": "parser",
+		"worktreeDir": "/workspace/repo-parser",
 		"status": "todo",
 		"assignee": "Tony",
 		"dependencies": ["7f13f5e2-6d9d-4630-84e1-7aef10c637e4"],
@@ -802,6 +871,10 @@ Field semantics:
 	- lane: optional string for area/team grouping.
 	- model: optional free-form string naming the suggested model for completing the task.
 	  Set it with --model VALUE on task create/update/edit, or clear it with --model=.
+	- gitRepo: optional absolute path to the primary Git worktree root where the task was created.
+	- gitBranch: optional branch name where the task was created; empty for a detached HEAD unless explicitly overridden.
+	- worktreeName: optional name of the current Git worktree where the task was created.
+	- worktreeDir: optional absolute path to the current Git worktree root where the task was created.
 	- status: required enum todo|inProgress|paused|done.
 	- assignee: optional string.
 	- dependencies: array of canonical lowercase task UUIDs.
@@ -824,6 +897,8 @@ Behavioral rules:
 	  done requires both, with completedAt not before startedAt.
 	- task next prefers paused tasks before todo, then higher priority, then older tasks.
 	- model is advisory metadata and does not affect task ordering or claimability.
+	- task create discovers each Git/worktree field independently when it is omitted; an explicit value, including an empty value, overrides only that field.
+	- task update and task edit preserve origin fields unless their corresponding option is supplied; pass --git-repo=, --git-branch=, --worktree-name=, or --worktree-dir= to clear one.
 
 Export rules:
 	- A successful export directory contains exactly one canonical UUID-named JSON file per current task.
@@ -854,6 +929,13 @@ func (o *optionString) Set(value string) error {
 	return nil
 }
 
+func defaultedOption(option optionString, fallback string) string {
+	if option.set {
+		return option.value
+	}
+	return fallback
+}
+
 func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 	actions := []string{}
 	agent := ""
@@ -865,6 +947,10 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 	estimate := ""
 	lane := ""
 	model := ""
+	var gitRepo optionString
+	var gitBranch optionString
+	var worktreeName optionString
+	var worktreeDir optionString
 	dependencies := ""
 	status := ""
 	exportOut := ""
@@ -934,6 +1020,30 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 			if i < len(args) {
 				model = args[i]
 			}
+		case "--git-repo":
+			gitRepo.set = true
+			i++
+			if i < len(args) {
+				gitRepo.value = args[i]
+			}
+		case "--git-branch":
+			gitBranch.set = true
+			i++
+			if i < len(args) {
+				gitBranch.value = args[i]
+			}
+		case "--worktree-name":
+			worktreeName.set = true
+			i++
+			if i < len(args) {
+				worktreeName.value = args[i]
+			}
+		case "--worktree-dir":
+			worktreeDir.set = true
+			i++
+			if i < len(args) {
+				worktreeDir.value = args[i]
+			}
 		case "--dependencies":
 			i++
 			if i < len(args) {
@@ -945,6 +1055,22 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 				status = args[i]
 			}
 		default:
+			if value, found := strings.CutPrefix(arg, "--git-repo="); found {
+				gitRepo = optionString{set: true, value: value}
+				continue
+			}
+			if value, found := strings.CutPrefix(arg, "--git-branch="); found {
+				gitBranch = optionString{set: true, value: value}
+				continue
+			}
+			if value, found := strings.CutPrefix(arg, "--worktree-name="); found {
+				worktreeName = optionString{set: true, value: value}
+				continue
+			}
+			if value, found := strings.CutPrefix(arg, "--worktree-dir="); found {
+				worktreeDir = optionString{set: true, value: value}
+				continue
+			}
 			if strings.HasPrefix(arg, "--export-tasks=") {
 				exportOut = strings.TrimPrefix(arg, "--export-tasks=")
 				actions = append(actions, "export")
@@ -988,7 +1114,8 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 		if strings.TrimSpace(taskID) == "" {
 			return legacyParseResult{}, errors.New("legacy --set-task-paused requires --task-id")
 		}
-		return legacyParseResult{args: append(rest, "task", "pause", taskID), found: true}, nil
+		out := append(append(rest, "task", "pause"), withValue("--agent", agent)...)
+		return legacyParseResult{args: append(out, taskID), found: true}, nil
 	case "done":
 		if strings.TrimSpace(taskID) == "" {
 			return legacyParseResult{}, errors.New("legacy --set-task-done requires --task-id")
@@ -1015,6 +1142,10 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 		out = append(out, withValue("--estimate", estimate)...)
 		out = append(out, withValue("--lane", lane)...)
 		out = append(out, withValue("--model", model)...)
+		out = append(out, withOptionalValue("--git-repo", gitRepo)...)
+		out = append(out, withOptionalValue("--git-branch", gitBranch)...)
+		out = append(out, withOptionalValue("--worktree-name", worktreeName)...)
+		out = append(out, withOptionalValue("--worktree-dir", worktreeDir)...)
 		out = append(out, withValue("--depends-on", dependencies)...)
 		return legacyParseResult{
 			args:  append(out, withValue("--agent", agent)...),
@@ -1035,6 +1166,16 @@ func withValue(flagName, value string) []string {
 		return nil
 	}
 	return []string{flagName, value}
+}
+
+func withOptionalValue(flagName string, option optionString) []string {
+	if !option.set {
+		return nil
+	}
+	if option.value == "" {
+		return []string{flagName + "="}
+	}
+	return []string{flagName, option.value}
 }
 
 func splitCSV(value string) []string {
