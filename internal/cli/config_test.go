@@ -129,6 +129,24 @@ func assertStorageInitialized(t *testing.T, root string) {
 	}
 }
 
+// assertEquivalentPath compares paths after resolving aliases such as Windows
+// short names. Git may report a different spelling for the same directory
+// than the path returned by t.TempDir.
+func assertEquivalentPath(t *testing.T, got, want string) {
+	t.Helper()
+	gotPath, err := filepath.EvalSymlinks(got)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) error = %v", got, err)
+	}
+	wantPath, err := filepath.EvalSymlinks(want)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) error = %v", want, err)
+	}
+	if gotPath != wantPath {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+}
+
 func requireGitForConfigTest(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {

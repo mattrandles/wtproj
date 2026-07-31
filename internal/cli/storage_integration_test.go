@@ -44,12 +44,8 @@ func TestRunUsesDefaultAndSharedExternalStorageAcrossProjects(t *testing.T) {
 	}
 
 	mainTask := runCLIJSONTask(t, mainNested, "--json", "task", "create", "--title", "default store task")
-	if got, want := mainTask.GitRepo, mainRoot; got != want {
-		t.Fatalf("default task GitRepo = %q, want %q", got, want)
-	}
-	if got, want := mainTask.WorktreeDir, mainRoot; got != want {
-		t.Fatalf("default task WorktreeDir = %q, want %q", got, want)
-	}
+	assertEquivalentPath(t, mainTask.GitRepo, mainRoot)
+	assertEquivalentPath(t, mainTask.WorktreeDir, mainRoot)
 	assertStorageInitialized(t, filepath.Join(mainRoot, ".wtp"))
 
 	linkedRoot := filepath.Join(fixture, "linked worktree")
@@ -68,10 +64,14 @@ func TestRunUsesDefaultAndSharedExternalStorageAcrossProjects(t *testing.T) {
 	secondTask := runCLIJSONTask(t, secondRoot, "--json", "task", "create", "--title", "second shared task")
 	assertStorageInitialized(t, sharedStore)
 
-	if linkedTask.GitRepo != mainRoot || linkedTask.WorktreeDir != linkedRoot || linkedTask.GitBranch != "shared-linked" {
+	assertEquivalentPath(t, linkedTask.GitRepo, mainRoot)
+	assertEquivalentPath(t, linkedTask.WorktreeDir, linkedRoot)
+	if linkedTask.GitBranch != "shared-linked" {
 		t.Fatalf("linked task metadata = %#v", linkedTask.Task)
 	}
-	if secondTask.GitRepo != secondRoot || secondTask.WorktreeDir != secondRoot {
+	assertEquivalentPath(t, secondTask.GitRepo, secondRoot)
+	assertEquivalentPath(t, secondTask.WorktreeDir, secondRoot)
+	if secondTask.GitRepo == "" || secondTask.WorktreeDir == "" {
 		t.Fatalf("second project metadata = %#v", secondTask.Task)
 	}
 
@@ -83,12 +83,16 @@ func TestRunUsesDefaultAndSharedExternalStorageAcrossProjects(t *testing.T) {
 	for _, task := range sharedTasks {
 		metadataByTitle[task.Title] = task.Task
 	}
-	if got := metadataByTitle["linked shared task"]; got.GitRepo != mainRoot || got.WorktreeDir != linkedRoot {
+	if got := metadataByTitle["linked shared task"]; got.GitRepo == "" || got.WorktreeDir == "" {
 		t.Fatalf("shared linked task metadata = %#v", got)
 	}
-	if got := metadataByTitle["second shared task"]; got.GitRepo != secondRoot || got.WorktreeDir != secondRoot {
+	assertEquivalentPath(t, metadataByTitle["linked shared task"].GitRepo, mainRoot)
+	assertEquivalentPath(t, metadataByTitle["linked shared task"].WorktreeDir, linkedRoot)
+	if got := metadataByTitle["second shared task"]; got.GitRepo == "" || got.WorktreeDir == "" {
 		t.Fatalf("shared second task metadata = %#v", got)
 	}
+	assertEquivalentPath(t, metadataByTitle["second shared task"].GitRepo, secondRoot)
+	assertEquivalentPath(t, metadataByTitle["second shared task"].WorktreeDir, secondRoot)
 }
 
 func TestRunPreservesAndClearsContextMetadataAndHandlesDetachedAndNonGit(t *testing.T) {
@@ -99,11 +103,15 @@ func TestRunPreservesAndClearsContextMetadataAndHandlesDetachedAndNonGit(t *test
 	runConfigGit(t, detachedRoot, "checkout", "--detach")
 
 	detached := runCLIJSONTask(t, detachedRoot, "--json", "task", "create", "--title", "detached task")
-	if detached.GitRepo != detachedRoot || detached.WorktreeDir != detachedRoot || detached.GitBranch != "" {
+	assertEquivalentPath(t, detached.GitRepo, detachedRoot)
+	assertEquivalentPath(t, detached.WorktreeDir, detachedRoot)
+	if detached.GitBranch != "" {
 		t.Fatalf("detached task metadata = %#v", detached.Task)
 	}
 	updated := runCLIJSONTask(t, detachedRoot, "--json", "task", "update", detached.ShortID, "--description", "preserve context")
-	if updated.Description != "preserve context" || updated.GitRepo != detachedRoot || updated.WorktreeDir != detachedRoot {
+	assertEquivalentPath(t, updated.GitRepo, detachedRoot)
+	assertEquivalentPath(t, updated.WorktreeDir, detachedRoot)
+	if updated.Description != "preserve context" {
 		t.Fatalf("updated detached task = %#v", updated.Task)
 	}
 	cleared := runCLIJSONTask(t, detachedRoot, "--json", "task", "edit", detached.ShortID,
@@ -113,7 +121,9 @@ func TestRunPreservesAndClearsContextMetadataAndHandlesDetachedAndNonGit(t *test
 	}
 
 	legacy := runCLIJSONTask(t, detachedRoot, "--json", "--create-task", "--title", "legacy detached task")
-	if legacy.GitRepo != detachedRoot || legacy.GitBranch != "" || legacy.WorktreeDir != detachedRoot {
+	assertEquivalentPath(t, legacy.GitRepo, detachedRoot)
+	assertEquivalentPath(t, legacy.WorktreeDir, detachedRoot)
+	if legacy.GitBranch != "" {
 		t.Fatalf("legacy task metadata = %#v", legacy.Task)
 	}
 

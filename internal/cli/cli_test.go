@@ -476,10 +476,9 @@ func TestRunTaskCreateDefaultsLinkedWorktreeMetadata(t *testing.T) {
 		t.Fatalf("task count = %d, want 1", len(tasks))
 	}
 	task := tasks[0]
-	if task.GitRepo != mainRoot ||
-		task.GitBranch != "linked-context-branch" ||
-		task.WorktreeName != "linked-context" ||
-		task.WorktreeDir != linkedRoot {
+	assertEquivalentPath(t, task.GitRepo, mainRoot)
+	assertEquivalentPath(t, task.WorktreeDir, linkedRoot)
+	if task.GitBranch != "linked-context-branch" || task.WorktreeName != "linked-context" {
 		t.Fatalf("linked worktree metadata = %#v", task.Task)
 	}
 }
