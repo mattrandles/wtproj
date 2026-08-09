@@ -108,18 +108,20 @@ Run `wtp` from the repository or worktree you want to manage. A typical loop
 looks like this:
 
 ```sh
-# Add work, then inspect what is ready without changing it.
-wtp task create --title "Implement parser" --priority high --estimate m --lane cli
+# Add work, then inspect what is ready without changing it. The first command
+# returns the task's short ID; keep and reuse that exact value below.
+task_id="$(wtp task create --title "Implement parser" --priority high --estimate m --lane cli | sed -n '1s/ .*//p')"
+printf 'Created %s\n' "$task_id"
 wtp task ready --agent Tony
 
-# Claim a task atomically, record progress, and finish it.
-wtp task next --agent Tony
-wtp task comment wtp-0001 --agent Tony --message "Parser implemented"
-wtp task done wtp-0001
+# Claim that returned task atomically, record progress, and finish it.
+wtp task start "$task_id" --agent Tony
+wtp task comment "$task_id" --agent Tony --message "Parser implemented"
+wtp task done "$task_id"
 
 # Explore work and export a portable snapshot when useful.
 wtp task list
-wtp task show wtp-0001
+wtp task show "$task_id"
 wtp export --out .wtp-export
 ```
 
@@ -127,6 +129,46 @@ wtp export --out .wtp-export
 under a repository-local lock, preventing two local agents from claiming the
 same work. Use `task ready` to preview eligible tasks. `wtp help` lists every
 command; `wtp schema` documents the task-file and interoperability contract.
+
+### Task IDs and branch-scoped automatic claiming
+
+Tasks use one of these short-ID forms:
+
+- `wtp-{8hex}-{NNNN}` for a task created on a named Git branch. `{8hex}` is
+  exactly eight lowercase hexadecimal characters; `{NNNN}` is a decimal
+  sequence with at least four digits.
+- `wtp-NNNN` for the legacy, unscoped namespace. Existing tasks keep this
+  form, and it is also used when `wtp` runs at a detached Git `HEAD` or
+  outside Git.
+
+For a named branch, `{8hex}` is the first eight lowercase hexadecimal
+characters of the SHA-256 digest of the branch's exact, case-sensitive short
+name. In other words, hash the branch name as its UTF-8 bytes, take the first
+four digest bytes, and encode those bytes as lowercase hex. For example,
+`main` hashes to `0d6e4079`, so the first task created on `main` is
+`wtp-0d6e4079-0001`. Branch names are not normalized before hashing: every
+named branch, including `main`, `feature/...`, release branches, and branches
+whose names differ only by case, gets its own deterministic scope. A rare
+32-bit token collision is detected and reported rather than sharing an
+allocation sequence.
+
+Automatic `task ready` and `task next` selection on a named branch considers
+that branch's scoped tasks first, then legacy `wtp-NNNN` tasks. It never
+automatically selects a task from another named branch, even if that task is
+otherwise ready; foreign tasks may still appear in ordinary listings. On a
+detached `HEAD` or in a non-Git directory there is no current branch scope, so
+automatic selection is limited to legacy tasks. Use `wtp task start <task-id>`
+when you intentionally want to start a specific task, including an older or
+foreign scoped task; normal dependency and lifecycle checks still apply.
+
+Branch-scoped IDs are tied to the branch name, not to a branch object. After
+`git branch -m old-name new-name`, newly created tasks use the hash of
+`new-name`; existing IDs retain the old prefix and are not renamed. The
+renamed branch therefore does not automatically adopt the old scope for
+`task ready`/`task next`, and `wtp` does not automatically migrate those tasks
+or their files. Start an old task explicitly if that is what you intend. A
+configuration change likewise does not move data; see the storage guidance
+below.
 
 The canonical `task` commands are the public interface. Existing legacy
 single-action flags remain supported for compatibility.
@@ -155,6 +197,9 @@ before the command, for example `wtp --json task list`.
 | `wtp task comment <task-id>` | `--message` (required), `--agent` |
 | `wtp task ready` | `--agent`, `--limit` |
 | `wtp task next` | `--agent` |
+| `wtp handoff write` | `--message` (required), `--agent`, `--task`, `--replace` |
+| `wtp handoff get` | `--task`, `--all-scopes`, `--limit`, `--all` |
+| `wtp handoff purge` | exactly one of `--id`, `--global`, `--task`, `--all-scopes`; optional `--before` or `--older-than` |
 | `wtp graph` | `--status` |
 | `wtp export` | `--out` |
 
@@ -165,6 +210,117 @@ accepts `xs`, `s`, `m`, `l`, or `xl`. `--status` accepts `todo`,
 `--worktree-dir` require absolute paths. During `task update` or `task edit`,
 an empty `--model=`, `--git-repo=`, `--git-branch=`, `--worktree-name=`, or
 `--worktree-dir=` clears the corresponding field.
+
+### Retained handoffs
+
+Handoffs are durable context for a later worker. They are stored separately
+from task comments and are never consumed when read or attached to a claim.
+Use a global handoff for repository-wide context, or pass `--task` for one
+task. Task arguments accept either a short ID such as `wtp-0001` or the
+canonical task UUID.
+
+Write or retain context with:
+
+```sh
+wtp handoff write --message "Parser context for the next worker" [--agent Tony] [--task <task-id>] [--replace]
+```
+
+Without `--task`, the record is global. Writes append by default. `--replace`
+removes older records only in the selected global or task scope, then adds the
+new record; records in every other scope remain. `--message` is required and
+must not be blank. Human output includes the new ID, scope, `scopeCount`, and a
+scope-appropriate purge command. With `--json`, the response is:
+
+```json
+{
+  "handoff": {
+    "id": "8b1f1f55-6d6a-4f5a-9ca1-2e91e3a72d40",
+    "taskId": "25c3806a-bd1b-424d-889b-29e5b06679b8",
+    "author": "Tony",
+    "message": "Parser context for the next worker",
+    "createdAt": "2026-04-21T12:34:56Z"
+  },
+  "scopeCount": 1
+}
+```
+
+Read retained context with:
+
+```sh
+wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]
+```
+
+The default is the newest global handoff (`--limit 1`). `--task` restricts
+results to one task scope; `--all-scopes` includes global and task-scoped
+records. `--all` returns every matching record, while `--limit N` returns the
+newest N records. The scope flags conflict with each other, as do `--limit`
+and `--all`. Human output hints with `--all` when more matching records exist
+and with `--all-scopes --all` when another scope has records. JSON output has
+this stable shape:
+
+```json
+{
+  "handoffs": [],
+  "totalMatching": 0,
+  "hasMore": false,
+  "otherScopesAvailable": false
+}
+```
+
+Remove retained context with:
+
+```sh
+wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]
+```
+
+Exactly one selector is required. `--before` and `--older-than` are
+alternative cutoffs, and neither may be combined with `--id`. `--before`
+accepts an RFC3339 timestamp; `--older-than` accepts a positive Go duration
+such as `72h` and computes the cutoff from the current UTC time. Cutoffs are
+exclusive: only records whose `createdAt` is before the cutoff are purged;
+records at or after it are retained. A missing match returns `purged: 0` for a
+scope selector; an unknown `--id` is an error. JSON output is
+`{"purged": 1}`.
+
+Handoff reads and claim attachment are non-consuming. When `task start
+<task-id>` or `task next` claims work, the result attaches all
+retained task-scoped handoffs for that task in newest-first order. Global
+handoffs are not auto-attached. This attachment does not delete or mark
+records as read. `task show`, `task get`, and `task list` do not attach
+retained handoffs. In JSON, the claim result remains the task view and gains
+an additive `handoffs` array only when records are attached.
+
+The flat-file collection is `.wtp/handoffs.json`:
+
+```json
+{
+  "handoffs": [
+    {
+      "id": "8b1f1f55-6d6a-4f5a-9ca1-2e91e3a72d40",
+      "taskId": "25c3806a-bd1b-424d-889b-29e5b06679b8",
+      "author": "Tony",
+      "message": "Parser context for the next worker",
+      "createdAt": "2026-04-21T12:34:56Z"
+    }
+  ]
+}
+```
+
+`handoffs` is always an array. Each `id` is a unique canonical lowercase
+UUID; `taskId` is an optional canonical task UUID (omitted means global);
+`author` is optional; `message` is required and trimmed; and `createdAt` is a
+required UTC RFC3339 timestamp. A missing file is compatible with an older
+store and means there are no retained handoffs; reads do not create the file.
+Malformed or invalid handoff JSON is rejected.
+
+`wtp export --out <directory>` writes the exact retained collection to
+`<directory>/handoffs.json`, including `{"handoffs": []}` for an empty store,
+alongside the canonical task snapshots. The legacy
+`--export-tasks=<directory>` action remains an alias for `export` and also
+writes `handoffs.json`. The legacy task actions (`--get-next-task`,
+`--get-tasks`, `--get-task`, `--set-task-in-progress`, `--set-task-paused`,
+`--set-task-done`, `--add-comment`, and `--create-task`) remain supported;
+handoff commands are additive and do not replace those task commands.
 
 When a task is created inside Git, omitted Git and worktree fields default
 independently from the current repository, branch, and worktree. An explicitly
@@ -216,6 +372,59 @@ cd ~/src/api && wtp task create --title "Add API health check"
 cd ~/src/web && wtp task create --title "Render health status"
 ```
 
+### Separate task history in a dedicated worktree
+
+If task records should be version-controlled without appearing in each source
+branch, keep them on an orphan task-history branch. This copy-paste recipe
+keeps the linked worktree inside the project directory, but ignores that path
+in the current checkout. Run it once from a normal checkout; run `wtp` from a
+project checkout that contains the `.wtp.json`, and use the history worktree
+for committing and syncing task records:
+
+```sh
+project_root="$(git rev-parse --show-toplevel)"
+history_branch="wtp-task-history"
+history_worktree="$project_root/.wtp-task-history"
+exclude_file="$(git -C "$project_root" rev-parse --path-format=absolute --git-path info/exclude)"
+
+# Keep the history worktree inside the project, but out of normal Git status.
+grep -qxF '.wtp-task-history/' "$exclude_file" || printf '%s\n' '.wtp-task-history/' >> "$exclude_file"
+git -C "$project_root" worktree add --orphan -b "$history_branch" "$history_worktree"
+
+# The history branch needs only its task files and its transient lock ignored.
+printf '%s\n' '.wtp/meta/wtp.lock' > "$history_worktree/.gitignore"
+
+# wtpDir is relative to this .wtp.json and points into the history worktree.
+# .wtp.json is local configuration; keep it in each project checkout that
+# should use this store.
+printf '%s\n' '{' '  "wtpDir": ".wtp-task-history/.wtp"' '}' > "$project_root/.wtp.json"
+
+cd "$project_root"
+wtp task list
+git -C "$history_worktree" add .gitignore .wtp
+git -C "$history_worktree" commit -m "Initialize wtp task history"
+```
+
+After creating or changing tasks, commit the changed task files from the
+history worktree and sync that branch like any other branch:
+
+```sh
+git -C "$history_worktree" add .wtp
+git -C "$history_worktree" commit -m "Update wtp task history"
+git -C "$history_worktree" push -u origin "$history_branch"
+```
+
+Pull or otherwise synchronize the history branch before the next writer uses
+the store. Keep this branch checked out in one worktree: Git normally prevents
+the same branch from being checked out twice in one clone, and `wtp`'s local
+lock does not resolve Git commit, pull, push, or concurrent-writer conflicts.
+Coordinate one writer at a time. Back up the history branch's commits and the
+working tree/store (or make a `wtp export`) rather than treating the ignored
+worktree path itself as a backup. Writing, changing, or removing `.wtp.json`
+only changes where `wtp` looks; it does not move, copy, or delete an existing
+`.wtp/` store. Move or migrate data deliberately, after stopping writers and
+keeping a backup.
+
 The four optional origin fields are `gitRepo` (absolute primary repository
 root), `gitBranch`, `worktreeName`, and `worktreeDir` (absolute current
 worktree root). On `task create`, each omitted field is discovered separately;
@@ -231,13 +440,17 @@ an empty assignment:
 wtp task create --title "Imported work" \
   --git-repo /srv/src/api --git-branch main \
   --worktree-name api --worktree-dir /srv/src/api
-wtp task update wtp-0001 --git-branch= --worktree-name=
+# Replace $task_id with the exact short ID returned by task create.
+wtp task update "$task_id" --git-branch= --worktree-name=
 ```
 
 Task files are human-readable and friendly to version control; task status is
 represented by `todo`, `inProgress`, `paused`, and `done` directories. `wtp`
 recognizes legacy UUID-named task files and safely migrates valid files to the
-current stable short-ID filenames when storage is opened.
+current stable short-ID filenames when storage is opened. That filename
+compatibility migration is separate from branch scopes: `wtp` does not
+automatically migrate existing legacy short IDs or old branch-scoped IDs when
+a branch or configuration changes.
 
 ### Migrating an existing store
 

@@ -1,0 +1,41 @@
+{
+  "id": "06d9077f-af4b-4d8d-afcf-b5b92992f255",
+  "shortId": "wtp-0047",
+  "title": "Establish the handoff domain and storage contract",
+  "description": "Implement the compatibility-sensitive foundation for retained handoffs. Add core.Handoff with canonical UUID id, optional canonical taskId, optional non-blank author, trimmed required message, and UTC createdAt validation. Add an optional omitempty handoffs field to TaskView without changing persisted task JSON. Define provider request/filter/result types for write, list, and purge operations. Add flat-file serialization helpers for .wtp/handoffs.json using the wrapper {\"handoffs\": [...]}, treating a missing file as an empty legacy-compatible store, rejecting malformed or duplicate records, and writing the whole collection atomically under the existing global lock. Keep the repository compiling and existing behavior green; do not add the CLI commands or complete CRUD behavior in this task.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "core",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2e885979-83a3-424e-b401-d135d23b2bbf",
+      "author": "codex-wtp-loop",
+      "message": "Inspected repository guidance and existing provider/storage conventions. Implementing the Handoff domain and TaskView-only field, provider operation contracts, and validated atomic handoffs.json collection helpers; CLI and CRUD remain out of scope.",
+      "createdAt": "2026-08-09T16:38:19.69104008Z"
+    },
+    {
+      "id": "4ac00140-7768-436c-b12d-9acbd8b5155f",
+      "author": "codex-wtp-loop",
+      "message": "Implemented core.Handoff validation, view-only TaskView.handoffs, provider write/list/purge contract types, and validated whole-collection handoffs.json load/write helpers with missing-file compatibility and atomic publication. Focused core/provider tests pass; proceeding to repository-wide verification.",
+      "createdAt": "2026-08-09T16:39:49.392610296Z"
+    },
+    {
+      "id": "9052d5e2-24a0-4c2a-a684-620f21121ad0",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: go test ./..., go vet ./..., git diff --check, and ./scripts/verify.sh commit all pass (including smoke test). Final audit confirms scope is limited to the handoff domain/view contract, provider data types, and flat-file serialization helpers.",
+      "createdAt": "2026-08-09T16:40:20.147254332Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.444407565Z",
+  "updatedAt": "2026-08-09T16:40:20.174941317Z",
+  "startedAt": "2026-08-09T16:36:33.589451084Z",
+  "completedAt": "2026-08-09T16:40:20.174941317Z"
+}

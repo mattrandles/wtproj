@@ -5,18 +5,19 @@ import (
 	"path/filepath"
 
 	"github.com/mattrandles/wtproj/internal/config"
+	"github.com/mattrandles/wtproj/internal/core"
 	"github.com/mattrandles/wtproj/internal/provider"
 	flatfileprovider "github.com/mattrandles/wtproj/internal/provider/flatfile"
 	trelloprovider "github.com/mattrandles/wtproj/internal/provider/trello"
 )
 
-func NewProvider(wtpDir string, cfg config.Config) (provider.Provider, error) {
+func NewProvider(wtpDir string, cfg config.Config, invocationScope *core.BranchScope) (provider.Provider, error) {
 	switch cfg.EffectiveTool() {
 	case "flatfile":
 		if !filepath.IsAbs(wtpDir) {
 			return nil, fmt.Errorf("flat-file storage directory must be absolute: %q", wtpDir)
 		}
-		flatfile, err := flatfileprovider.New(filepath.Clean(wtpDir))
+		flatfile, err := flatfileprovider.New(filepath.Clean(wtpDir), invocationScope)
 		if err != nil {
 			return nil, fmt.Errorf("initialize flat-file storage at %s: %w", wtpDir, err)
 		}

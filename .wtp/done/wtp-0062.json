@@ -1,0 +1,37 @@
+{
+  "id": "3b7e16e7-ea91-4bd2-a4e8-3d6cd05b5a0a",
+  "shortId": "wtp-0062",
+  "title": "Test canonical handoff export behavior",
+  "description": "Extend flat-file and CLI export tests to require managed handoffs.json for populated and empty stores, validate exact retained record content, allow repeat exports, preserve stale UUID task cleanup, reject every other unmanaged entry, and keep overlap protection. Cover the legacy export flag and ensure corrupt handoff storage is detected before export files are partially refreshed.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "cbee4ca3-3dc5-4592-ba0a-a925c9ef5e72"
+  ],
+  "comments": [
+    {
+      "id": "f811c938-e657-4868-aabd-383dc9cefe93",
+      "author": "codex-wtp-loop",
+      "message": "Confirmed the claimed task and repository guidance. Existing export implementation/tests cover managed handoffs, stale UUID cleanup, overlap/unmanaged rejection, and corrupt-store preflight; targeted flat-file and CLI packages currently pass. Auditing gaps for the requested populated/empty/repeat/legacy CLI assertions before final verification.",
+      "createdAt": "2026-08-09T19:45:31.134543261Z"
+    },
+    {
+      "id": "8b827396-6356-4fbf-b7f1-281c080200ad",
+      "author": "codex-wtp-loop",
+      "message": "Added focused flat-file and CLI export coverage: managed handoffs.json for empty/populated stores, exact retained records, repeat exports, stale UUID cleanup, all other unmanaged entries, public overlap rejection, legacy --export-tasks, and corrupt handoff preflight with zero partial refresh. Verification passed: go test ./... and ./scripts/verify.sh commit.",
+      "createdAt": "2026-08-09T19:50:13.502872224Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.78683616Z",
+  "updatedAt": "2026-08-09T19:50:13.524611408Z",
+  "startedAt": "2026-08-09T19:44:18.247187924Z",
+  "completedAt": "2026-08-09T19:50:13.524611408Z"
+}

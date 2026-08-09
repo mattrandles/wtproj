@@ -2,6 +2,7 @@ package provider
 
 import (
 	"errors"
+	"time"
 
 	"github.com/mattrandles/wtproj/internal/core"
 )
@@ -13,8 +14,48 @@ type TaskFilter struct {
 	Agent  string
 }
 
+type HandoffWriteRequest struct {
+	Task    string
+	Author  string
+	Message string
+	Replace bool
+}
+
+type HandoffWriteResult struct {
+	Handoff    core.Handoff `json:"handoff"`
+	ScopeCount int          `json:"scopeCount"`
+}
+
+type HandoffFilter struct {
+	Task      string
+	AllScopes bool
+	Limit     int
+}
+
+type HandoffListResult struct {
+	Handoffs             []core.Handoff `json:"handoffs"`
+	TotalMatching        int            `json:"totalMatching"`
+	HasMore              bool           `json:"hasMore"`
+	OtherScopesAvailable bool           `json:"otherScopesAvailable"`
+}
+
+type HandoffPurgeRequest struct {
+	ID        string
+	Task      string
+	Global    bool
+	AllScopes bool
+	Before    *time.Time
+}
+
+type HandoffPurgeResult struct {
+	Purged int `json:"purged"`
+}
+
 type Provider interface {
 	ListTasks(filter TaskFilter) ([]core.TaskView, error)
+	WriteHandoff(request HandoffWriteRequest) (HandoffWriteResult, error)
+	ListHandoffs(filter HandoffFilter) (HandoffListResult, error)
+	PurgeHandoffs(request HandoffPurgeRequest) (HandoffPurgeResult, error)
 	GetTask(idOrShortID, agent string) (core.TaskView, error)
 	CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 	UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error)

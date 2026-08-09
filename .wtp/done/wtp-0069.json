@@ -1,0 +1,37 @@
+{
+  "id": "a7e433d5-bf81-4b2a-b10d-e3887f318eed",
+  "shortId": "wtp-0069",
+  "title": "Plumb runtime branch scope into flat-file providers",
+  "description": "Carry the actual runtime branch scope from cli.providerAndContextForInvocation through app.NewProvider into the flat-file Provider while leaving Trello behavior unchanged. Store an optional immutable invocation scope on each flat-file provider so creation and readiness can consume it later. Preserve help/version/schema commands that intentionally avoid provider initialization, keep nested-directory and linked-worktree discovery semantics, and update factory/CLI tests and test constructors without changing allocation or scheduling yet. Scope must be based on the checked-out branch, never task metadata flags. Keep the repository compiling throughout this slice.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "integration",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "51529fbc-425c-4081-8491-2035ee6042ff"
+  ],
+  "comments": [
+    {
+      "id": "acfd1cb5-c71c-4b51-8e14-4cdda70417e8",
+      "author": "",
+      "message": "Started implementation: inspecting current provider factory, CLI invocation context, and flat-file constructors; will preserve existing worktree discovery behavior.",
+      "createdAt": "2026-08-09T20:16:38.953898924Z"
+    },
+    {
+      "id": "d9e41843-081b-4ae4-aa31-d3b170f9f1c4",
+      "author": "codex-wtp-loop",
+      "message": "Implemented runtime branch-scope plumbing: cli.providerAndContextForInvocation passes runtime.Scope() to app.NewProvider; the flat-file factory stores a copied immutable invocation scope while Trello construction remains unchanged. Added factory, flat-file immutability, and linked-worktree CLI coverage. Verified with go test ./..., go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-09T20:20:05.96040932Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.735282634Z",
+  "updatedAt": "2026-08-09T20:20:05.981877934Z",
+  "startedAt": "2026-08-09T20:16:12.352721305Z",
+  "completedAt": "2026-08-09T20:20:05.981877934Z"
+}

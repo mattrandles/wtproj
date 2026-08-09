@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documented the retained handoff workflow, including global and task scopes,
+  non-consuming claims, JSON storage and responses, purge cutoffs, and export
+  compatibility.
+
+### Changed
+
+- Made task-history allocation merge-safe across named Git branches with
+  branch-scoped IDs and per-branch indexes. Automatic selection still checks
+  the current branch and then legacy tasks; foreign tasks require explicit
+  start, and branch renames do not migrate existing task IDs or files.
+
 ## [0.2.0] - 2026-07-23
 
 ### Added

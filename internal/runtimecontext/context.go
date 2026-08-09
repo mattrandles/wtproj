@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/mattrandles/wtproj/internal/core"
 )
 
 // Context describes the invocation directory and its enclosing Git worktree.
@@ -26,6 +28,16 @@ type Context struct {
 	Branch         string
 	DetachedHEAD   bool
 	WorktreeName   string
+}
+
+// Scope returns the task scope for the actual invocation context. Detached
+// HEAD and non-Git invocations intentionally return nil so they keep the
+// legacy/global task namespace.
+func (c Context) Scope() *core.BranchScope {
+	if !c.InGit || c.DetachedHEAD {
+		return nil
+	}
+	return core.NewBranchScope(c.Branch)
 }
 
 // Discover resolves invocationDir and discovers its enclosing Git context.

@@ -63,6 +63,10 @@ try {
     $listOut = Join-Path $workDir "list.txt"
     $errOut = Join-Path $workDir "error.txt"
     $taskOut = Join-Path $workDir "task.txt"
+    $handoffWriteOut = Join-Path $workDir "handoff_write.json"
+    $handoffGetOut = Join-Path $workDir "handoff_get.json"
+    $handoffPurgeOut = Join-Path $workDir "handoff_purge.json"
+    $handoffAfterPurgeOut = Join-Path $workDir "handoff_after_purge.json"
 
     Push-Location $testRepo
     try {
@@ -162,7 +166,9 @@ try {
         & $binaryPath task done $taskBShortID --agent Bob | Out-Null
         & $binaryPath export --out exported | Out-Null
 
-        if (-not (Test-Path ".wtp/meta/index.json")) {
+        $hasLegacyIndex = Test-Path ".wtp/meta/index.json"
+        $hasScopedIndex = @(Get-ChildItem ".wtp/meta" -Filter "index-*.json" -File).Count -gt 0
+        if (-not $hasLegacyIndex -and -not $hasScopedIndex) {
             Fail "missing index file"
         }
 
@@ -174,6 +180,32 @@ try {
         if (-not (Test-Path (Join-Path "exported" "$taskBID.json"))) {
             Fail "missing export for task B"
         }
+
+        & $binaryPath --json handoff write `
+            --agent "Alice" `
+            --message "handoff smoke context" > $handoffWriteOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        Assert-Contains '"message": "handoff smoke context"' $handoffWriteOut
+
+        & $binaryPath --json handoff get --all-scopes --all > $handoffGetOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        Assert-Contains '"message": "handoff smoke context"' $handoffGetOut
+
+        & $binaryPath --json handoff purge --global > $handoffPurgeOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        Assert-Contains '"purged": 1' $handoffPurgeOut
+
+        & $binaryPath --json handoff get --all-scopes --all > $handoffAfterPurgeOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        Assert-Contains '"handoffs": []' $handoffAfterPurgeOut
     } finally {
         Pop-Location
     }

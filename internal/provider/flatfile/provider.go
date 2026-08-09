@@ -27,20 +27,42 @@ var statusOrder = []core.Status{
 var canonicalExportFilenamePattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$`)
 
 type indexFile struct {
-	Next int `json:"next"`
+	// Branch is populated only for named-branch indexes. Keeping the exact
+	// branch name beside its shortened token makes a token collision
+	// actionable instead of silently sharing an allocation sequence.
+	Branch string `json:"branch,omitempty"`
+	Next   int    `json:"next"`
 }
 
 type Provider struct {
-	root string
-	fs   fileSystem
+	root            string
+	invocationScope *core.BranchScope
+	fs              fileSystem
 }
 
-func New(root string) (*Provider, error) {
+// New initializes flat-file storage for one invocation. A nil scope preserves
+// the legacy global namespace. A supplied scope is copied so later caller
+// changes cannot alter the provider's namespace.
+func New(root string, invocationScope *core.BranchScope) (*Provider, error) {
 	p := &Provider{root: root, fs: defaultFileSystem()}
+	if invocationScope != nil {
+		scope := *invocationScope
+		p.invocationScope = &scope
+	}
 	if err := p.ensureLayout(); err != nil {
 		return nil, err
 	}
 	return p, nil
+}
+
+// InvocationScope returns a copy of the scope captured when this provider was
+// initialized. A nil result preserves the legacy global namespace.
+func (p *Provider) InvocationScope() *core.BranchScope {
+	if p.invocationScope == nil {
+		return nil
+	}
+	scope := *p.invocationScope
+	return &scope
 }
 
 func (p *Provider) ensureLayout() error {
@@ -61,11 +83,13 @@ func (p *Provider) ensureLayout() error {
 	return p.withGlobalLock(func() error {
 		indexPath := p.indexPath()
 		if _, err := os.Stat(indexPath); errors.Is(err, os.ErrNotExist) {
-			if err := p.writeJSONAtomic(indexPath, indexFile{Next: 1}); err != nil {
+			if err := p.writeIndex(p.initialIndex()); err != nil {
 				return err
 			}
 		} else if err != nil {
 			return fmt.Errorf("stat %s: %w", indexPath, err)
+		} else if _, err := p.readIndex(); err != nil {
+			return err
 		}
 		return p.migrateTaskFilenames()
 	})
@@ -94,7 +118,7 @@ func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error
 			}
 			return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
 		})
-		views = decorateTasks(tasks, allTasks, filter.Agent)
+		views = p.decorateTasks(tasks, allTasks, filter.Agent)
 		return nil
 	})
 	return views, err
@@ -111,7 +135,7 @@ func (p *Provider) GetTask(idOrShortID, agent string) (core.TaskView, error) {
 		if err != nil {
 			return err
 		}
-		view = decorateTask(task, tasks, agent)
+		view = p.decorateTask(task, tasks, agent)
 		return nil
 	})
 	return view, err
@@ -141,7 +165,10 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 		if err != nil {
 			return err
 		}
-		shortID := fmt.Sprintf("wtp-%04d", index.Next)
+		index, shortID, err := p.nextAvailableShortID(index, tasks)
+		if err != nil {
+			return err
+		}
 		task := core.Task{
 			ID:           id,
 			ShortID:      shortID,
@@ -179,7 +206,7 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	return decorateTask(created, tasksAfter, ""), nil
+	return p.decorateTask(created, tasksAfter, ""), nil
 }
 
 func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error) {
@@ -253,12 +280,13 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	return decorateTask(updated, tasksAfter, ""), nil
+	return p.decorateTask(updated, tasksAfter, ""), nil
 }
 
 func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
 	var updated core.Task
 	var tasksAfter []core.Task
+	var handoffs []core.Handoff
 	err := p.withGlobalLock(func() error {
 		tasks, err := p.loadTasks()
 		if err != nil {
@@ -275,6 +303,11 @@ func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, acto
 			if err := validateStartable(task, tasks); err != nil {
 				return err
 			}
+			storedHandoffs, err := p.loadHandoffs()
+			if err != nil {
+				return err
+			}
+			handoffs = taskHandoffs(storedHandoffs, task.ID)
 		}
 		now := time.Now().UTC()
 		task.Status = target
@@ -301,7 +334,9 @@ func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, acto
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	return decorateTask(updated, tasksAfter, ""), nil
+	view := p.decorateTask(updated, tasksAfter, "")
+	view.Handoffs = handoffs
+	return view, nil
 }
 
 func (p *Provider) AddComment(idOrShortID, actor, message string) (core.TaskView, error) {
@@ -341,7 +376,7 @@ func (p *Provider) AddComment(idOrShortID, actor, message string) (core.TaskView
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	return decorateTask(updated, tasksAfter, ""), nil
+	return p.decorateTask(updated, tasksAfter, ""), nil
 }
 
 func (p *Provider) PeekNextTask(agent string) (core.TaskView, error) {
@@ -351,11 +386,11 @@ func (p *Provider) PeekNextTask(agent string) (core.TaskView, error) {
 		if err != nil {
 			return err
 		}
-		task, err := selectNextEligibleTask(tasks, agent)
+		task, err := p.selectNextEligibleTask(tasks, agent)
 		if err != nil {
 			return err
 		}
-		view = decorateTask(task, tasks, agent)
+		view = p.decorateTask(task, tasks, agent)
 		return nil
 	})
 	return view, err
@@ -368,11 +403,11 @@ func (p *Provider) PeekNextTasks(agent string, limit int) ([]core.TaskView, erro
 		if err != nil {
 			return err
 		}
-		selected, err := selectEligibleTasks(tasks, agent, limit)
+		selected, err := p.selectEligibleTasks(tasks, agent, limit)
 		if err != nil {
 			return err
 		}
-		views = decorateTasks(selected, tasks, agent)
+		views = p.decorateTasks(selected, tasks, agent)
 		return nil
 	})
 	return views, err
@@ -381,15 +416,21 @@ func (p *Provider) PeekNextTasks(agent string, limit int) ([]core.TaskView, erro
 func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
 	var claimed core.Task
 	var tasksAfter []core.Task
+	var handoffs []core.Handoff
 	err := p.withGlobalLock(func() error {
 		tasks, err := p.loadTasks()
 		if err != nil {
 			return err
 		}
-		next, err := selectNextEligibleTask(tasks, agent)
+		next, err := p.selectNextEligibleTask(tasks, agent)
 		if err != nil {
 			return err
 		}
+		storedHandoffs, err := p.loadHandoffs()
+		if err != nil {
+			return err
+		}
+		handoffs = taskHandoffs(storedHandoffs, next.ID)
 
 		now := time.Now().UTC()
 		next.Status = core.StatusInProgress
@@ -413,7 +454,9 @@ func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	return decorateTask(claimed, tasksAfter, agent), nil
+	view := p.decorateTask(claimed, tasksAfter, agent)
+	view.Handoffs = handoffs
+	return view, nil
 }
 
 func (p *Provider) ExportCanonical(outDir string) error {
@@ -443,7 +486,7 @@ func (p *Provider) ExportCanonical(outDir string) error {
 			if err != nil {
 				return fmt.Errorf("inspect export entry %s: %w", filepath.Join(exportDir, entry.Name()), err)
 			}
-			if !info.Mode().IsRegular() || !canonicalExportFilenamePattern.MatchString(entry.Name()) {
+			if !info.Mode().IsRegular() || !isManagedCanonicalExportEntry(entry.Name()) {
 				unmanaged = append(unmanaged, entry.Name())
 			}
 		}
@@ -456,8 +499,13 @@ func (p *Provider) ExportCanonical(outDir string) error {
 		if err != nil {
 			return err
 		}
+		handoffs, err := p.loadHandoffs()
+		if err != nil {
+			return err
+		}
 		sort.Slice(tasks, func(i, j int) bool { return tasks[i].ID < tasks[j].ID })
-		expected := make(map[string]struct{}, len(tasks))
+		expected := make(map[string]struct{}, len(tasks)+1)
+		expected[handoffsFilename] = struct{}{}
 		for _, task := range tasks {
 			name := task.ID + ".json"
 			expected[name] = struct{}{}
@@ -465,6 +513,9 @@ func (p *Provider) ExportCanonical(outDir string) error {
 			if err := p.writeJSONAtomic(path, task); err != nil {
 				return err
 			}
+		}
+		if err := p.writeJSONAtomic(filepath.Join(exportDir, handoffsFilename), handoffFile{Handoffs: handoffs}); err != nil {
+			return err
 		}
 		for _, entry := range entries {
 			if _, keep := expected[entry.Name()]; keep {
@@ -477,6 +528,10 @@ func (p *Provider) ExportCanonical(outDir string) error {
 		}
 		return nil
 	})
+}
+
+func isManagedCanonicalExportEntry(name string) bool {
+	return name == handoffsFilename || canonicalExportFilenamePattern.MatchString(name)
 }
 
 func resolvePath(path string) (string, error) {
@@ -549,6 +604,9 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 			if err := task.Validate(); err != nil {
 				return nil, fmt.Errorf("invalid task file %s: %w", path, err)
 			}
+			if !isTaskFilename(entry.Name(), task) {
+				return nil, invalidTaskFilenameError(path, task)
+			}
 			if existingID, ok := idsByShortID[task.ShortID]; ok && existingID != task.ID {
 				return nil, fmt.Errorf("task shortId %s is used by both %s and %s", task.ShortID, existingID, task.ID)
 			}
@@ -593,17 +651,14 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 }
 
 func (p *Provider) replaceTask(task core.Task) error {
-	targetPath := filepath.Join(p.statusDir(task.Status), task.ShortID+".json")
+	targetPath := p.taskPath(task.Status, task.ShortID)
 	if err := p.writeJSONAtomic(targetPath, task); err != nil {
 		return err
 	}
 
 	for _, status := range statusOrder {
-		paths := []string{
-			filepath.Join(p.statusDir(status), task.ShortID+".json"),
-			filepath.Join(p.statusDir(status), task.ID+".json"),
-		}
-		for _, path := range paths {
+		for _, filename := range taskFilenames(task) {
+			path := p.taskPath(status, filename)
 			if path == targetPath {
 				continue
 			}
@@ -620,7 +675,7 @@ func (p *Provider) replaceTask(task core.Task) error {
 }
 
 func (p *Provider) writeTask(task core.Task) error {
-	return p.writeJSONAtomic(filepath.Join(p.statusDir(task.Status), task.ShortID+".json"), task)
+	return p.writeJSONAtomic(p.taskPath(task.Status, task.ShortID), task)
 }
 
 func (p *Provider) readIndex() (indexFile, error) {
@@ -628,14 +683,42 @@ func (p *Provider) readIndex() (indexFile, error) {
 	if err := readJSON(p.indexPath(), &index); err != nil {
 		return indexFile{}, fmt.Errorf("read index: %w", err)
 	}
-	if index.Next == 0 {
+	if p.invocationScope != nil && index.Branch != p.invocationScope.Branch {
+		return indexFile{}, fmt.Errorf("branch index token %s belongs to branch %q, not %q; inspect %s for a stale index or 32-bit branch-ID collision", p.invocationScope.BranchID, index.Branch, p.invocationScope.Branch, p.indexPath())
+	}
+	if index.Next < 1 {
 		index.Next = 1
 	}
 	return index, nil
 }
 
 func (p *Provider) writeIndex(index indexFile) error {
+	if p.invocationScope != nil {
+		if index.Branch != "" && index.Branch != p.invocationScope.Branch {
+			return fmt.Errorf("branch index token %s belongs to branch %q, not %q; inspect %s for a stale index or 32-bit branch-ID collision", p.invocationScope.BranchID, index.Branch, p.invocationScope.Branch, p.indexPath())
+		}
+		index.Branch = p.invocationScope.Branch
+	}
 	return p.writeJSONAtomic(p.indexPath(), index)
+}
+
+func (p *Provider) nextAvailableShortID(index indexFile, tasks []core.Task) (indexFile, string, error) {
+	usedShortIDs := make(map[string]struct{}, len(tasks))
+	for _, task := range tasks {
+		usedShortIDs[task.ShortID] = struct{}{}
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	for {
+		if index.Next >= maxInt {
+			return indexFile{}, "", fmt.Errorf("task short ID sequence exhausted for %s", p.indexPath())
+		}
+		shortID := p.shortID(index.Next)
+		if _, used := usedShortIDs[shortID]; !used {
+			return index, shortID, nil
+		}
+		index.Next++
+	}
 }
 
 func (p *Provider) statusDir(status core.Status) string {
@@ -643,7 +726,40 @@ func (p *Provider) statusDir(status core.Status) string {
 }
 
 func (p *Provider) indexPath() string {
+	if p.invocationScope != nil {
+		return filepath.Join(p.root, "meta", "index-"+p.invocationScope.BranchID+".json")
+	}
 	return filepath.Join(p.root, "meta", "index.json")
+}
+
+func (p *Provider) initialIndex() indexFile {
+	if p.invocationScope != nil {
+		return indexFile{Branch: p.invocationScope.Branch, Next: 1}
+	}
+	return indexFile{Next: 1}
+}
+
+func (p *Provider) shortID(sequence int) string {
+	if p.invocationScope != nil {
+		return fmt.Sprintf("wtp-%s-%04d", p.invocationScope.BranchID, sequence)
+	}
+	return fmt.Sprintf("wtp-%04d", sequence)
+}
+
+func (p *Provider) taskPath(status core.Status, filename string) string {
+	return filepath.Join(p.statusDir(status), filename+".json")
+}
+
+func taskFilenames(task core.Task) []string {
+	return []string{task.ShortID, task.ID}
+}
+
+func isTaskFilename(name string, task core.Task) bool {
+	return name == task.ShortID+".json" || name == task.ID+".json"
+}
+
+func invalidTaskFilenameError(path string, task core.Task) error {
+	return fmt.Errorf("task file %s must use shortId filename %s (or canonical UUID legacy filename)", path, task.ShortID+".json")
 }
 
 func (p *Provider) migrateTaskFilenames() error {
@@ -677,12 +793,12 @@ func (p *Provider) migrateTaskFilenames() error {
 				return fmt.Errorf("invalid task file %s: %w", currentPath, err)
 			}
 			tasksByPath[currentPath] = task
-			expectedPath := filepath.Join(dir, task.ShortID+".json")
+			expectedPath := p.taskPath(status, task.ShortID)
 			if currentPath == expectedPath {
 				continue
 			}
 			if entry.Name() != task.ID+".json" {
-				return fmt.Errorf("task file %s must use shortId filename %s (or canonical UUID legacy filename)", currentPath, filepath.Base(expectedPath))
+				return invalidTaskFilenameError(currentPath, task)
 			}
 			migrations = append(migrations, migration{currentPath: currentPath, expectedPath: expectedPath, task: task})
 		}
@@ -767,8 +883,8 @@ func validateStartable(task core.Task, tasks []core.Task) error {
 	return nil
 }
 
-func selectNextEligibleTask(tasks []core.Task, agent string) (core.Task, error) {
-	eligible, err := selectEligibleTasks(tasks, agent, 1)
+func (p *Provider) selectNextEligibleTask(tasks []core.Task, agent string) (core.Task, error) {
+	eligible, err := p.selectEligibleTasks(tasks, agent, 1)
 	if err != nil {
 		return core.Task{}, err
 	}
@@ -778,12 +894,15 @@ func selectNextEligibleTask(tasks []core.Task, agent string) (core.Task, error) 
 	return core.Task{}, provider.ErrNoEligibleTask
 }
 
-func selectEligibleTasks(tasks []core.Task, agent string, limit int) ([]core.Task, error) {
+func (p *Provider) selectEligibleTasks(tasks []core.Task, agent string, limit int) ([]core.Task, error) {
 	if limit <= 0 {
 		return nil, errors.New("ready task limit must be greater than zero")
 	}
 	eligible := make([]core.Task, 0, len(tasks))
 	for _, task := range tasks {
+		if p.automaticSelectionTier(task) < 0 {
+			continue
+		}
 		if task.Status != core.StatusPaused && task.Status != core.StatusTodo {
 			continue
 		}
@@ -791,7 +910,20 @@ func selectEligibleTasks(tasks []core.Task, agent string, limit int) ([]core.Tas
 			eligible = append(eligible, task)
 		}
 	}
+	agent = strings.TrimSpace(agent)
 	sort.Slice(eligible, func(i, j int) bool {
+		leftTier := p.automaticSelectionTier(eligible[i])
+		rightTier := p.automaticSelectionTier(eligible[j])
+		if leftTier != rightTier {
+			return leftTier < rightTier
+		}
+		if agent != "" {
+			leftAssigneeRank := assigneeRank(eligible[i], agent)
+			rightAssigneeRank := assigneeRank(eligible[j], agent)
+			if leftAssigneeRank != rightAssigneeRank {
+				return leftAssigneeRank < rightAssigneeRank
+			}
+		}
 		if eligible[i].Status != eligible[j].Status {
 			return eligible[i].Status == core.StatusPaused
 		}
@@ -803,7 +935,6 @@ func selectEligibleTasks(tasks []core.Task, agent string, limit int) ([]core.Tas
 		}
 		return eligible[i].CreatedAt.Before(eligible[j].CreatedAt)
 	})
-	agent = strings.TrimSpace(agent)
 	if agent == "" {
 		if len(eligible) == 0 {
 			return nil, provider.ErrNoEligibleTask
@@ -813,15 +944,7 @@ func selectEligibleTasks(tasks []core.Task, agent string, limit int) ([]core.Tas
 
 	selected := make([]core.Task, 0, min(limit, len(eligible)))
 	for _, task := range eligible {
-		if task.Assignee == agent {
-			selected = append(selected, task)
-			if len(selected) == limit {
-				return selected, nil
-			}
-		}
-	}
-	for _, task := range eligible {
-		if task.Assignee == "" {
+		if task.Assignee == agent || task.Assignee == "" {
 			selected = append(selected, task)
 			if len(selected) == limit {
 				return selected, nil
@@ -834,20 +957,49 @@ func selectEligibleTasks(tasks []core.Task, agent string, limit int) ([]core.Tas
 	return selected, nil
 }
 
-func decorateTasks(tasks []core.Task, allTasks []core.Task, agent string) []core.TaskView {
+func assigneeRank(task core.Task, agent string) int {
+	if task.Assignee == agent {
+		return 0
+	}
+	if task.Assignee == "" {
+		return 1
+	}
+	return 2
+}
+
+// automaticSelectionTier returns the preference tier for automatic task
+// selection. A named branch may select its own scoped tasks before legacy
+// tasks; detached and non-Git invocations have no scope and may select only
+// legacy tasks. Tasks from other branch scopes are never automatically
+// eligible.
+func (p *Provider) automaticSelectionTier(task core.Task) int {
+	parts, err := core.ParseShortID(task.ShortID)
+	if err != nil {
+		return -1
+	}
+	if parts.IsLegacy() {
+		return 1
+	}
+	if p.invocationScope != nil && parts.BranchID == p.invocationScope.BranchID {
+		return 0
+	}
+	return -1
+}
+
+func (p *Provider) decorateTasks(tasks []core.Task, allTasks []core.Task, agent string) []core.TaskView {
 	views := make([]core.TaskView, 0, len(tasks))
 	for _, task := range tasks {
-		views = append(views, decorateTask(task, allTasks, agent))
+		views = append(views, p.decorateTask(task, allTasks, agent))
 	}
 	return views
 }
 
-func decorateTask(task core.Task, allTasks []core.Task, agent string) core.TaskView {
+func (p *Provider) decorateTask(task core.Task, allTasks []core.Task, agent string) core.TaskView {
 	blockedReason := blockedReason(task, allTasks)
 	return core.TaskView{
 		Task: task,
 		Readiness: core.TaskReadiness{
-			Claimable:              isClaimable(task, allTasks, agent),
+			Claimable:              p.isClaimable(task, allTasks, agent),
 			Blocked:                blockedReason != "",
 			BlockedReason:          blockedReason,
 			DependencyCount:        len(task.Dependencies),
@@ -872,7 +1024,10 @@ func blockedReason(task core.Task, tasks []core.Task) string {
 	return fmt.Sprintf("unresolved dependencies: %s", strings.Join(blocked, ", "))
 }
 
-func isClaimable(task core.Task, tasks []core.Task, agent string) bool {
+func (p *Provider) isClaimable(task core.Task, tasks []core.Task, agent string) bool {
+	if p.automaticSelectionTier(task) < 0 {
+		return false
+	}
 	if task.Status != core.StatusPaused && task.Status != core.StatusTodo {
 		return false
 	}

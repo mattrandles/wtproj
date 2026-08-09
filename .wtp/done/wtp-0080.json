@@ -1,0 +1,38 @@
+{
+  "id": "032fc3d2-701d-49bb-8338-7720ccab88d9",
+  "shortId": "wtp-0080",
+  "title": "Teach the task-management skill branch-aware WTP usage",
+  "description": "Update skills/task-management/SKILL.md to explain both short-ID forms, always using the actual ID returned by create, current-branch then legacy automatic selection, foreign-task exclusion, explicit task start for intentional foreign work, detached/non-Git legacy behavior, and why agents must run from the intended branch/worktree. Refresh manual-inspection and external-storage guidance, including the dedicated history-worktree option, while preserving concise imperative workflow guidance, dependency rules, and existing safety constraints. Validate frontmatter and all command examples against the implemented CLI.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "skills",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "98684cb9-5da1-43c9-898d-d042f9434b0b",
+    "e9244a59-f91f-4459-80d4-2beaa14df738"
+  ],
+  "comments": [
+    {
+      "id": "c93ea9a5-47c9-4396-9f38-2e15098dbe4d",
+      "author": "codex-wtp-loop",
+      "message": "Inspected repository guidance, the current task-management skill, and the branch-aware CLI/storage contracts; preparing a focused documentation update.",
+      "createdAt": "2026-08-09T21:26:00.832676013Z"
+    },
+    {
+      "id": "ad35a91e-3835-4cff-8eac-72c4414ead13",
+      "author": "codex-wtp-loop",
+      "message": "Updated skills/task-management/SKILL.md with both short-ID forms, actual-ID capture, branch-aware selection, foreign-task handling, detached/non-Git behavior, intended worktree guidance, refreshed manual inspection, and dedicated history-worktree storage guidance.",
+      "createdAt": "2026-08-09T21:32:31.470058233Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:31.012568109Z",
+  "updatedAt": "2026-08-09T21:32:44.561761416Z",
+  "startedAt": "2026-08-09T21:24:41.322013662Z",
+  "completedAt": "2026-08-09T21:32:44.561761416Z"
+}

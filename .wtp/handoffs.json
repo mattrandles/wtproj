@@ -1,0 +1,58 @@
+{
+  "handoffs": [
+    {
+      "id": "b2c87ad9-9593-402e-b100-3b553115ecc0",
+      "author": "codex-wtp-loop",
+      "message": "Updated task-management and codex-wtp-loop skills to separate audit/progress comments from retained handoffs; documented global append for the next queued worker, task-scoped context, retention/purge, claim-attached plus newest-global prompt injection, terminal handoff requirements, and dispatcher failure fallback. Verification: quick_validate.py passed for both skill folders and targeted git diff --check passed.",
+      "createdAt": "2026-08-09T20:06:53.817860275Z"
+    },
+    {
+      "id": "eda544b0-eadc-44ce-b5fb-c33a8dda351d",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0066 final gate complete: combined handoff diff reviewed for contract drift and overlap; legacy stores/task JSON, legacy flags, no-handoff task output, shared storage, canonical export, gofmt, go test ./..., go vet ./..., both skill quick validators, and ./scripts/verify.sh commit passed. No integration fix was needed. PATH wtp is pre-handoff; source-built CLI was used for handoff operations.",
+      "createdAt": "2026-08-09T20:10:39.009153695Z"
+    },
+    {
+      "id": "b620ff58-ea67-4950-a964-3b472e100084",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0068 complete: added core.ParseShortID for legacy wtp-NNNN and scoped wtp-BBBBBBBB-NNNN IDs, routed Task.Validate through it, updated embedded schema wording, and added boundary/malformed/unsafe-input tests. ./scripts/verify.sh commit passed; no allocation, migration, or existing ShortID values changed.",
+      "createdAt": "2026-08-09T20:26:19.63673029Z"
+    },
+    {
+      "id": "ffa08c59-c2d1-4759-9887-c43ccd609990",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0070 complete: named Git scopes allocate wtp-{branchId}-{sequence} using meta/index-{branchId}.json with exact branch metadata and collision diagnostics; legacy index/tasks remain untouched by scoped creates. Verification passed: ./scripts/verify.sh commit and targeted flatfile race test.",
+      "createdAt": "2026-08-09T20:31:12.884351047Z"
+    },
+    {
+      "id": "81e2f4ec-8392-4df2-ad3f-4e8ab79bfc1a",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0073 complete: flat-file readers now accept only exact short-ID or UUID filenames; scoped UUID migration targets scoped short IDs; writeTask/replaceTask use exact dual-form paths and clean UUID residue without touching legacy short IDs. Added scoped migration/move/cleanup/conflict and filename-validation tests. Verified with go test ./..., go vet ./..., and ./scripts/e2e_smoke.sh.",
+      "createdAt": "2026-08-09T20:55:32.094892066Z"
+    },
+    {
+      "id": "cd434654-b6a1-4f55-a3c6-5eab790a618f",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0075. Existing provider scope boundary intentionally keeps explicit resolve/status/update/comment operations global while automatic ready/next remains scope-limited. Added provider regression TestForeignScopedTasksRemainExplicitlyAddressableByShortIDAndUUID and CLI integration TestRunExplicitlyOperatesOnForeignScopedTaskAcrossBranches covering visibility, claimability, dependency-gated explicit start, UUID/short-ID lifecycle operations, comments, updates, graph, ready/next exclusion, and unknown/ambiguous identifiers. Verified go test ./..., git diff --check, and ./scripts/verify.sh commit.",
+      "createdAt": "2026-08-09T21:02:01.120201233Z"
+    },
+    {
+      "id": "5064d186-81a8-438c-8b4b-da63b2692854",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0078 README documentation. Added returned-ID quick start; documented scoped wtp-{8hex}-NNNN and legacy wtp-NNNN formats, exact SHA-256/first-8-lowercase-hex branch algorithm, all named branches, detached/non-Git fallback, current-before-legacy claiming, foreign exclusion, explicit starts, branch rename/no branch-scope migration behavior, and separate orphan task-history worktree recipe with relative .wtp.json wtpDir, commit/sync, single-checkout/concurrency, backup, and config-does-not-move-data cautions. Verification passed: git diff --check, ./scripts/verify.sh commit, and isolated recipe fixture.",
+      "createdAt": "2026-08-09T21:18:28.713827383Z"
+    },
+    {
+      "id": "d92d7d1a-af02-4c2d-81ee-5724f815ca50",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0080 complete: updated skills/task-management/SKILL.md for branch-aware IDs and selection, intentional foreign starts, detached/non-Git legacy behavior, worktree context, manual inspection, shared storage, and dedicated history-worktree use. Verified frontmatter with quick_validate.py, built the CLI, exercised documented CLI forms in isolated Git/non-Git probes, and passed go test ./... plus go vet ./....",
+      "createdAt": "2026-08-09T21:32:44.489159947Z"
+    },
+    {
+      "id": "03d16d9b-6ea8-482c-b609-d82a5b71b4f0",
+      "author": "codex-wtp-loop",
+      "message": "Branch-scoped ID initiative final audit passed with no integration fixes required. Verified retained handoffs/export/shared stores, unchanged legacy history wtp-0001..0046, legacy CLI/store compatibility, named-branch SHA-256 scopes, detached/non-Git fallback, foreign explicit start, and rename/collision documentation. gofmt, go test ./... -count=1, go vet ./..., both skill validators, and ./scripts/verify.sh commit all passed.",
+      "createdAt": "2026-08-09T21:41:27.551095292Z"
+    }
+  ]
+}

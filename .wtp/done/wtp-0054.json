@@ -1,0 +1,49 @@
+{
+  "id": "66ba68f1-ec8a-4265-aa3c-a423b2b15660",
+  "shortId": "wtp-0054",
+  "title": "Test flat-file handoff append, replace, and retrieval",
+  "description": "Add provider tests for global and task-scoped writes, canonical task resolution from short IDs, append-by-default history, same-scope --replace semantics, retained scope counts, default global reads, explicit task and all-scope reads, newest-first ordering with deterministic ties, positive limits, unlimited reads, totalMatching/hasMore, and otherScopesAvailable. Assert unrelated scopes are preserved and missing handoffs.json behaves as empty.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "6ff45471-1f7d-4d6b-9eaa-73265c165807"
+  ],
+  "comments": [
+    {
+      "id": "c64b8756-3d9a-4078-924e-2a9a2e883e53",
+      "author": "codex-wtp-loop",
+      "message": "Dispatch blocked after update: create_thread rejected model=gpt-5.6-luna with thinking=max: create_thread could not validate reasoning effort \"max\" for model \"gpt-5.6-luna\". Use a model and reasoning combination listed in the tool description, or omit thinking.",
+      "createdAt": "2026-08-09T17:53:14.860289339Z"
+    },
+    {
+      "id": "5828ddd9-13ae-4bd2-a829-29a327969932",
+      "author": "codex-wtp-loop",
+      "message": "Inspected repository guidance and existing handoff implementation. Provider-level WriteHandoff/ListHandoffs coverage is missing; adding focused tests while preserving the existing worktree changes.",
+      "createdAt": "2026-08-09T18:02:19.826065777Z"
+    },
+    {
+      "id": "dc1371e2-fb4e-4942-aebf-3f9dc4b625bf",
+      "author": "codex-wtp-loop",
+      "message": "Added provider tests for scoped append/replace writes, canonical short-ID resolution, scope counts and preservation, filtered/all-scope retrieval ordering, limits, unlimited reads, totalMatching/hasMore/otherScopesAvailable, and missing handoffs.json. Focused flatfile provider suite passes.",
+      "createdAt": "2026-08-09T18:04:29.382159452Z"
+    },
+    {
+      "id": "7639fd45-3675-4fcd-a34b-27c49ac09ece",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: go test ./..., go test -race -count=1 ./internal/provider/flatfile, and ./scripts/verify.sh commit all pass. Marking wtp-0054 done.",
+      "createdAt": "2026-08-09T18:05:15.535959346Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.60309344Z",
+  "updatedAt": "2026-08-09T18:05:15.560105222Z",
+  "startedAt": "2026-08-09T17:52:47.835983859Z",
+  "completedAt": "2026-08-09T18:05:15.560105222Z"
+}

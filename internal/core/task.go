@@ -14,8 +14,48 @@ import (
 
 var (
 	canonicalUUIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-	shortIDPattern       = regexp.MustCompile(`^wtp-[0-9]{4,}$`)
+	shortIDPattern       = regexp.MustCompile(`^wtp-(?:(?P<branchID>[0-9a-f]{8})-)?(?P<sequence>[0-9]{4,})$`)
 )
+
+const shortIDFormat = "wtp-NNNN or wtp-BBBBBBBB-NNNN (B is exactly 8 lowercase hexadecimal characters and N is at least four decimal digits)"
+
+// ShortIDParts is the validated structure of a task short ID. Sequence
+// preserves its decimal spelling, including leading zeroes, so parsing does
+// not impose a narrower numeric limit than the identifier contract.
+type ShortIDParts struct {
+	Legacy   bool
+	BranchID string
+	Sequence string
+}
+
+// IsScoped reports whether the short ID belongs to a named branch scope.
+func (p ShortIDParts) IsScoped() bool {
+	return p.BranchID != ""
+}
+
+// IsLegacy reports whether the short ID belongs to the unscoped legacy
+// namespace.
+func (p ShortIDParts) IsLegacy() bool {
+	return p.BranchID == ""
+}
+
+// ParseShortID validates value and extracts its branch scope and sequence.
+// A legacy wtp-NNNN ID has no BranchID and sets Legacy to true.
+func ParseShortID(value string) (ShortIDParts, error) {
+	matches := shortIDPattern.FindStringSubmatch(value)
+	if matches == nil {
+		return ShortIDParts{}, fmt.Errorf("short ID %q must match %s", value, shortIDFormat)
+	}
+
+	branchIndex := shortIDPattern.SubexpIndex("branchID")
+	sequenceIndex := shortIDPattern.SubexpIndex("sequence")
+	branchID := matches[branchIndex]
+	return ShortIDParts{
+		Legacy:   branchID == "",
+		BranchID: branchID,
+		Sequence: matches[sequenceIndex],
+	}, nil
+}
 
 type Status string
 type Priority string
@@ -102,6 +142,7 @@ type Task struct {
 type TaskView struct {
 	Task
 	Readiness TaskReadiness `json:"readiness"`
+	Handoffs  []Handoff     `json:"handoffs,omitempty"`
 }
 
 type CreateTaskInput struct {
@@ -183,8 +224,8 @@ func (t Task) Validate() error {
 	if !canonicalUUIDPattern.MatchString(t.ID) {
 		return fmt.Errorf("task id %q must be a canonical lowercase UUID", t.ID)
 	}
-	if !shortIDPattern.MatchString(t.ShortID) {
-		return fmt.Errorf("task shortId %q must match wtp-NNNN (at least four digits)", t.ShortID)
+	if _, err := ParseShortID(t.ShortID); err != nil {
+		return fmt.Errorf("task shortId %q must match %s", t.ShortID, shortIDFormat)
 	}
 	if strings.TrimSpace(t.Title) == "" {
 		return errors.New("task title is required")

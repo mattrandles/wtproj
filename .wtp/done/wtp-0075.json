@@ -1,0 +1,37 @@
+{
+  "id": "1df8fd85-a569-4b4b-b0be-3b7b9da3c6b9",
+  "shortId": "wtp-0075",
+  "title": "Preserve explicit operations on foreign-branch tasks",
+  "description": "Verify and, where necessary, adjust explicit task operations so foreign scoped tasks remain visible in list/show/graph and can be updated, commented, paused, completed, or started by exact UUID/short ID. An eligible foreign todo/paused task shown from another branch must report readiness.claimable=false and never appear in ready/next, but task start must still succeed after normal assignee/dependency checks. Add focused provider/CLI tests for foreign short-ID resolution, explicit start, status movement, comments, updates, and ambiguous/unknown identifiers. Do not add a force or steal flag.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "compatibility",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "e9244a59-f91f-4459-80d4-2beaa14df738"
+  ],
+  "comments": [
+    {
+      "id": "25b0e862-dfb9-4df4-b4c4-a94e81f62b5b",
+      "author": "codex-wtp-loop",
+      "message": "Inspected repository guidance and existing branch-scope implementation. Explicit UUID/short-ID operations already resolve globally, but focused foreign-task operation coverage is missing; I’m verifying start assignee semantics and CLI/provider behavior before patching.",
+      "createdAt": "2026-08-09T20:57:12.434224266Z"
+    },
+    {
+      "id": "27a8cc74-d864-40d2-b033-d2bb66ea92b7",
+      "author": "codex-wtp-loop",
+      "message": "Added focused provider and process-level CLI coverage: foreign scoped tasks stay visible in list/show/graph with readiness.claimable=false and are excluded from ready/next; exact UUID/short-ID update, comment, dependency-gated start, pause, restart, and done operations succeed; unknown and ambiguous CLI identifiers are rejected. go test ./..., git diff --check, and ./scripts/verify.sh commit all pass.",
+      "createdAt": "2026-08-09T21:01:47.100186521Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.878038954Z",
+  "updatedAt": "2026-08-09T21:02:10.954390302Z",
+  "startedAt": "2026-08-09T20:55:49.099995733Z",
+  "completedAt": "2026-08-09T21:02:10.954390302Z"
+}

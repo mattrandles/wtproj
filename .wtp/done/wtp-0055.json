@@ -1,0 +1,49 @@
+{
+  "id": "3750fbbe-cdd9-4e16-9f79-011541813438",
+  "shortId": "wtp-0055",
+  "title": "Test handoff storage corruption and concurrency safety",
+  "description": "Add narrowly scoped flat-file tests proving concurrent append writers do not lose records under the global lock, replace is an atomic same-scope collection rewrite, and malformed JSON, duplicate IDs, invalid timestamps, or invalid field values are reported without modifying the existing store. Include recovery coverage showing all-scope reads or ID purges can inspect/remove syntactically valid orphaned task handoffs.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "6ff45471-1f7d-4d6b-9eaa-73265c165807"
+  ],
+  "comments": [
+    {
+      "id": "c21723c4-40c1-4d6c-b699-7f309883382e",
+      "author": "codex-wtp-loop",
+      "message": "Dispatch blocked: user-authorized gpt-5.6-luna + xhigh retry rejected: create_thread could not validate reasoning effort \"xhigh\" for model \"gpt-5.6-luna\". Use a model and reasoning combination listed in the tool description, or omit thinking.",
+      "createdAt": "2026-08-09T18:05:53.805262108Z"
+    },
+    {
+      "id": "78b53a27-0d3c-429e-831a-aad20bfd08da",
+      "author": "codex-wtp-loop",
+      "message": "Inspected repository guidance and located the flat-file handoff implementation/tests; next I am tracing the existing storage contract before adding narrowly scoped coverage.",
+      "createdAt": "2026-08-09T18:15:51.951075048Z"
+    },
+    {
+      "id": "c873b7d6-5fcc-4cde-8bd8-3400471e19d8",
+      "author": "codex-wtp-loop",
+      "message": "Added focused flat-file coverage for concurrent append writers, atomic same-scope replacement failure/success, corrupted handoff collections (malformed JSON, duplicate IDs, invalid timestamps and fields) with byte-preservation checks, and all-scope inspection plus ID purge of orphan task handoffs. Focused package tests pass.",
+      "createdAt": "2026-08-09T18:20:10.358783329Z"
+    },
+    {
+      "id": "75a40e29-89cc-40ee-b19c-fdca8e34106c",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: focused flat-file tests pass; new concurrency, atomic replacement, corruption, and orphan recovery cases pass with -count=10; go test -race ./internal/provider/flatfile passes; git diff --check is clean; ./scripts/verify.sh commit passes.",
+      "createdAt": "2026-08-09T18:20:48.585900444Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.624428531Z",
+  "updatedAt": "2026-08-09T18:20:48.607913956Z",
+  "startedAt": "2026-08-09T18:05:36.560704526Z",
+  "completedAt": "2026-08-09T18:20:48.607913956Z"
+}

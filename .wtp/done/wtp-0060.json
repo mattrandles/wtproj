@@ -1,0 +1,37 @@
+{
+  "id": "5f682ab4-7ecb-406d-8b74-3c9da1ecc4e6",
+  "shortId": "wtp-0060",
+  "title": "Test provider handoff attachment on both claim paths",
+  "description": "Add flat-file provider tests showing task next and explicit task start return all retained handoffs targeted to the claimed task in newest-first order, exclude global and other-task records, and return the same records again when a paused task is reclaimed because reads are non-consuming. Prove a corrupt handoff store prevents any status, assignee, or timestamp mutation. Confirm pause/done and ordinary reads do not attach handoffs.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "a412c9bf-6aa5-46b3-929c-8afac3ff64bf"
+  ],
+  "comments": [
+    {
+      "id": "8fd6d62e-2e65-44cc-a93f-3e58084ce694",
+      "author": "codex-wtp-loop",
+      "message": "Reviewed repository guidance and confirmed the task is already claimed; inspecting existing handoff provider implementation and test fixtures before making focused test changes.",
+      "createdAt": "2026-08-09T19:35:33.410299981Z"
+    },
+    {
+      "id": "77fdcdd6-1c1d-4641-9dd3-bd6c41d87d43",
+      "author": "codex-wtp-loop",
+      "message": "Focused provider coverage is implemented: explicit start and task-next claims filter retained handoffs newest-first, paused reclaim repeats the same records, ordinary/pause/done views stay unadorned, and corrupt-store failures preserve all lifecycle fields. Flat-file and full Go test suites pass; running the repository verification gate next.",
+      "createdAt": "2026-08-09T19:38:14.159692598Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.743279414Z",
+  "updatedAt": "2026-08-09T19:38:30.007914838Z",
+  "startedAt": "2026-08-09T19:34:58.799957395Z",
+  "completedAt": "2026-08-09T19:38:30.007914838Z"
+}

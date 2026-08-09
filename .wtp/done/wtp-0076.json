@@ -1,0 +1,37 @@
+{
+  "id": "f334bb3b-f554-4ebd-be5c-c18d55dbcb71",
+  "shortId": "wtp-0076",
+  "title": "Test dependencies and batch readiness across branch scopes",
+  "description": "Add focused scheduling tests for dependencies spanning current, legacy, and foreign scoped tasks. Current/legacy candidates must remain blocked by unfinished dependencies regardless of scope; completing a foreign dependency explicitly should unblock the candidate. Verify ready --limit returns only current then legacy tasks in deterministic order, never pads with foreign work, rejects nonpositive limits, and returns the established no-eligible behavior when only foreign tasks remain. Cover agent-filtered readiness and reverse dependency counts without changing dependency storage, which remains canonical UUIDs.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "1df8fd85-a569-4b4b-b0be-3b7b9da3c6b9"
+  ],
+  "comments": [
+    {
+      "id": "5276620f-b1c7-409e-a59b-6656e65e161e",
+      "author": "codex-wtp-loop",
+      "message": "Verified the claimed task and repository guidance; inspecting existing scope-aware readiness and dependency tests before adding focused coverage.",
+      "createdAt": "2026-08-09T21:03:12.314631292Z"
+    },
+    {
+      "id": "45a6e053-cc33-41b5-9e06-4b941ac42e8d",
+      "author": "codex-wtp-loop",
+      "message": "Implemented focused cross-scope scheduling coverage: unfinished foreign dependencies block current and legacy candidates, explicit foreign completion unblocks them, canonical UUID dependency storage and reverse counts are checked, agent filtering is covered, and batch readiness excludes foreign work while preserving current-then-legacy order. Added CLI/provider nonpositive-limit checks. Verification: go test ./... and git diff --check pass.",
+      "createdAt": "2026-08-09T21:06:54.777341619Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.903755883Z",
+  "updatedAt": "2026-08-09T21:06:58.121148279Z",
+  "startedAt": "2026-08-09T21:02:41.743985103Z",
+  "completedAt": "2026-08-09T21:06:58.121148279Z"
+}

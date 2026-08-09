@@ -1,0 +1,37 @@
+{
+  "id": "2a345ffb-3b43-4e1e-b130-fea70780d86f",
+  "shortId": "wtp-0073",
+  "title": "Make filename migration and status moves scope-compatible",
+  "description": "Update flat-file filename validation, legacy UUID-filename migration, writeTask, replaceTask, and crash-residue cleanup to work with both accepted short-ID formats. A valid UUID-named scoped task must migrate to its scoped short-ID filename; status transitions must move only that task's exact scoped/legacy filename and still clean valid UUID residue. Preserve refusal to overwrite conflicting targets, duplicate UUID/short-ID detection, directory-status validation, and canonical export filenames. Add tests for scoped migration, scoped status moves, interrupted cleanup, conflicting targets, and unchanged legacy behavior.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "storage",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "055a8350-4552-499d-a36c-836940fbc020"
+  ],
+  "comments": [
+    {
+      "id": "9b2ef0da-2fa7-4b26-96f7-1b683069d007",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the claimed task and repository guidance; the working tree contains prior scoped-ID changes, so I am preserving those edits and narrowing this pass to filename migration, status moves, cleanup, and focused regression coverage.",
+      "createdAt": "2026-08-09T20:49:22.244190422Z"
+    },
+    {
+      "id": "4e60dbe0-9eb2-4edf-aea6-5c886586c37d",
+      "author": "codex-wtp-loop",
+      "message": "Implemented dual-form flat-file filename validation and exact short-ID/UUID path handling. Added scoped UUID migration, scoped status-move isolation, UUID residue cleanup/interruption, invalid filename, and scoped conflict regressions. Verification passed: go test ./..., go vet ./..., and ./scripts/e2e_smoke.sh.",
+      "createdAt": "2026-08-09T20:55:17.362167631Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.828327296Z",
+  "updatedAt": "2026-08-09T20:55:32.184504095Z",
+  "startedAt": "2026-08-09T20:48:43.4135336Z",
+  "completedAt": "2026-08-09T20:55:32.184504095Z"
+}

@@ -1,0 +1,43 @@
+{
+  "id": "e790c11a-24df-48eb-a513-937338a63edf",
+  "shortId": "wtp-0056",
+  "title": "Test every handoff purge selector and cutoff",
+  "description": "Add provider tests for purge by exact ID, global scope, resolved task scope, and all scopes; cover no-cutoff deletion, strict-before cutoff boundaries, preservation of nonmatching records, zero-match scope results, invalid or missing IDs, and atomic behavior on validation/write failure. Keep CLI flag parsing out of these tests.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "f2ee493a-5bda-4907-b208-33210f0cd656"
+  ],
+  "comments": [
+    {
+      "id": "779ab6e0-6771-4e37-be8b-68a35c058da7",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the claimed task and repository guidance. Existing handoff purge implementation and partial provider coverage are present in the shared worktree; I am auditing the current tests and adding only the missing selector, cutoff, validation, and atomic-failure cases.",
+      "createdAt": "2026-08-09T18:21:56.6705308Z"
+    },
+    {
+      "id": "1d64f1a9-38c8-4de4-829d-04cea3178649",
+      "author": "codex-wtp-loop",
+      "message": "Added provider purge coverage for every selector, strict-before cutoff boundaries, no-cutoff deletion, preservation, zero-match global/task/all scopes, invalid and missing IDs, and byte-preserving validation failure. Added an internal provider test that injects replace failure, verifies the handoff file is unchanged, then confirms a later purge succeeds. Focused purge tests pass.",
+      "createdAt": "2026-08-09T18:25:41.338128199Z"
+    },
+    {
+      "id": "f7647eeb-95c6-46a1-9842-161f25aaca5c",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: focused purge tests, go test ./..., go vet ./..., git diff --check, and ./scripts/verify.sh commit all pass, including the smoke test. Changes are limited to provider purge tests; marking wtp-0056 done.",
+      "createdAt": "2026-08-09T18:26:30.796015129Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.646121277Z",
+  "updatedAt": "2026-08-09T18:26:33.506049508Z",
+  "startedAt": "2026-08-09T18:21:11.911187213Z",
+  "completedAt": "2026-08-09T18:26:33.506049508Z"
+}

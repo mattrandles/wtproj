@@ -1,0 +1,37 @@
+{
+  "id": "17e1161b-e17e-4184-a134-44078a9d7a00",
+  "shortId": "wtp-0071",
+  "title": "Harden scoped indexes against stale state and hash collisions",
+  "description": "Make scoped allocation fail with an actionable error when index-{branchId}.json records a different branch name than the current branch. Before allocating, compare the proposed short ID with loaded tasks and advance past already-used sequences so a stale or manually lowered index cannot duplicate a task. Preserve atomicity and acceptable gaps when index persistence succeeds but task publication fails. Add internal flat-file tests for stale indexes, missing scoped indexes with existing scoped tasks, exact 32-bit hash-collision metadata mismatch, concurrent writers, and failure paths that do not overwrite task files. Avoid broad scheduler changes.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "storage",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "2cac6e58-1933-4a94-aae7-cdc65ace2f1d"
+  ],
+  "comments": [
+    {
+      "id": "8132437a-cad0-4304-9a82-2abf18fe0478",
+      "author": "codex-wtp-loop",
+      "message": "Inspected scoped flat-file allocation: branch metadata validation and global locking are present, but CreateTask still uses index.Next directly. Implementing allocation-time short-ID collision advancement plus focused stale/missing-index and publication-failure coverage; preserving existing worktree changes and avoiding scheduler edits.",
+      "createdAt": "2026-08-09T20:37:07.236417092Z"
+    },
+    {
+      "id": "7b4c2c7c-5113-4bf6-a89d-8029a27ed9db",
+      "author": "codex-wtp-loop",
+      "message": "Implemented scoped allocation hardening: reject index metadata owned by another branch with branch-ID collision/stale-index guidance; advance proposed IDs past all loaded tasks so stale or missing indexes cannot duplicate; retain index-first persistence and atomic task publication so failed publication leaves the prior task unchanged with an acceptable counter gap. Added internal tests for stale/missing indexes, an exact 32-bit SHA-256 prefix collision, concurrent writers, and publication failure. Verified with go test ./internal/provider/flatfile, go test -race ./internal/provider/flatfile, go test ./..., and ./scripts/verify.sh commit (format, tests, vet, smoke).",
+      "createdAt": "2026-08-09T20:41:06.834215201Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.78193393Z",
+  "updatedAt": "2026-08-09T20:41:24.231529544Z",
+  "startedAt": "2026-08-09T20:35:25.237984836Z",
+  "completedAt": "2026-08-09T20:41:24.231529544Z"
+}

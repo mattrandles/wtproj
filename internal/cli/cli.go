@@ -83,6 +83,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	switch rest[0] {
 	case "task":
 		return runTask(ctx, rest[1:])
+	case "handoff":
+		return runHandoff(ctx, rest[1:])
 	case "graph":
 		return runGraph(ctx, rest[1:])
 	case "export":
@@ -111,7 +113,7 @@ func providerAndContextForInvocation(invocationDir string) (provider.Provider, r
 	if err != nil {
 		return nil, runtimecontext.Context{}, err
 	}
-	p, err := app.NewProvider(cfg.WTPDir, cfg)
+	p, err := app.NewProvider(cfg.WTPDir, cfg, runtime.Scope())
 	if err != nil {
 		return nil, runtimecontext.Context{}, err
 	}
@@ -213,6 +215,244 @@ func runTask(ctx context, args []string) error {
 	default:
 		return fmt.Errorf("unknown task subcommand %q", args[0])
 	}
+}
+
+func runHandoff(ctx context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("handoff subcommand is required")
+	}
+	switch args[0] {
+	case "write":
+		return runHandoffWrite(ctx, args[1:])
+	case "get":
+		return runHandoffGet(ctx, args[1:])
+	case "purge":
+		return runHandoffPurge(ctx, args[1:])
+	default:
+		return fmt.Errorf("unknown handoff subcommand %q", args[0])
+	}
+}
+
+func runHandoffWrite(ctx context, args []string) error {
+	flags := flag.NewFlagSet("handoff write", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	message := flags.String("message", "", "handoff message")
+	agent := flags.String("agent", "", "handoff author")
+	task := flags.String("task", "", "task scope")
+	replace := flags.Bool("replace", false, "replace handoffs in the selected scope")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("usage: wtp handoff write --message \"...\" [--agent Tony] [--task <task-id>] [--replace]")
+	}
+	if strings.TrimSpace(*message) == "" {
+		return errors.New("handoff message is required")
+	}
+	result, err := ctx.provider.WriteHandoff(provider.HandoffWriteRequest{
+		Task:    *task,
+		Author:  *agent,
+		Message: *message,
+		Replace: *replace,
+	})
+	if err != nil {
+		return err
+	}
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, result)
+	}
+	if err := printHandoff(ctx.stdout, result.Handoff); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(ctx.stdout, "scopeCount: %d\n", result.ScopeCount); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(ctx.stdout, "purge: %s\n", handoffPurgeCommand(result.Handoff))
+	return err
+}
+
+func runHandoffGet(ctx context, args []string) error {
+	flags := flag.NewFlagSet("handoff get", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	usage := "usage: wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]"
+	task := flags.String("task", "", "task scope")
+	allScopes := flags.Bool("all-scopes", false, "include every scope")
+	limit := flags.Int("limit", 1, "maximum records to show")
+	all := flags.Bool("all", false, "show all matching records")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(usage)
+	}
+	if *allScopes && strings.TrimSpace(*task) != "" {
+		return fmt.Errorf("handoff get accepts either --task or --all-scopes, not both\n%s", usage)
+	}
+	if *all && wasFlagSet(flags, "limit") {
+		return fmt.Errorf("handoff get accepts either --limit or --all, not both\n%s", usage)
+	}
+	if wasFlagSet(flags, "limit") && *limit <= 0 {
+		return fmt.Errorf("handoff limit must be greater than zero\n%s", usage)
+	}
+
+	filter := provider.HandoffFilter{Task: *task, AllScopes: *allScopes, Limit: *limit}
+	if *all {
+		filter.Limit = 0
+	}
+	result, err := ctx.provider.ListHandoffs(filter)
+	if err != nil {
+		return err
+	}
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, result)
+	}
+	if len(result.Handoffs) == 0 {
+		if _, err := fmt.Fprintln(ctx.stdout, "no handoffs found"); err != nil {
+			return err
+		}
+	} else {
+		for index, handoff := range result.Handoffs {
+			if index > 0 {
+				if _, err := fmt.Fprintln(ctx.stdout); err != nil {
+					return err
+				}
+			}
+			if err := printHandoff(ctx.stdout, handoff); err != nil {
+				return err
+			}
+		}
+	}
+	if result.HasMore {
+		if _, err := fmt.Fprintf(ctx.stdout, "more matching handoffs: %s\n", handoffGetAllCommand(*task, *allScopes)); err != nil {
+			return err
+		}
+	}
+	if result.OtherScopesAvailable {
+		_, err := fmt.Fprintln(ctx.stdout, "other scopes: wtp handoff get --all-scopes --all")
+		return err
+	}
+	return nil
+}
+
+func runHandoffPurge(ctx context, args []string) error {
+	flags := flag.NewFlagSet("handoff purge", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	id := flags.String("id", "", "handoff ID")
+	task := flags.String("task", "", "task scope")
+	global := flags.Bool("global", false, "global scope")
+	allScopes := flags.Bool("all-scopes", false, "every scope")
+	beforeValue := flags.String("before", "", "delete records before this RFC3339 time")
+	olderThan := flags.String("older-than", "", "delete records older than this duration")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("usage: wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]")
+	}
+	selectors := 0
+	if strings.TrimSpace(*id) != "" {
+		selectors++
+	}
+	if *global {
+		selectors++
+	}
+	if strings.TrimSpace(*task) != "" {
+		selectors++
+	}
+	if *allScopes {
+		selectors++
+	}
+	if selectors != 1 {
+		return errors.New("handoff purge requires exactly one selector: --id, --global, --task, or --all-scopes")
+	}
+	if wasFlagSet(flags, "before") && wasFlagSet(flags, "older-than") {
+		return errors.New("handoff purge accepts either --before or --older-than, not both")
+	}
+	if strings.TrimSpace(*id) != "" && (wasFlagSet(flags, "before") || wasFlagSet(flags, "older-than")) {
+		return errors.New("handoff purge --id cannot be combined with --before or --older-than")
+	}
+
+	request := provider.HandoffPurgeRequest{ID: *id, Task: *task, Global: *global, AllScopes: *allScopes}
+	if wasFlagSet(flags, "before") {
+		before, err := time.Parse(time.RFC3339, *beforeValue)
+		if err != nil {
+			return fmt.Errorf("handoff purge --before must be RFC3339: %w", err)
+		}
+		before = before.UTC()
+		request.Before = &before
+	}
+	if wasFlagSet(flags, "older-than") {
+		duration, err := time.ParseDuration(*olderThan)
+		if err != nil || duration <= 0 {
+			return errors.New("handoff purge --older-than must be a positive Go duration")
+		}
+		before := time.Now().UTC().Add(-duration)
+		request.Before = &before
+	}
+	result, err := ctx.provider.PurgeHandoffs(request)
+	if err != nil {
+		return err
+	}
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, result)
+	}
+	_, err = fmt.Fprintf(ctx.stdout, "purged: %d\n", result.Purged)
+	return err
+}
+
+func wasFlagSet(flags *flag.FlagSet, name string) bool {
+	found := false
+	flags.Visit(func(item *flag.Flag) {
+		if item.Name == name {
+			found = true
+		}
+	})
+	return found
+}
+
+func encodeJSON(w io.Writer, value any) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(value)
+}
+
+func printHandoff(w io.Writer, handoff core.Handoff) error {
+	if _, err := fmt.Fprintf(w, "%s\n", handoff.ID); err != nil {
+		return err
+	}
+	scope := "global"
+	if handoff.TaskID != "" {
+		scope = "task " + handoff.TaskID
+	}
+	lines := []string{
+		"scope: " + scope,
+		"author: " + displayAssignee(handoff.Author),
+		"message: " + handoff.Message,
+		"created: " + handoff.CreatedAt.Format(timeLayout),
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func handoffPurgeCommand(handoff core.Handoff) string {
+	if handoff.TaskID == "" {
+		return "wtp handoff purge --global"
+	}
+	return "wtp handoff purge --task " + handoff.TaskID
+}
+
+func handoffGetAllCommand(task string, allScopes bool) string {
+	if allScopes {
+		return "wtp handoff get --all-scopes --all"
+	}
+	if strings.TrimSpace(task) != "" {
+		return "wtp handoff get --task " + task + " --all"
+	}
+	return "wtp handoff get --all"
 }
 
 func runTaskCreate(ctx context, args []string) error {
@@ -728,6 +968,31 @@ func printTask(w io.Writer, task core.TaskView) error {
 			}
 		}
 	}
+	if len(task.Handoffs) > 0 {
+		if _, err := fmt.Fprintln(w, "handoffs:"); err != nil {
+			return err
+		}
+		for _, handoff := range task.Handoffs {
+			if _, err := fmt.Fprintf(w, "- %s\n", handoff.ID); err != nil {
+				return err
+			}
+			scope := "global"
+			if handoff.TaskID != "" {
+				scope = "task " + handoff.TaskID
+			}
+			lines := []string{
+				"  scope: " + scope,
+				"  author: " + displayAssignee(handoff.Author),
+				"  created: " + handoff.CreatedAt.Format(timeLayout),
+				"  message: " + handoff.Message,
+			}
+			for _, line := range lines {
+				if _, err := fmt.Fprintln(w, line); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -747,6 +1012,9 @@ Commands:
 	wtp task comment <task-id> [--agent Tony] --message "..."
   wtp task ready [--agent Tony] [--limit N]
   wtp task next [--agent Tony]
+	wtp handoff write --message "..." [--agent Tony] [--task <task-id>] [--replace]
+	wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]
+	wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]
 	wtp graph [--status todo|inProgress|paused|done|all]
 	wtp export --out .wtp-export
 	wtp version
@@ -758,6 +1026,12 @@ task ready shows the next eligible task without changing task state.
 Use --limit N to inspect multiple ready tasks in the same order; batch ready is currently implemented only for the flatfile backend.
 task show prints one specific task without claiming it; task get remains available as an alias.
 task next claims the returned task by moving it to inProgress.
+handoff write appends by default, requires --message, and retains a global record unless --task selects a task; --replace removes older records only in that scope.
+handoff get defaults to the newest global record; --task selects one task scope and --all-scopes includes global and task scopes. Human output hints at more records and other scopes.
+handoff purge requires exactly one of --id, --global, --task, or --all-scopes; --before and --older-than delete only records older than the cutoff.
+task-scoped handoff records are retained after task next/start claims and are attached to those claim results in newest-first order; global records are not auto-attached and claiming never consumes anything.
+The retained collection is .wtp/handoffs.json with a {"handoffs":[...]} wrapper; a missing file is treated as empty and is not created by reads.
+With --json, handoff write returns {"handoff":...,"scopeCount":...}, get returns {"handoffs":...,"totalMatching":...,"hasMore":...,"otherScopesAvailable":...}, and purge returns {"purged":...}.
 When --agent is supplied, list/get/ready/next compute claimability using that same assignee-safety rule.
 task update edits mutable task fields in place; pass --model= or any Git/worktree metadata option with = to clear that field.
 On task create, omitted Git/worktree fields default independently from the current Git context; explicit empty values override those defaults.
@@ -765,9 +1039,50 @@ Configuration is read from .wtp.json at the current Git worktree root (or the in
 The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
 Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
 graph prints dependency trees for matching tasks; it defaults to todo and accepts done, paused, inProgress, todo, or all.
-export writes an exact canonical snapshot to a dedicated directory; unmanaged entries and paths overlapping active .wtp storage are rejected.
+export writes an exact canonical snapshot to a dedicated directory, including the retained handoffs.json collection; unmanaged entries and paths overlapping active .wtp storage are rejected.
 version reports the binary's version, commit, and build date; use wtp --json version for machine-readable output.
 update installs a newer checksum-verified GitHub release over the running executable; use wtp --json update for machine-readable output.
+
+Task IDs and scoped storage:
+  A short ID is either wtp-NNNN (the legacy namespace) or
+  wtp-BBBBBBBB-NNNN (a named-branch scope); B is exactly eight lowercase
+  hexadecimal characters and N is at least four decimal digits.
+  For a named branch, branchId is the first eight lowercase hexadecimal
+  characters of SHA-256(branch name encoded as UTF-8). The branch name is the
+  exact, case-sensitive Git short name: it is not normalized. For example,
+  main hashes to 0d6e4079 and its first task is wtp-0d6e4079-0001.
+  Named-branch tasks are written as .wtp/<status>/wtp-<branchId>-NNNN.json.
+  The allocation record is .wtp/meta/index-<branchId>.json, for example:
+    {"branch":"main","next":1}
+  Detached HEAD and non-Git invocations have no branch scope. They use the
+  legacy ID and .wtp/meta/index.json, for example {"next":1}; named-branch
+  creation never changes that legacy index.
+  The index next value is the next candidate sequence, starts at 1, and is
+  advanced past every already-used short ID before allocation. It is written
+  before the task file, so a failed task publication may leave a gap; writers
+  must not reuse a lower sequence. Sequences are zero-padded to at least four
+  digits and grow beyond four digits as needed. Allocation is serialized by
+  the store's .wtp/meta/wtp.lock global lock.
+  A scoped index branch value must equal the exact branch name for its token.
+  A mismatch is an error (for example, "branch index token <branchId> belongs
+  to branch <other>, not <current>") so a 32-bit token collision or stale
+  index never shares an allocation sequence.
+  task list may show current, legacy, and foreign scoped tasks. On a named
+  branch, task ready and task next automatically consider current-scope tasks
+  first and legacy tasks second; they never select foreign scoped tasks.
+  Detached and non-Git ready/next selection is legacy-only. A foreign task can
+  be started intentionally with task start <task-id>; normal lifecycle and
+  dependency checks still apply.
+  Scope follows the exact current branch name, not a branch object. Renaming a
+  branch changes the prefix used for new tasks; existing IDs and filenames keep
+  their old prefix, are not migrated, and are foreign to the renamed branch
+  until explicitly started.
+  On storage open, a valid canonical-UUID-named task file is migrated to the
+  exact shortId filename in the same status directory. This compatibility
+  migration does not rename short IDs, alter task JSON, or migrate old branch
+  scopes; conflicting or invalid files are rejected without partial migration.
+  export remains canonical: it writes one UUID-named JSON snapshot per task,
+  plus handoffs.json, and does not export scoped short-ID filenames or indexes.
 
 Usage Guide:
 	1. Create tasks with title and optional metadata, including --model when a particular execution model is suggested.
@@ -790,6 +1105,8 @@ Legacy Compatibility Mode:
   wtp --agent Tony --add-comment --task-id wtp-0001 --comment "..."
   wtp --agent Tony --create-task --title "..." --description "..." --model gpt-5 --dependencies wtp-0001
   wtp --export-tasks=.wtp-export
+
+Legacy task action flags remain supported, and legacy --export-tasks is an alias for export; both export forms include handoffs.json.
 `)
 	return err
 }
@@ -803,12 +1120,15 @@ func schema(w io.Writer) error {
 
 Storage layout:
 	.wtp/
-		todo/
-		inProgress/
-		paused/
-		done/
-		meta/
+	 todo/
+	 inProgress/
+	 paused/
+	 done/
+	 handoffs.json
+	 meta/
 			index.json
+			index-<branchId>.json
+			wtp.lock (transient global allocation lock)
 			locks/
 
 Configuration and discovery:
@@ -820,15 +1140,70 @@ Configuration and discovery:
 
 Task file rules:
 	- Each task is stored as JSON in the directory matching its status.
-	- Flat-file task filenames use the short ID: .wtp/<status>/wtp-0001.json
+	- Flat-file task filenames use the exact short ID: .wtp/<status>/<shortId>.json.
+	  There are no per-branch subdirectories; for example, a task on main is
+	  .wtp/todo/wtp-0d6e4079-0001.json.
 	- The JSON payload includes both a canonical UUID id and a stable shortId.
 	- Dependencies are stored as canonical UUID strings, even when CLI input uses short IDs.
+	- New tasks and status moves use the shortId filename in the destination
+	  status directory. A filename must be either that exact shortId plus .json
+	  or the task's exact canonical UUID plus .json for legacy migration input.
+
+Short IDs, branch scopes, and allocation indexes:
+	- Legacy IDs have the form wtp-NNNN. Named-branch IDs have the form
+	  wtp-BBBBBBBB-NNNN, where B is exactly eight lowercase hexadecimal
+	  characters and N is at least four decimal digits. Both forms are valid in
+	  task JSON and as CLI identifiers; the .json suffix is only a filename
+	  suffix, not part of shortId.
+	- For a named Git branch, compute branchId by hashing the exact,
+	  case-sensitive short branch name as its UTF-8 bytes with SHA-256, taking
+	  the first four digest bytes, and encoding those bytes as lowercase hex.
+	  Do not trim, lowercase, or otherwise normalize the name. main therefore
+	  has branchId 0d6e4079.
+	- Named-branch allocation uses .wtp/meta/index-<branchId>.json. Its exact
+	  shape is {"branch":"<exact branch name>","next":<positive integer>}.
+	  The legacy unscoped allocator uses .wtp/meta/index.json with
+	  {"next":<positive integer>}; named creates never rewrite that file.
+	  The index's next value is the next candidate sequence, initially 1.
+	- Under the store-wide .wtp/meta/wtp.lock, a writer reads its index, scans
+	  all existing task shortIds, skips occupied candidates, increments next,
+	  persists the index, and then publishes the task. A missing or stale index
+	  is safe: allocation starts at its stored (or initial) value and skips all
+	  occupied IDs. A task publication failure can leave an unused sequence gap;
+	  later writers continue from next rather than reusing it.
+	- A scoped index's branch must exactly match the current branch name. A
+	  mismatch is rejected with a collision/stale-index error naming the token,
+	  stored branch, current branch, and index path. Never merge two branch names
+	  into one token or allocation sequence.
+
+Scoped readiness and branch changes:
+	- Ordinary listing can include current-scope, legacy, and foreign scoped
+	  tasks. Foreign tasks are not automatically claimable.
+	- On a named branch, task ready and task next select current-scope tasks
+	  before legacy tasks and never select a foreign scope. On detached HEAD or
+	  outside Git, there is no current scope and automatic selection is legacy
+	  only. Explicit --git-branch metadata does not create a runtime scope.
+	- task start <task-id> is the explicit path for an older or foreign scoped
+	  task. It still enforces dependency and lifecycle checks.
+	- Scope is derived from the branch name, not a branch object. After a branch
+	  rename, new tasks use the new name's branchId; old short IDs, filenames,
+	  and records are unchanged and are not automatically migrated or adopted.
+
+Filename compatibility migration:
+	- When storage opens, valid files named exactly <canonical task UUID>.json
+	  are migrated to .wtp/<status>/<shortId>.json in the same status directory.
+	  The payload's id and shortId do not change, and scoped short IDs migrate to
+	  their scoped target filename just like legacy short IDs.
+	- Invalid, mismatched, or conflicting files are rejected before migration
+	  writes. Existing short-ID files and old branch scopes are not renamed by
+	  this UUID-filename compatibility step.
 
 Compatibility rule:
 	- dependencies are stored as canonical UUID strings.
 	- task files created before model metadata remain valid; an omitted model means no suggestion.
 	- legacy task files named by canonical UUID are validated before migration to short-ID filenames.
 	- comments created without an agent remain valid with an empty author.
+	- a missing .wtp/handoffs.json is a legacy store with no retained handoffs; reads do not create it.
 
 Task JSON schema:
 	{
@@ -861,9 +1236,45 @@ Task JSON schema:
 		"completedAt": "2026-04-21T13:00:00Z"
 	}
 
+Retained handoff JSON schema (.wtp/handoffs.json):
+	{
+		"handoffs": [
+			{
+				"id": "8b1f1f55-6d6a-4f5a-9ca1-2e91e3a72d40",
+				"taskId": "25c3806a-bd1b-424d-889b-29e5b06679b8",
+				"author": "Tony",
+				"message": "Parser context for the next worker",
+				"createdAt": "2026-04-21T12:34:56Z"
+			}
+		]
+	}
+
+Handoff field semantics:
+	- handoffs: required array; an empty array is valid.
+	- id: required canonical lowercase UUID string and unique within the collection.
+	- taskId: optional canonical lowercase task UUID; omitted identifies the global scope.
+	- author: optional non-blank string.
+	- message: required non-blank, already-trimmed string.
+	- createdAt: required RFC3339 timestamp in UTC.
+
+Handoff behavior and CLI conflicts:
+	- handoff write appends by default. --replace removes all older records in the selected global or task scope before adding the new record; every other scope is preserved.
+	- handoff get returns newest-first records. With no scope option it returns the newest global record; --task accepts a task short ID or canonical UUID, while --all-scopes includes every scope. --task and --all-scopes conflict, as do --limit and --all.
+	- handoff purge requires exactly one selector: --id, --global, --task, or --all-scopes. --before accepts RFC3339; --older-than accepts a positive Go duration such as 72h. They conflict with each other, and either conflicts with --id. A cutoff is exclusive: records with createdAt before it are deleted, while records at or after it are retained.
+	- Handoff reads and task claims are non-consuming. task start and task next attach all retained task-scoped records for the claimed task, newest first; global records are not auto-attached, and task show, task get, and task list do not attach them.
+	- Human get output suggests --all when more matching records exist and --all-scopes --all when another scope has records.
+
+Handoff JSON response shapes:
+	- handoff write: {"handoff": { ... }, "scopeCount": 1}.
+	- handoff get: {"handoffs": [ ... ], "totalMatching": 1, "hasMore": false, "otherScopesAvailable": false}.
+	- handoff purge: {"purged": 1}.
+
 Field semantics:
 	- id: required canonical lowercase UUID string.
-	- shortId: required stable human-friendly identifier, format wtp-NNNN (at least four digits).
+	- shortId: required stable human-friendly identifier, format wtp-NNNN or
+	  wtp-BBBBBBBB-NNNN (B is exactly 8 lowercase hexadecimal characters and N
+	  is at least four decimal digits). The .json filename suffix is not part of
+	  this value.
 	- title: required non-empty string.
 	- description: optional string.
 	- priority: optional enum low|medium|high|urgent.
@@ -899,17 +1310,37 @@ Behavioral rules:
 	- model is advisory metadata and does not affect task ordering or claimability.
 	- task create discovers each Git/worktree field independently when it is omitted; an explicit value, including an empty value, overrides only that field.
 	- task update and task edit preserve origin fields unless their corresponding option is supplied; pass --git-repo=, --git-branch=, --worktree-name=, or --worktree-dir= to clear one.
+	- Handoff IDs are unique within .wtp/handoffs.json; malformed or corrupt handoff storage is rejected.
 
 Export rules:
-	- A successful export directory contains exactly one canonical UUID-named JSON file per current task.
-	- Current snapshot files are atomically replaced; stale canonical UUID-named JSON files are removed.
+	- A successful export directory contains exactly one canonical UUID-named JSON file per current task and a handoffs.json collection; scoped short-ID filenames and allocation indexes are not exported.
+	- handoffs.json has the same {"handoffs":[...]} shape as .wtp/handoffs.json and contains the exact retained collection, including an empty array when no handoffs exist.
+	- Current task and handoff snapshot files are atomically replaced; stale canonical UUID-named task files are removed.
 	- Unmanaged entries are reported before changes, and export paths overlapping active .wtp storage are rejected.
+	- Legacy --export-tasks=<directory> remains an alias for export and includes handoffs.json too.
+
+Legacy task compatibility:
+	- The legacy task action flags remain supported: --get-next-task, --get-tasks, --get-task, --set-task-in-progress, --set-task-paused, --set-task-done, --add-comment, and --create-task.
 
 Interoperability guidance:
 	- Programs that write wtp flat files should preserve unknown future fields when possible.
 	- Writers must update updatedAt whenever a task changes.
 	- Writers must keep the task file in the directory that matches status.
-	- Writers creating new tasks should increment .wtp/meta/index.json to allocate the next shortId.
+	- Writers must use the exact shortId filename in the matching status directory;
+	  do not add a branch subdirectory or include .json in the shortId field.
+	- Writers creating a task in a named branch should use the exact branch hash
+	  algorithm above and its index-<branchId>.json record; detached/non-Git
+	  writers should use the legacy index.json record. Keep each scoped index's
+	  branch and next fields intact, and reject branch-token mismatches.
+	- Writers should serialize allocation with .wtp/meta/wtp.lock, skip every
+	  already-used shortId, advance next before publication, and tolerate gaps
+	  after failed publication. Do not rewrite the legacy index for scoped work.
+	- Writers migrating UUID-named files should validate every file and its
+	  target before changing paths, preserving the task payload and unknown
+	  fields. Do not migrate old short IDs when a branch is renamed.
+	- Canonical export is unchanged: export task records under canonical UUID
+	  filenames and preserve the task JSON shape; short-ID indexes stay in active
+	  storage only.
 `)
 	return err
 }

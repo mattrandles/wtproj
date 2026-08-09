@@ -1,0 +1,37 @@
+{
+  "id": "6de613ab-6c74-4033-8e7d-67dbf5220c2e",
+  "shortId": "wtp-0053",
+  "title": "Add core handoff validation tests",
+  "description": "Add focused unit tests for the handoff domain contract introduced by the foundation task: valid global and task-scoped records, canonical lowercase UUID requirements, optional author rules, required trimmed message, required UTC timestamp, and TaskView JSON omitempty behavior. Confirm handoffs are view-only and do not appear in persisted Task JSON. Keep tests table-driven and avoid duplicating flat-file behavior coverage.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "06d9077f-af4b-4d8d-afcf-b5b92992f255"
+  ],
+  "comments": [
+    {
+      "id": "d24a84f2-b717-4f51-83c3-7c7aee25a741",
+      "author": "codex-wtp-loop",
+      "message": "Verified the claimed task and repository guidance; reviewing the new handoff contract and existing test conventions before adding focused core tests.",
+      "createdAt": "2026-08-09T16:42:03.512410209Z"
+    },
+    {
+      "id": "f0c75f8b-346b-440e-9179-cef08da01240",
+      "author": "codex-wtp-loop",
+      "message": "Added focused table-driven core tests for valid global/task-scoped handoffs, UUID/author/message/timestamp validation, TaskView handoffs omitempty behavior, and exclusion from persisted Task JSON. Verification passed: ./scripts/verify.sh commit (go test, go vet, smoke test).",
+      "createdAt": "2026-08-09T16:45:19.087231008Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.582262617Z",
+  "updatedAt": "2026-08-09T16:45:22.19968895Z",
+  "startedAt": "2026-08-09T16:41:21.437850792Z",
+  "completedAt": "2026-08-09T16:45:22.19968895Z"
+}

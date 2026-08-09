@@ -1,0 +1,44 @@
+{
+  "id": "6109feb4-e91a-4315-948e-a8c2530906ce",
+  "shortId": "wtp-0065",
+  "title": "Teach WTP skills to pass handoffs between queued workers",
+  "description": "Update both skills/task-management/SKILL.md and skills/codex-wtp-loop/SKILL.md. Distinguish task comments used for audit/progress from handoffs used for cross-worker context. Teach global append for the next queued worker and task scope for known future work. In the loop, retain claim-attached task handoffs, read only the newest global handoff after claiming, inject both into the worker prompt, and require a concise global handoff before done or pause; have the dispatcher write one if worker failure prevents it. Document retention/purge without bloating the skills, keep imperative style/frontmatter valid, and run the skill-creator quick_validate.py against both folders.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "skills",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "94a0eedf-caf3-4dfb-be3a-5f42ac0b27dd",
+    "a412c9bf-6aa5-46b3-929c-8afac3ff64bf"
+  ],
+  "comments": [
+    {
+      "id": "5fb0f46a-37ea-44b4-b657-4f51fc620d62",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the claimed task and repository guidance; reviewing the existing skill instructions and handoff workflow before editing.",
+      "createdAt": "2026-08-09T20:02:12.99630661Z"
+    },
+    {
+      "id": "a77ce7ce-9ed9-4f37-8653-ec51ae0a395c",
+      "author": "codex-wtp-loop",
+      "message": "Updated both skills with separate audit/progress comments and retained cross-worker handoffs; the loop now preserves claim-attached task handoffs, reads only the newest global handoff after claim, injects both into worker prompts, and defines failure fallback.",
+      "createdAt": "2026-08-09T20:04:53.080138977Z"
+    },
+    {
+      "id": "c6789523-cb1a-4387-81fa-4db74a00f453",
+      "author": "codex-wtp-loop",
+      "message": "Final verification complete: quick_validate.py passes for both skill folders, targeted git diff --check passes, and only the two requested SKILL.md files are modified by this task.",
+      "createdAt": "2026-08-09T20:06:16.575315253Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.854414111Z",
+  "updatedAt": "2026-08-09T20:06:53.890536847Z",
+  "startedAt": "2026-08-09T20:01:29.753443808Z",
+  "completedAt": "2026-08-09T20:06:53.890536847Z"
+}

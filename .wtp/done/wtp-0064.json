@@ -1,0 +1,45 @@
+{
+  "id": "fe0e7ed2-4ae1-421d-8402-b19ab61e94b8",
+  "shortId": "wtp-0064",
+  "title": "Document the complete retained handoff workflow",
+  "description": "Update embedded wtp help and schema plus README, CONTRIBUTING task guidance, documentation assertions, and CHANGELOG Unreleased. Document exact write/get/purge syntax and conflicts, append/replace and non-consuming retention, global versus task scope, default newest-global behavior and discovery hints, claim attachment on next/start, .wtp/handoffs.json schema and missing-file compatibility, purge cutoff semantics, JSON response shapes, and exported handoffs.json. Keep legacy task commands and export compatibility clear.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "docs",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "94a0eedf-caf3-4dfb-be3a-5f42ac0b27dd",
+    "a412c9bf-6aa5-46b3-929c-8afac3ff64bf",
+    "cbee4ca3-3dc5-4592-ba0a-a925c9ef5e72"
+  ],
+  "comments": [
+    {
+      "id": "d02a02b5-437c-4db1-9a11-d911df727a04",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the implemented handoff contract and repository guidance. Documentation must cover write/get/purge conflicts and cutoffs, scope/default discovery behavior, claim attachment, the handoffs.json schema and missing-file compatibility, JSON shapes, export output, and legacy command compatibility across embedded help/schema, README, CONTRIBUTING, assertions, and CHANGELOG.",
+      "createdAt": "2026-08-09T19:56:07.766634158Z"
+    },
+    {
+      "id": "09e52a9a-b7cf-41e4-9c0c-26dd480c9c3e",
+      "author": "codex-wtp-loop",
+      "message": "Updated embedded help/schema, README, CONTRIBUTING handoff guidance, CHANGELOG Unreleased, and documentation assertions. The focused internal/cli and internal/releaseasset tests pass; proceeding to full consistency and verification checks.",
+      "createdAt": "2026-08-09T20:00:21.221089047Z"
+    },
+    {
+      "id": "11749b06-1bd7-4ee0-a1ea-1bfb4b93c084",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: git diff --check, go test ./..., and ./scripts/verify.sh commit all pass, including the smoke test. The retained handoff workflow is documented across help/schema, README, CONTRIBUTING, documentation assertions, and CHANGELOG, with legacy task/export compatibility called out.",
+      "createdAt": "2026-08-09T20:01:10.889457701Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.831879241Z",
+  "updatedAt": "2026-08-09T20:01:10.911694532Z",
+  "startedAt": "2026-08-09T19:55:01.515609642Z",
+  "completedAt": "2026-08-09T20:01:10.911694532Z"
+}

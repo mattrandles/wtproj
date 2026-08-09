@@ -124,9 +124,16 @@ func writeConfigFile(t *testing.T, dir, content string) {
 
 func assertStorageInitialized(t *testing.T, root string) {
 	t.Helper()
-	if _, err := os.Stat(filepath.Join(root, "meta", "index.json")); err != nil {
+	entries, err := os.ReadDir(filepath.Join(root, "meta"))
+	if err != nil {
 		t.Fatalf("storage was not initialized at %s: %v", root, err)
 	}
+	for _, entry := range entries {
+		if entry.Type().IsRegular() && (entry.Name() == "index.json" || (strings.HasPrefix(entry.Name(), "index-") && strings.HasSuffix(entry.Name(), ".json"))) {
+			return
+		}
+	}
+	t.Fatalf("storage was not initialized at %s: no allocation index", root)
 }
 
 // assertEquivalentPath compares paths after resolving aliases such as Windows

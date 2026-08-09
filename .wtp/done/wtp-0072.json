@@ -1,0 +1,43 @@
+{
+  "id": "055a8350-4552-499d-a36c-836940fbc020",
+  "shortId": "wtp-0072",
+  "title": "Preserve legacy allocation for detached and non-Git contexts",
+  "description": "Lock down compatibility for providers without a named-branch scope. Detached HEAD and non-Git task creation must continue allocating wtp-NNNN from meta/index.json, and stores containing existing legacy tasks/indexes must open without migration. Named branches may read and explicitly manipulate legacy tasks but must never allocate from the global index. Add provider and CLI integration tests for detached HEAD, non-Git invocation, existing index continuation, explicit --git-branch metadata outside Git not creating a scope, and a named branch opening a legacy store without modifying old IDs.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "compatibility",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "17e1161b-e17e-4184-a134-44078a9d7a00"
+  ],
+  "comments": [
+    {
+      "id": "9a0596a0-ad8c-458c-b31e-7b1c46298693",
+      "author": "codex-wtp-loop",
+      "message": "Started compatibility pass: confirmed the task is already claimed and inspected repository guidance. Existing worktree contains prior scope/storage changes; next I am tracing allocation and legacy-store behavior before adding focused provider and CLI integration coverage.",
+      "createdAt": "2026-08-09T20:42:42.25312846Z"
+    },
+    {
+      "id": "19e16bd3-74c6-4879-a6ea-c33e6b7e7a62",
+      "author": "codex-wtp-loop",
+      "message": "Implemented regression coverage for global legacy allocation in detached and non-Git CLI contexts, explicit --git-branch metadata outside Git, continuation from an existing meta/index.json, and named branches reading/updating legacy tasks without changing legacy IDs or the global index. Provider and CLI targeted tests plus go test ./... pass.",
+      "createdAt": "2026-08-09T20:48:08.135731861Z"
+    },
+    {
+      "id": "ac3f935e-ee38-4733-949b-04f39a6baaf1",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: ./scripts/verify.sh commit passed (go test ./..., go vet ./..., and CLI smoke). The compatibility implementation and requested regression coverage are complete; marking the task done.",
+      "createdAt": "2026-08-09T20:48:23.617125489Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.805945467Z",
+  "updatedAt": "2026-08-09T20:48:25.927161278Z",
+  "startedAt": "2026-08-09T20:42:04.243486213Z",
+  "completedAt": "2026-08-09T20:48:25.927161278Z"
+}

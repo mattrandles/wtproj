@@ -1,0 +1,55 @@
+{
+  "id": "6ff45471-1f7d-4d6b-9eaa-73265c165807",
+  "shortId": "wtp-0048",
+  "title": "Implement flat-file handoff write and read operations",
+  "description": "Build on the handoff contract to extend provider.Provider and the flat-file provider with create/list behavior. Writes must resolve --task-style UUID or short IDs to a canonical UUID, append by default, and atomically replace only the selected global or task scope when requested. Reads must support global-only default scope, one task, or all scopes; return newest-first with ID tie-breaking; apply a positive limit or no limit; and report totalMatching, hasMore, and otherScopesAvailable. Return a write receipt containing the new handoff and retained count. Validate before mutation and preserve missing-file compatibility. No CLI parsing in this task.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "backend",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "06d9077f-af4b-4d8d-afcf-b5b92992f255"
+  ],
+  "comments": [
+    {
+      "id": "dd066fcd-e51f-4b5b-baf3-17c1dd5ef62e",
+      "author": "codex-wtp-loop",
+      "message": "Dispatch blocked: create_thread could not validate reasoning effort \"high\" for model \"gpt-5.6-terra\". Use a model and reasoning combination listed in the tool description, or omit thinking.",
+      "createdAt": "2026-08-09T16:41:07.448834316Z"
+    },
+    {
+      "id": "a5819393-3719-4a41-b69c-d5fe8f5fb8e8",
+      "author": "codex-wtp-loop",
+      "message": "Retry blocked: create_thread again rejected the exact required mapping model=gpt-5.6-terra, thinking=high with: create_thread could not validate reasoning effort \"high\" for model \"gpt-5.6-terra\". Use a model and reasoning combination listed in the tool description, or omit thinking.",
+      "createdAt": "2026-08-09T17:20:12.438856472Z"
+    },
+    {
+      "id": "1d00b891-7da9-4dff-aa5b-1aa9d1e48adc",
+      "author": "codex-wtp-loop",
+      "message": "User-authorized alternate retry blocked: create_thread rejected model=gpt-5.6-terra with thinking=xhigh: create_thread could not validate reasoning effort \"xhigh\" for model \"gpt-5.6-terra\". Use a model and reasoning combination listed in the tool description, or omit thinking.",
+      "createdAt": "2026-08-09T17:28:50.386311039Z"
+    },
+    {
+      "id": "a80d2fab-2836-40c4-b89f-8c176971b2fb",
+      "author": "codex-wtp-loop",
+      "message": "Started implementation: inspecting the landed handoff contract and existing flat-file storage patterns before adding provider create/list operations.",
+      "createdAt": "2026-08-09T17:34:11.199943882Z"
+    },
+    {
+      "id": "e5d28f57-c83b-47d9-bdbd-cc27f18a33ab",
+      "author": "codex-wtp-loop",
+      "message": "Implemented provider WriteHandoff and ListHandoffs plus flat-file scoped append/replace and retrieval. Task selectors resolve short IDs/canonical UUIDs; writes validate before atomic publication; reads sort newest-first with ID tie-breaking, paginate, and report scope metadata. Updated provider test doubles for the expanded interface. Verification passed: go test ./..., go vet ./..., git diff --check, and ./scripts/verify.sh commit.",
+      "createdAt": "2026-08-09T17:36:35.742763153Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.46724724Z",
+  "updatedAt": "2026-08-09T17:36:35.764000856Z",
+  "startedAt": "2026-08-09T16:40:49.622620957Z",
+  "completedAt": "2026-08-09T17:36:35.764000856Z"
+}

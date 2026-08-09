@@ -1,0 +1,37 @@
+{
+  "id": "cbee4ca3-3dc5-4592-ba0a-a925c9ef5e72",
+  "shortId": "wtp-0052",
+  "title": "Include retained handoffs in canonical exports",
+  "description": "Extend canonical export so every snapshot contains a managed handoffs.json wrapper in addition to canonical UUID task files, including an empty collection for stores with no handoffs. Load and validate tasks and handoffs before changing the export, write the handoff artifact atomically under the existing lock, allow it in the managed-entry check, retain stale task cleanup, and never delete it as a stale UUID file. Preserve overlap protection, unmanaged-entry rejection, legacy export alias behavior, and deterministic task output.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "export",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "6ff45471-1f7d-4d6b-9eaa-73265c165807"
+  ],
+  "comments": [
+    {
+      "id": "266aa5d1-6b81-436f-824d-0ba6194de0d9",
+      "author": "codex-wtp-loop",
+      "message": "Started: inspecting the existing canonical export and retained-handoff persistence/tests before making a focused change.",
+      "createdAt": "2026-08-09T17:49:39.305742Z"
+    },
+    {
+      "id": "19ce4be6-5e3f-48fe-8ae9-6173b72ba29a",
+      "author": "codex-wtp-loop",
+      "message": "Implemented canonical handoff export: snapshots now publish managed handoffs.json (including an empty collection), validate handoffs before publication, retain the artifact through stale UUID cleanup, and document/test both public and legacy exports. Verification: ./scripts/verify.sh commit.",
+      "createdAt": "2026-08-09T17:52:32.31046305Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.556360811Z",
+  "updatedAt": "2026-08-09T17:52:32.332500947Z",
+  "startedAt": "2026-08-09T17:49:04.61678849Z",
+  "completedAt": "2026-08-09T17:52:32.332500947Z"
+}

@@ -1,0 +1,38 @@
+{
+  "id": "444a8297-a489-4649-907d-6fcdb0bf4836",
+  "shortId": "wtp-0061",
+  "title": "Test claim handoffs in human and JSON CLI output",
+  "description": "Add focused CLI tests for task next and task start when TaskView contains handoffs. Human task output should add a handoffs section with ID/scope/author/time/message only when records exist; JSON should expose the additive handoffs array without wrapping or changing existing task fields. Confirm no-handoff output remains byte-compatible with prior behavior and regular task show/list do not gain attached records.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "94a0eedf-caf3-4dfb-be3a-5f42ac0b27dd",
+    "a412c9bf-6aa5-46b3-929c-8afac3ff64bf"
+  ],
+  "comments": [
+    {
+      "id": "04a2d02c-f554-4bad-8554-2180bc03675b",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the claimed task and repository guidance. Existing handoff plumbing is present; I’m isolating the missing task next/start CLI coverage while preserving the worktree’s existing edits.",
+      "createdAt": "2026-08-09T19:39:21.806712864Z"
+    },
+    {
+      "id": "1d1f38ac-5dc2-4d29-8a3f-2129898b0b91",
+      "author": "codex-wtp-loop",
+      "message": "Added focused CLI coverage for task start and task next: human handoff details, additive unwrapped JSON, byte-exact no-handoff output, empty JSON omission, and show/list isolation against retained records. Updated task human rendering to include ID, scope, author, created time, and message. Targeted and full Go tests pass.",
+      "createdAt": "2026-08-09T19:43:28.951983971Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.765643672Z",
+  "updatedAt": "2026-08-09T19:43:49.669324826Z",
+  "startedAt": "2026-08-09T19:38:49.595506165Z",
+  "completedAt": "2026-08-09T19:43:49.669324826Z"
+}

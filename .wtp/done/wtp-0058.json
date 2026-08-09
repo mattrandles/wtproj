@@ -1,0 +1,49 @@
+{
+  "id": "40c4d54c-0877-4f8f-ac0b-a28fe5bcce5d",
+  "shortId": "wtp-0058",
+  "title": "Test handoff get CLI behavior",
+  "description": "Add CLI unit tests for the default newest global read, --task, --all-scopes, positive --limit, and --all. Verify conflicts and nonpositive limits fail with usage guidance. Check human rendering, no-result output, the --all hint when matching records are truncated, the --all-scopes --all hint when task-scoped records are hidden by the global default, and JSON fields handoffs,totalMatching,hasMore,otherScopesAvailable.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "94a0eedf-caf3-4dfb-be3a-5f42ac0b27dd"
+  ],
+  "comments": [
+    {
+      "id": "83b2e44d-090d-4a9c-91aa-62faf730c835",
+      "author": "codex-wtp-loop",
+      "message": "Dispatch blocked: create_thread rejected user-authorized gpt-5.6-luna + xhigh with: create_thread could not validate reasoning effort \"xhigh\" for model \"gpt-5.6-luna\". Use a model and reasoning combination listed in the tool description, or omit thinking.",
+      "createdAt": "2026-08-09T18:32:59.78475791Z"
+    },
+    {
+      "id": "6f45b21c-9387-4760-89d5-af35575aacea",
+      "author": "codex-wtp-loop",
+      "message": "Dispatch blocked by invalid project target: create_thread returned Unknown projectId: 4e511b65-4cfb-4652-a874-02c37d04485b. Call list_projects to find available projects. No worker was created.",
+      "createdAt": "2026-08-09T18:33:21.975877409Z"
+    },
+    {
+      "id": "c5aab04e-dafc-4f6e-8b8a-cf682627eae8",
+      "author": "codex-wtp-loop",
+      "message": "Inspected wtp-0058 and repository guidance. Existing worktree changes include handoff implementation; preserving them and narrowing this pass to the requested CLI get tests.",
+      "createdAt": "2026-08-09T18:34:03.642229116Z"
+    },
+    {
+      "id": "cfcf4d4d-29ce-44c3-9dc8-eab37dd07bb1",
+      "author": "codex-wtp-loop",
+      "message": "Implemented comprehensive handoff get CLI coverage for default global, task, all-scopes, positive limits, and --all; added human/no-result/truncation/hidden-scope hints, JSON metadata checks, and usage guidance validation. Verification passed: go test ./..., go vet ./..., git diff --check, ./scripts/verify.sh.",
+      "createdAt": "2026-08-09T19:31:02.661379105Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:00:16.697179773Z",
+  "updatedAt": "2026-08-09T19:31:02.684480476Z",
+  "startedAt": "2026-08-09T18:32:38.780967028Z",
+  "completedAt": "2026-08-09T19:31:02.684480476Z"
+}

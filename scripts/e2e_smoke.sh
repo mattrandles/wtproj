@@ -38,6 +38,10 @@ task_b_json="$work_dir/task_b.json"
 list_out="$work_dir/list.txt"
 err_out="$work_dir/error.txt"
 task_out="$work_dir/task.txt"
+handoff_write_json="$work_dir/handoff_write.json"
+handoff_get_json="$work_dir/handoff_get.json"
+handoff_purge_json="$work_dir/handoff_purge.json"
+handoff_after_purge_json="$work_dir/handoff_after_purge.json"
 
 (
   cd "$test_repo"
@@ -101,9 +105,25 @@ task_out="$work_dir/task.txt"
   "$binary_path" task done "$task_b_short_id" --agent Bob > /dev/null
   "$binary_path" export --out exported > /dev/null
 
-  [ -f ".wtp/meta/index.json" ] || fail "missing index file"
+  if [ ! -f ".wtp/meta/index.json" ] && ! find ".wtp/meta" -maxdepth 1 -type f -name 'index-*.json' -print -quit | grep -q .; then
+    fail "missing index file"
+  fi
   [ -f "exported/$(extract_json_string id "$task_a_json").json" ] || fail "missing export for task A"
   [ -f "exported/$(extract_json_string id "$task_b_json").json" ] || fail "missing export for task B"
+
+  "$binary_path" --json handoff write \
+    --agent Alice \
+    --message "handoff smoke context" > "$handoff_write_json"
+  assert_contains '"message": "handoff smoke context"' "$handoff_write_json"
+
+  "$binary_path" --json handoff get --all-scopes --all > "$handoff_get_json"
+  assert_contains '"message": "handoff smoke context"' "$handoff_get_json"
+
+  "$binary_path" --json handoff purge --global > "$handoff_purge_json"
+  assert_contains '"purged": 1' "$handoff_purge_json"
+
+  "$binary_path" --json handoff get --all-scopes --all > "$handoff_after_purge_json"
+  assert_contains '"handoffs": []' "$handoff_after_purge_json"
 )
 
 printf 'smoke test passed\n'

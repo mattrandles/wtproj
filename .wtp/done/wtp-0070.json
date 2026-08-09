@@ -1,0 +1,38 @@
+{
+  "id": "2cac6e58-1933-4a94-aae7-cdc65ace2f1d",
+  "shortId": "wtp-0070",
+  "title": "Allocate branch-scoped task IDs with independent indexes",
+  "description": "Implement named-branch creation as shortId and filename wtp-{branchId}-{sequence}, starting at 0001 per branch. Use .wtp/meta/index-{branchId}.json for named branches and retain .wtp/meta/index.json for detached/non-Git legacy allocation. Scoped index JSON must record the exact branch name and next sequence so a token collision can be diagnosed. Preserve the global lock, atomic index/task writes, at-least-four-digit growth, task Git/worktree provenance defaults, and UUID-based canonical export. Existing tasks and the legacy index must not be renamed or rewritten. Add focused provider tests for two branch scopes sharing one store, independent sequences, filenames, index paths/content, and concurrent creation in one scope.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "storage",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "a7e433d5-bf81-4b2a-b10d-e3887f318eed",
+    "dbe07cf4-8046-4b0c-8bc1-b8f84f2d798d"
+  ],
+  "comments": [
+    {
+      "id": "6f784240-9d60-4e40-b8b1-a69cdc10fbc6",
+      "author": "codex-wtp-loop",
+      "message": "Located the flat-file allocation path and existing branch-scope plumbing. Implementing branch-token index selection and focused shared-store provider coverage without touching existing task records.",
+      "createdAt": "2026-08-09T20:28:02.042669861Z"
+    },
+    {
+      "id": "cc1db8a7-70a8-40fb-b8d7-011f861997be",
+      "author": "codex-wtp-loop",
+      "message": "Implemented named-branch allocation with branch-token short IDs, per-token indexes containing the exact branch, collision detection, and shared-store/concurrency coverage. Verified with ./scripts/verify.sh commit and go test -race ./internal/provider/flatfile -run 'TestConcurrentCreate(InNamedBranchScope|AllocatesUniqueShortIDs)' -count=1.",
+      "createdAt": "2026-08-09T20:31:02.848126518Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.758734837Z",
+  "updatedAt": "2026-08-09T20:31:12.961751394Z",
+  "startedAt": "2026-08-09T20:27:02.785671464Z",
+  "completedAt": "2026-08-09T20:31:12.961751394Z"
+}

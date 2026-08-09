@@ -1,0 +1,43 @@
+{
+  "id": "dbe07cf4-8046-4b0c-8bc1-b8f84f2d798d",
+  "shortId": "wtp-0068",
+  "title": "Extend the short-ID contract for branch-scoped tasks",
+  "description": "Update the canonical task identifier contract to accept both legacy wtp-NNNN and scoped wtp-BBBBBBBB-NNNN forms, where B is exactly 8 lowercase hexadecimal characters and the sequence is at least four decimal digits. Add or expose a focused parser/classifier that lets flat-file code distinguish legacy IDs, extract a branch token, and read the numeric sequence without duplicating regex logic. Preserve every existing legacy validation behavior and improve error text/schema wording to name both accepted forms. Add core validation tests for valid boundary cases and malformed tokens, separators, casing, sequence widths, and unsafe filename-shaped input. Do not migrate existing Task.ShortID values.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "core",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "51529fbc-425c-4081-8491-2035ee6042ff"
+  ],
+  "comments": [
+    {
+      "id": "bc66d6b4-c3b1-472d-a0a0-c1a1bc7a9f10",
+      "author": "codex-wtp-loop",
+      "message": "Inspected repository guidance and the dependent branch-scope work. This task will add only the reusable dual-form short-ID parser/validation contract, focused core boundary/malformed-input tests, and authoritative schema wording; branch allocation, filename migration, scheduling, and existing ShortID values remain unchanged.",
+      "createdAt": "2026-08-09T20:22:19.031371215Z"
+    },
+    {
+      "id": "de4c456a-3e8e-4da6-931c-b5953f67dc5f",
+      "author": "codex-wtp-loop",
+      "message": "Implemented core.ParseShortID with a single anchored dual-form contract, legacy/scoped classification, branch ID extraction, and exact sequence text preservation. Task.Validate now uses it and names both accepted forms; embedded schema wording is updated. Focused core and CLI tests pass, with allocation, migration, and existing IDs unchanged.",
+      "createdAt": "2026-08-09T20:24:06.739180399Z"
+    },
+    {
+      "id": "7b0cbb43-934f-47d4-9199-2d072edb6dfa",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: ./scripts/verify.sh commit passed, including gofmt validation, go test ./..., go vet ./..., and the e2e smoke test. The final diff is whitespace-clean; no allocation, migration, or existing Task.ShortID values were changed.",
+      "createdAt": "2026-08-09T20:26:13.857024729Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.712852138Z",
+  "updatedAt": "2026-08-09T20:26:22.459019062Z",
+  "startedAt": "2026-08-09T20:20:24.157439467Z",
+  "completedAt": "2026-08-09T20:26:22.459019062Z"
+}

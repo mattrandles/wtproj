@@ -1,0 +1,38 @@
+{
+  "id": "426cc00c-4f94-4c51-a067-1c0245826ca8",
+  "shortId": "wtp-0079",
+  "title": "Update embedded help and schema for scoped storage",
+  "description": "Revise wtp help and wtp schema to be the authoritative interoperability contract for dual short-ID formats, scoped filenames, meta/index-{branchId}.json branch/next fields, the legacy index, exact branch hash derivation, collision errors, allocation sequence behavior, current/legacy/foreign readiness, explicit foreign start, detached/non-Git fallback, branch rename behavior, UUID migration, and unchanged canonical export. Update CLI documentation assertions and examples without changing command flags or JSON task shapes. Ensure external writers have enough detail to generate and preserve valid scoped records.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "docs",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "2cac6e58-1933-4a94-aae7-cdc65ace2f1d",
+    "e9244a59-f91f-4459-80d4-2beaa14df738"
+  ],
+  "comments": [
+    {
+      "id": "2e6e0992-5f0e-4422-a4c5-6a88c5ba784f",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task and repository guidance; locating embedded help/schema sources and CLI documentation assertions before editing.",
+      "createdAt": "2026-08-09T21:19:47.584912893Z"
+    },
+    {
+      "id": "5024ba23-65d7-4c67-945f-9350c5c1da87",
+      "author": "codex-wtp-loop",
+      "message": "Implemented authoritative scoped-storage help/schema documentation and CLI assertions: dual short IDs, exact branch hashing, scoped/legacy indexes and allocation gaps, collision errors, readiness tiers and explicit foreign starts, detached/non-Git fallback, rename behavior, UUID filename migration, and unchanged canonical export. Verification passed: ./scripts/verify.sh commit.",
+      "createdAt": "2026-08-09T21:24:00.677758418Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:30.983587457Z",
+  "updatedAt": "2026-08-09T21:24:21.774377928Z",
+  "startedAt": "2026-08-09T21:19:12.45545683Z",
+  "completedAt": "2026-08-09T21:24:21.774377928Z"
+}

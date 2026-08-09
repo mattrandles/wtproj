@@ -458,6 +458,13 @@ func TestRunTaskCreateDefaultsLinkedWorktreeMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("providerAndContextForInvocation() error = %v", err)
 	}
+	scoped, ok := p.(interface{ InvocationScope() *core.BranchScope })
+	if !ok {
+		t.Fatalf("providerAndContextForInvocation() provider %T does not expose its invocation scope", p)
+	}
+	if got, want := scoped.InvocationScope(), invocation.Scope(); got == nil || want == nil || *got != *want {
+		t.Fatalf("provider invocation scope = %#v, want %#v", got, want)
+	}
 	ctx := context{
 		provider:   p,
 		invocation: invocation,
@@ -521,7 +528,7 @@ func TestLegacyCreateUsesTheSameContextDefaultsAndOverrides(t *testing.T) {
 }
 
 func TestRunTaskCreatePrintsBlockedReadinessForUnfinishedDependency(t *testing.T) {
-	p, err := flatfile.New(t.TempDir())
+	p, err := flatfile.New(t.TempDir(), nil)
 	if err != nil {
 		t.Fatalf("flatfile.New() error = %v", err)
 	}
@@ -583,6 +590,22 @@ func TestRunTaskReadyPrintsEmptyJSONBatchWithoutError(t *testing.T) {
 	}
 	if got := stdout.String(); got != "[]\n" {
 		t.Fatalf("stdout = %q, want %q", got, "[]\n")
+	}
+}
+
+func TestRunTaskReadyRejectsNonPositiveLimits(t *testing.T) {
+	for _, limit := range []string{"0", "-1"} {
+		t.Run("limit="+limit, func(t *testing.T) {
+			ctx := context{
+				provider: readyTestProvider{},
+				stdout:   &bytes.Buffer{},
+				stderr:   &bytes.Buffer{},
+			}
+			err := runTaskReady(ctx, []string{"--limit", limit})
+			if err == nil || !strings.Contains(err.Error(), "ready task limit must be greater than zero") {
+				t.Fatalf("runTaskReady(limit=%s) error = %v, want invalid limit error", limit, err)
+			}
+		})
 	}
 }
 
@@ -805,6 +828,477 @@ func TestTaskTargetCommandsRejectUnknownAndMissingOptions(t *testing.T) {
 	}
 }
 
+func TestRunHandoffWriteHumanOutputIncludesScopeCountAndPurgeCommand(t *testing.T) {
+	taskID := "25c3806a-bd1b-424d-889b-29e5b06679b8"
+	handoff := testCLIHandoff("00000000-0000-4000-8000-000000000001", taskID, "task context")
+	p := &handoffWriteTestProvider{writeResult: provider.HandoffWriteResult{Handoff: handoff, ScopeCount: 2}}
+	var stdout, stderr bytes.Buffer
+
+	err := runHandoffWrite(context{provider: p, stdout: &stdout, stderr: &stderr}, []string{"--message", " task context ", "--agent", " Tony ", "--task", "wtp-0028", "--replace"})
+	if err != nil {
+		t.Fatalf("runHandoffWrite() error = %v", err)
+	}
+	if got, want := p.writeRequest, (provider.HandoffWriteRequest{Task: "wtp-0028", Author: " Tony ", Message: " task context ", Replace: true}); !reflect.DeepEqual(got, want) {
+		t.Fatalf("WriteHandoff request = %#v, want %#v", got, want)
+	}
+	for _, want := range []string{"scope: task " + taskID, "message: task context", "scopeCount: 2", "purge: wtp handoff purge --task " + taskID} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("write output missing %q: %q", want, stdout.String())
+		}
+	}
+}
+
+func TestRunHandoffWritePassesOptionalFieldsAndReplacement(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		wantRequest provider.HandoffWriteRequest
+	}{
+		{
+			name: "append with optional agent and task",
+			args: []string{"--message", "context", "--agent", "Ada", "--task", "wtp-0028"},
+			wantRequest: provider.HandoffWriteRequest{
+				Task:    "wtp-0028",
+				Author:  "Ada",
+				Message: "context",
+			},
+		},
+		{
+			name: "replace",
+			args: []string{"--message", "context", "--replace"},
+			wantRequest: provider.HandoffWriteRequest{
+				Message: "context",
+				Replace: true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &handoffWriteTestProvider{writeResult: provider.HandoffWriteResult{Handoff: testCLIHandoff("00000000-0000-4000-8000-000000000002", "", "context")}}
+			var stdout, stderr bytes.Buffer
+			if err := runHandoffWrite(context{provider: p, stdout: &stdout, stderr: &stderr}, test.args); err != nil {
+				t.Fatalf("runHandoffWrite() error = %v", err)
+			}
+			if got := p.writeRequest; !reflect.DeepEqual(got, test.wantRequest) {
+				t.Fatalf("WriteHandoff request = %#v, want %#v", got, test.wantRequest)
+			}
+		})
+	}
+}
+
+func TestRunHandoffWriteRequiresNonblankMessageAndRejectsUnexpectedArguments(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "empty message", args: []string{"--message", ""}, wantErr: "handoff message is required"},
+		{name: "whitespace message", args: []string{"--message", " \t\n "}, wantErr: "handoff message is required"},
+		{name: "unexpected positional argument", args: []string{"--message", "context", "unexpected"}, wantErr: "usage: wtp handoff write"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &handoffWriteTestProvider{}
+			var stdout, stderr bytes.Buffer
+			err := runHandoffWrite(context{provider: p, stdout: &stdout, stderr: &stderr}, test.args)
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("runHandoffWrite() error = %v, want containing %q", err, test.wantErr)
+			}
+			if p.writeCalls != 0 {
+				t.Fatalf("WriteHandoff calls = %d, want 0", p.writeCalls)
+			}
+		})
+	}
+}
+
+func TestRunHandoffWritePropagatesTaskResolutionError(t *testing.T) {
+	wantErr := errors.New(`task "wtp-9999" not found`)
+	p := &handoffWriteTestProvider{writeErr: wantErr}
+	var stdout, stderr bytes.Buffer
+
+	err := runHandoffWrite(context{provider: p, stdout: &stdout, stderr: &stderr}, []string{"--message", "context", "--task", "wtp-9999"})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("runHandoffWrite() error = %v, want %v", err, wantErr)
+	}
+	if got, want := p.writeRequest.Task, "wtp-9999"; got != want {
+		t.Fatalf("WriteHandoff task = %q, want %q", got, want)
+	}
+}
+
+func TestRunHandoffWritePropagatesProviderError(t *testing.T) {
+	wantErr := errors.New("handoff storage unavailable")
+	p := &handoffWriteTestProvider{writeErr: wantErr}
+	var stdout, stderr bytes.Buffer
+
+	err := runHandoffWrite(context{provider: p, stdout: &stdout, stderr: &stderr}, []string{"--message", "context"})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("runHandoffWrite() error = %v, want %v", err, wantErr)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty output on provider error", stdout.String())
+	}
+}
+
+func TestRunHandoffWriteJSONUsesProviderResult(t *testing.T) {
+	handoff := testCLIHandoff("00000000-0000-4000-8000-000000000002", "25c3806a-bd1b-424d-889b-29e5b06679b8", "task context")
+	p := &handoffWriteTestProvider{writeResult: provider.HandoffWriteResult{Handoff: handoff, ScopeCount: 1}}
+	var stdout, stderr bytes.Buffer
+
+	if err := runHandoffWrite(context{provider: p, stdout: &stdout, stderr: &stderr, jsonOut: true}, []string{"--message", "task context", "--task", "wtp-0028"}); err != nil {
+		t.Fatalf("runHandoffWrite() error = %v", err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("JSON output is invalid: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("JSON output keys = %v, want exactly handoff and scopeCount", got)
+	}
+	for _, key := range []string{"handoff", "scopeCount"} {
+		if _, ok := got[key]; !ok {
+			t.Fatalf("JSON output missing %q: %v", key, got)
+		}
+	}
+	var result provider.HandoffWriteResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("decode handoff write JSON: %v", err)
+	}
+	if !reflect.DeepEqual(result, p.writeResult) {
+		t.Fatalf("JSON result = %#v, want %#v", result, p.writeResult)
+	}
+}
+
+func TestRunHandoffGetPassesScopeAndLimitOptions(t *testing.T) {
+	const taskID = "wtp-0028"
+	tests := []struct {
+		name       string
+		args       []string
+		wantFilter provider.HandoffFilter
+	}{
+		{name: "default newest global", wantFilter: provider.HandoffFilter{Limit: 1}},
+		{name: "task scope", args: []string{"--task", taskID}, wantFilter: provider.HandoffFilter{Task: taskID, Limit: 1}},
+		{name: "all scopes", args: []string{"--all-scopes"}, wantFilter: provider.HandoffFilter{AllScopes: true, Limit: 1}},
+		{name: "positive limit", args: []string{"--limit", "3"}, wantFilter: provider.HandoffFilter{Limit: 3}},
+		{name: "all matching records", args: []string{"--all"}, wantFilter: provider.HandoffFilter{}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &handoffTestProvider{listResult: provider.HandoffListResult{Handoffs: []core.Handoff{testCLIHandoff("00000000-0000-4000-8000-000000000003", "", "context")}}}
+			var stdout, stderr bytes.Buffer
+			if err := runHandoffGet(context{provider: p, stdout: &stdout, stderr: &stderr}, test.args); err != nil {
+				t.Fatalf("runHandoffGet() error = %v", err)
+			}
+			if got := p.listFilter; !reflect.DeepEqual(got, test.wantFilter) {
+				t.Fatalf("ListHandoffs filter = %#v, want %#v", got, test.wantFilter)
+			}
+			if p.listCalls != 1 {
+				t.Fatalf("ListHandoffs calls = %d, want 1", p.listCalls)
+			}
+		})
+	}
+}
+
+func TestRunHandoffGetHumanRenderingAndFollowUpHints(t *testing.T) {
+	const taskID = "wtp-0028"
+	tests := []struct {
+		name       string
+		args       []string
+		listResult provider.HandoffListResult
+		wantOutput []string
+	}{
+		{
+			name: "renders newest global and exposes hidden scopes",
+			listResult: provider.HandoffListResult{
+				Handoffs:             []core.Handoff{testCLIHandoff("00000000-0000-4000-8000-000000000003", "", "newest global")},
+				TotalMatching:        3,
+				HasMore:              true,
+				OtherScopesAvailable: true,
+			},
+			wantOutput: []string{
+				"00000000-0000-4000-8000-000000000003",
+				"scope: global",
+				"author: Tony",
+				"message: newest global",
+				"created: 2026-08-09T18:00:00Z",
+				"more matching handoffs: wtp handoff get --all",
+				"other scopes: wtp handoff get --all-scopes --all",
+			},
+		},
+		{
+			name: "task truncation points to task all",
+			args: []string{"--task", taskID},
+			listResult: provider.HandoffListResult{
+				Handoffs:      []core.Handoff{testCLIHandoff("00000000-0000-4000-8000-000000000004", taskID, "task context")},
+				TotalMatching: 2,
+				HasMore:       true,
+			},
+			wantOutput: []string{
+				"scope: task " + taskID,
+				"message: task context",
+				"more matching handoffs: wtp handoff get --task " + taskID + " --all",
+			},
+		},
+		{
+			name:       "no results",
+			listResult: provider.HandoffListResult{Handoffs: []core.Handoff{}, TotalMatching: 0},
+			wantOutput: []string{"no handoffs found"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &handoffTestProvider{listResult: test.listResult}
+			var stdout, stderr bytes.Buffer
+			if err := runHandoffGet(context{provider: p, stdout: &stdout, stderr: &stderr}, test.args); err != nil {
+				t.Fatalf("runHandoffGet() error = %v", err)
+			}
+			for _, want := range test.wantOutput {
+				if !strings.Contains(stdout.String(), want) {
+					t.Fatalf("get output missing %q: %q", want, stdout.String())
+				}
+			}
+			if test.name == "no results" && stdout.String() != "no handoffs found\n" {
+				t.Fatalf("no-result output = %q, want exact no-result message", stdout.String())
+			}
+		})
+	}
+}
+
+func TestRunHandoffGetJSONIncludesListMetadata(t *testing.T) {
+	want := provider.HandoffListResult{
+		Handoffs: []core.Handoff{
+			testCLIHandoff("00000000-0000-4000-8000-000000000005", "", "global context"),
+			testCLIHandoff("00000000-0000-4000-8000-000000000006", "25c3806a-bd1b-424d-889b-29e5b06679b8", "task context"),
+		},
+		TotalMatching:        2,
+		HasMore:              false,
+		OtherScopesAvailable: true,
+	}
+	p := &handoffTestProvider{listResult: want}
+	var stdout, stderr bytes.Buffer
+	if err := runHandoffGet(context{provider: p, stdout: &stdout, stderr: &stderr, jsonOut: true}, []string{"--all-scopes", "--all"}); err != nil {
+		t.Fatalf("runHandoffGet() error = %v", err)
+	}
+	if got, expected := p.listFilter, (provider.HandoffFilter{AllScopes: true}); !reflect.DeepEqual(got, expected) {
+		t.Fatalf("ListHandoffs filter = %#v, want %#v", got, expected)
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(stdout.Bytes(), &fields); err != nil {
+		t.Fatalf("JSON output is invalid: %v", err)
+	}
+	wantFields := []string{"handoffs", "totalMatching", "hasMore", "otherScopesAvailable"}
+	if len(fields) != len(wantFields) {
+		t.Fatalf("JSON output keys = %v, want exactly %v", fields, wantFields)
+	}
+	for _, field := range wantFields {
+		if _, ok := fields[field]; !ok {
+			t.Fatalf("JSON output missing %q: %v", field, fields)
+		}
+	}
+	var got provider.HandoffListResult
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode handoff list JSON: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("JSON result = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunHandoffGetRejectsConflictsAndNonpositiveLimitsWithUsage(t *testing.T) {
+	const usage = "usage: wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]"
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "task and all scopes", args: []string{"--task", "wtp-0028", "--all-scopes"}, wantErr: "handoff get accepts either --task or --all-scopes, not both"},
+		{name: "limit and all", args: []string{"--limit", "2", "--all"}, wantErr: "handoff get accepts either --limit or --all, not both"},
+		{name: "zero limit", args: []string{"--limit", "0"}, wantErr: "handoff limit must be greater than zero"},
+		{name: "negative limit", args: []string{"--limit=-1"}, wantErr: "handoff limit must be greater than zero"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &handoffTestProvider{}
+			var stdout, stderr bytes.Buffer
+			err := runHandoffGet(context{provider: p, stdout: &stdout, stderr: &stderr}, test.args)
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) || !strings.Contains(err.Error(), usage) {
+				t.Fatalf("runHandoffGet() error = %v, want %q and usage guidance", err, test.wantErr)
+			}
+			if p.listCalls != 0 {
+				t.Fatalf("ListHandoffs calls = %d, want 0 for invalid options", p.listCalls)
+			}
+		})
+	}
+}
+
+func TestRunHandoffPurgePassesEachSelector(t *testing.T) {
+	const (
+		handoffID = "00000000-0000-4000-8000-000000000004"
+		taskID    = "wtp-0028"
+	)
+	tests := []struct {
+		name        string
+		args        []string
+		wantRequest provider.HandoffPurgeRequest
+	}{
+		{
+			name:        "id",
+			args:        []string{"--id", handoffID},
+			wantRequest: provider.HandoffPurgeRequest{ID: handoffID},
+		},
+		{
+			name:        "global",
+			args:        []string{"--global"},
+			wantRequest: provider.HandoffPurgeRequest{Global: true},
+		},
+		{
+			name:        "task",
+			args:        []string{"--task", taskID},
+			wantRequest: provider.HandoffPurgeRequest{Task: taskID},
+		},
+		{
+			name:        "all scopes",
+			args:        []string{"--all-scopes"},
+			wantRequest: provider.HandoffPurgeRequest{AllScopes: true},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &handoffTestProvider{}
+			var stdout, stderr bytes.Buffer
+			if err := runHandoffPurge(context{provider: p, stdout: &stdout, stderr: &stderr}, test.args); err != nil {
+				t.Fatalf("runHandoffPurge() error = %v", err)
+			}
+			if got := p.purgeRequest; !reflect.DeepEqual(got, test.wantRequest) {
+				t.Fatalf("PurgeHandoffs request = %#v, want %#v", got, test.wantRequest)
+			}
+			if p.purgeCalls != 1 {
+				t.Fatalf("PurgeHandoffs calls = %d, want 1", p.purgeCalls)
+			}
+		})
+	}
+}
+
+func TestRunHandoffPurgeParsesCutoffsAndRendersHumanCount(t *testing.T) {
+	wantBefore := time.Date(2026, time.August, 1, 10, 34, 56, 0, time.UTC)
+	p := &handoffTestProvider{purgeResult: provider.HandoffPurgeResult{Purged: 4}}
+	var stdout, stderr bytes.Buffer
+	if err := runHandoffPurge(context{provider: p, stdout: &stdout, stderr: &stderr}, []string{
+		"--task", "wtp-0028", "--before", "2026-08-01T12:34:56+02:00",
+	}); err != nil {
+		t.Fatalf("runHandoffPurge(--before) error = %v", err)
+	}
+	if p.purgeRequest.Before == nil || !p.purgeRequest.Before.Equal(wantBefore) || p.purgeRequest.Before.Location() != time.UTC {
+		t.Fatalf("PurgeHandoffs cutoff = %#v, want exact UTC %s", p.purgeRequest.Before, wantBefore)
+	}
+	if got, want := stdout.String(), "purged: 4\n"; got != want {
+		t.Fatalf("purge output = %q, want %q", got, want)
+	}
+
+	p = &handoffTestProvider{}
+	var olderStdout bytes.Buffer
+	cutoffStart := time.Now().UTC()
+	if err := runHandoffPurge(context{provider: p, stdout: &olderStdout, stderr: &bytes.Buffer{}}, []string{"--global", "--older-than", "90m"}); err != nil {
+		t.Fatalf("runHandoffPurge(--older-than) error = %v", err)
+	}
+	cutoffEnd := time.Now().UTC()
+	if p.purgeRequest.Before == nil {
+		t.Fatalf("PurgeHandoffs request = %#v, want older-than cutoff", p.purgeRequest)
+	}
+	wantEarliest := cutoffStart.Add(-90 * time.Minute)
+	wantLatest := cutoffEnd.Add(-90 * time.Minute)
+	if got := *p.purgeRequest.Before; got.Before(wantEarliest) || got.After(wantLatest) || got.Location() != time.UTC {
+		t.Fatalf("older-than cutoff = %s, want between %s and %s", got, wantEarliest, wantLatest)
+	}
+}
+
+func TestRunHandoffPurgeRejectsInvalidArgumentsBeforeProvider(t *testing.T) {
+	const usage = "usage: wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]"
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "missing selector", wantErr: "handoff purge requires exactly one selector"},
+		{name: "multiple selectors", args: []string{"--global", "--all-scopes"}, wantErr: "handoff purge requires exactly one selector"},
+		{name: "selector and task", args: []string{"--id", "00000000-0000-4000-8000-000000000004", "--task", "wtp-0028"}, wantErr: "handoff purge requires exactly one selector"},
+		{name: "before and older-than", args: []string{"--global", "--before", "2026-08-01T00:00:00Z", "--older-than", "2h"}, wantErr: "handoff purge accepts either --before or --older-than, not both"},
+		{name: "id and before", args: []string{"--id", "00000000-0000-4000-8000-000000000004", "--before", "2026-08-01T00:00:00Z"}, wantErr: "handoff purge --id cannot be combined with --before or --older-than"},
+		{name: "id and older-than", args: []string{"--id", "00000000-0000-4000-8000-000000000004", "--older-than", "2h"}, wantErr: "handoff purge --id cannot be combined with --before or --older-than"},
+		{name: "invalid before", args: []string{"--global", "--before", "not-a-time"}, wantErr: "handoff purge --before must be RFC3339"},
+		{name: "zero older-than", args: []string{"--global", "--older-than", "0s"}, wantErr: "handoff purge --older-than must be a positive Go duration"},
+		{name: "negative older-than", args: []string{"--global", "--older-than", "-1s"}, wantErr: "handoff purge --older-than must be a positive Go duration"},
+		{name: "invalid older-than", args: []string{"--global", "--older-than", "not-a-duration"}, wantErr: "handoff purge --older-than must be a positive Go duration"},
+		{name: "stray argument", args: []string{"--global", "stray"}, wantErr: usage},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &handoffTestProvider{}
+			var stdout, stderr bytes.Buffer
+			err := runHandoffPurge(context{provider: p, stdout: &stdout, stderr: &stderr}, test.args)
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("runHandoffPurge() error = %v, want containing %q", err, test.wantErr)
+			}
+			if p.purgeCalls != 0 {
+				t.Fatalf("PurgeHandoffs calls = %d, want 0 for invalid options", p.purgeCalls)
+			}
+		})
+	}
+}
+
+func TestRunHandoffPurgeRendersZeroAndJSONCounts(t *testing.T) {
+	p := &handoffTestProvider{purgeResult: provider.HandoffPurgeResult{Purged: 0}}
+	var stdout, stderr bytes.Buffer
+	if err := runHandoffPurge(context{provider: p, stdout: &stdout, stderr: &stderr}, []string{"--all-scopes"}); err != nil {
+		t.Fatalf("runHandoffPurge(zero matches) error = %v", err)
+	}
+	if got, want := stdout.String(), "purged: 0\n"; got != want {
+		t.Fatalf("zero-match purge output = %q, want %q", got, want)
+	}
+
+	p = &handoffTestProvider{purgeResult: provider.HandoffPurgeResult{Purged: 4}}
+	var jsonOutput bytes.Buffer
+	if err := runHandoffPurge(context{provider: p, stdout: &jsonOutput, stderr: &bytes.Buffer{}, jsonOut: true}, []string{"--all-scopes"}); err != nil {
+		t.Fatalf("runHandoffPurge(JSON) error = %v", err)
+	}
+	if got, want := jsonOutput.String(), "{\n  \"purged\": 4\n}\n"; got != want {
+		t.Fatalf("purge JSON = %q, want %q", got, want)
+	}
+}
+
+func TestRunHandoffPurgePropagatesProviderFailure(t *testing.T) {
+	wantErr := errors.New("handoff storage unavailable")
+	p := &handoffTestProvider{purgeErr: wantErr}
+	var stdout, stderr bytes.Buffer
+
+	err := runHandoffPurge(context{provider: p, stdout: &stdout, stderr: &stderr}, []string{"--global"})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("runHandoffPurge() error = %v, want %v", err, wantErr)
+	}
+	if p.purgeCalls != 1 {
+		t.Fatalf("PurgeHandoffs calls = %d, want 1", p.purgeCalls)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty output on provider failure", stdout.String())
+	}
+}
+
+func testCLIHandoff(id, taskID, message string) core.Handoff {
+	return core.Handoff{
+		ID:        id,
+		TaskID:    taskID,
+		Author:    "Tony",
+		Message:   message,
+		CreatedAt: time.Date(2026, time.August, 9, 18, 0, 0, 0, time.UTC),
+	}
+}
+
 func TestRunGraphDefaultsToTodoAndPrintsDependencyTree(t *testing.T) {
 	provider := graphTestProvider{tasks: []core.TaskView{
 		graphTaskView("dep-1", "wtp-0001", "Dependency", core.StatusTodo, nil, "2026-04-21T10:00:00Z"),
@@ -864,20 +1358,20 @@ func TestHelpMentionsTaskMetadataOptions(t *testing.T) {
 		t.Fatalf("help() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "--git-repo", "--git-branch", "--worktree-name", "--worktree-dir", "current Git worktree root", "wtpDir selects storage", "Usage Guide:"} {
+	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "--git-repo", "--git-branch", "--worktree-name", "--worktree-dir", "current Git worktree root", "wtpDir selects storage", "Usage Guide:", "wtp handoff write", "wtp handoff get", "wtp handoff purge", "handoff write appends by default", "newest global record", "handoff purge requires exactly one", ".wtp/handoffs.json", "claiming never consumes", "other scopes", "scopeCount", "otherScopesAvailable", "legacy --export-tasks is an alias", "Task IDs and scoped storage:", "wtp-BBBBBBBB-NNNN", "main hashes to 0d6e4079", ".wtp/meta/index-<branchId>.json", "Detached HEAD and non-Git", "foreign task can", "branch object", "UUID-named task file", "export remains canonical"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("help output missing %q", needle)
 		}
 	}
 }
 
-func TestSchemaMentionsDependenciesIndexAndModel(t *testing.T) {
+func TestSchemaDocumentsTaskAndHandoffContracts(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := schema(&stdout); err != nil {
 		t.Fatalf("schema() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, `"gitRepo": "/workspace/repo"`, "Configuration and discovery:", "linked worktrees use that worktree's configuration", "model: optional free-form string", "gitRepo: optional absolute path", "worktreeDir: optional absolute path", "--git-branch=", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid"} {
+	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, `"gitRepo": "/workspace/repo"`, "Configuration and discovery:", "linked worktrees use that worktree's configuration", "model: optional free-form string", "gitRepo: optional absolute path", "worktreeDir: optional absolute path", "--git-branch=", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid", ".wtp/handoffs.json", `"handoffs": [`, "Handoff field semantics:", "handoff write appends by default", "--task and --all-scopes conflict", "A cutoff is exclusive", "Handoff reads and task claims are non-consuming", "task start and task next attach", "Handoff JSON response shapes:", `"scopeCount": 1`, `"otherScopesAvailable": false`, `"purged": 1`, "missing .wtp/handoffs.json", "Legacy task compatibility:", "--export-tasks=<directory>", "Short IDs, branch scopes, and allocation indexes:", "{\"branch\":\"<exact branch name>\",\"next\":<positive integer>}", "SHA-256", "first four digest bytes", "wtp-0d6e4079-0001.json", "task ready and task next select current-scope", "Foreign tasks are not automatically claimable", "task start <task-id>", "Filename compatibility migration:", "canonical task UUID>.json", "conflicting files are rejected before migration", "export directory contains exactly one canonical UUID-named", "scoped short-ID filenames and allocation indexes are not exported", "preserve unknown future fields", ".wtp/meta/wtp.lock", "tolerate gaps", "Canonical export is unchanged"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("schema output missing %q", needle)
 		}
@@ -900,7 +1394,7 @@ func TestPrintValueIncludesTaskMetadataInHumanAndJSONOutput(t *testing.T) {
 		Comments:     []core.Comment{},
 		CreatedAt:    now,
 		UpdatedAt:    now,
-	}}
+	}, Handoffs: []core.Handoff{testCLIHandoff("00000000-0000-4000-8000-000000000006", "25c3806a-bd1b-424d-889b-29e5b06679b8", "Retained claim context")}}
 
 	var human bytes.Buffer
 	if err := printValue(context{stdout: &human}, task); err != nil {
@@ -912,6 +1406,8 @@ func TestPrintValueIncludesTaskMetadataInHumanAndJSONOutput(t *testing.T) {
 		"gitBranch: feature/task-metadata",
 		"worktreeName: task-metadata",
 		"worktreeDir: /workspace/task-metadata",
+		"handoffs:",
+		"Retained claim context",
 	} {
 		if !strings.Contains(human.String(), needle) {
 			t.Fatalf("human output missing %q: %q", needle, human.String())
@@ -936,10 +1432,289 @@ func TestPrintValueIncludesTaskMetadataInHumanAndJSONOutput(t *testing.T) {
 		`"gitBranch": "feature/task-metadata"`,
 		`"worktreeName": "task-metadata"`,
 		`"worktreeDir": "/workspace/task-metadata"`,
+		`"handoffs": [`,
+		`"message": "Retained claim context"`,
 	} {
 		if !strings.Contains(jsonOutput.String(), needle) {
 			t.Fatalf("JSON output missing %q: %q", needle, jsonOutput.String())
 		}
+	}
+}
+
+func TestTaskClaimCommandsRenderHandoffsInHumanOutput(t *testing.T) {
+	task := testCLIClaimTask([]core.Handoff{
+		testCLIHandoff("00000000-0000-4000-8000-000000000007", "25c3806a-bd1b-424d-889b-29e5b06679b8", "retained claim context"),
+	})
+	want := strings.Join([]string{
+		"wtp-0028 (25c3806a-bd1b-424d-889b-29e5b06679b8)",
+		"title: Claim output",
+		"status: inProgress",
+		"priority: high",
+		"assignee: Tony",
+		"claimable: no",
+		"blocked: no",
+		"dependencyCount: 0",
+		"reverseDependencyCount: 0",
+		"created: 2026-08-09T17:00:00Z",
+		"updated: 2026-08-09T18:00:00Z",
+		"handoffs:",
+		"- 00000000-0000-4000-8000-000000000007",
+		"  scope: task 25c3806a-bd1b-424d-889b-29e5b06679b8",
+		"  author: Tony",
+		"  created: 2026-08-09T18:00:00Z",
+		"  message: retained claim context",
+	}, "\n") + "\n"
+
+	tests := []struct {
+		name string
+		run  func(context, *claimOutputTestProvider) error
+	}{
+		{
+			name: "task start",
+			run: func(ctx context, p *claimOutputTestProvider) error {
+				return runTaskTransition(ctx, "start", core.StatusInProgress, []string{"wtp-0028", "--agent", "Tony"})
+			},
+		},
+		{
+			name: "task next",
+			run: func(ctx context, p *claimOutputTestProvider) error {
+				return runTaskNext(ctx, []string{"--agent", "Tony"})
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &claimOutputTestProvider{task: task}
+			var stdout, stderr bytes.Buffer
+			if err := test.run(context{provider: p, stdout: &stdout, stderr: &stderr}, p); err != nil {
+				t.Fatalf("%s error = %v", test.name, err)
+			}
+			if got := stdout.String(); got != want {
+				t.Fatalf("%s output = %q, want %q", test.name, got, want)
+			}
+			if test.name == "task start" && p.gotActor != "Tony" {
+				t.Fatalf("task start agent forwarding = %q, want Tony", p.gotActor)
+			}
+			if test.name == "task next" && p.nextAgent != "Tony" {
+				t.Fatalf("task next agent forwarding = %q, want Tony", p.nextAgent)
+			}
+		})
+	}
+}
+
+func TestTaskClaimCommandsKeepNoHandoffHumanOutputByteCompatible(t *testing.T) {
+	task := testCLIClaimTask(nil)
+	want := strings.Join([]string{
+		"wtp-0028 (25c3806a-bd1b-424d-889b-29e5b06679b8)",
+		"title: Claim output",
+		"status: inProgress",
+		"priority: high",
+		"assignee: Tony",
+		"claimable: no",
+		"blocked: no",
+		"dependencyCount: 0",
+		"reverseDependencyCount: 0",
+		"created: 2026-08-09T17:00:00Z",
+		"updated: 2026-08-09T18:00:00Z",
+	}, "\n") + "\n"
+
+	for _, test := range []struct {
+		name string
+		run  func(context, *claimOutputTestProvider) error
+	}{
+		{
+			name: "task start",
+			run: func(ctx context, p *claimOutputTestProvider) error {
+				return runTaskTransition(ctx, "start", core.StatusInProgress, []string{"wtp-0028", "--agent", "Tony"})
+			},
+		},
+		{
+			name: "task next",
+			run: func(ctx context, p *claimOutputTestProvider) error {
+				return runTaskNext(ctx, []string{"--agent", "Tony"})
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p := &claimOutputTestProvider{task: task}
+			var stdout, stderr bytes.Buffer
+			if err := test.run(context{provider: p, stdout: &stdout, stderr: &stderr}, p); err != nil {
+				t.Fatalf("%s error = %v", test.name, err)
+			}
+			if got := stdout.String(); got != want {
+				t.Fatalf("%s output = %q, want %q", test.name, got, want)
+			}
+			if strings.Contains(stdout.String(), "handoffs:") {
+				t.Fatalf("%s unexpectedly rendered a handoffs section: %q", test.name, stdout.String())
+			}
+		})
+	}
+}
+
+func TestTaskClaimCommandsExposeHandoffsAdditivelyInJSON(t *testing.T) {
+	task := testCLIClaimTask([]core.Handoff{
+		testCLIHandoff("00000000-0000-4000-8000-000000000008", "25c3806a-bd1b-424d-889b-29e5b06679b8", "JSON claim context"),
+	})
+	for _, test := range []struct {
+		name string
+		run  func(context, *claimOutputTestProvider) error
+	}{
+		{
+			name: "task start",
+			run: func(ctx context, p *claimOutputTestProvider) error {
+				return runTaskTransition(ctx, "start", core.StatusInProgress, []string{"wtp-0028", "--agent", "Tony"})
+			},
+		},
+		{
+			name: "task next",
+			run: func(ctx context, p *claimOutputTestProvider) error {
+				return runTaskNext(ctx, []string{"--agent", "Tony"})
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p := &claimOutputTestProvider{task: task}
+			var stdout, stderr bytes.Buffer
+			if err := test.run(context{provider: p, stdout: &stdout, stderr: &stderr, jsonOut: true}, p); err != nil {
+				t.Fatalf("%s error = %v", test.name, err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(stdout.Bytes(), &fields); err != nil {
+				t.Fatalf("%s JSON error = %v", test.name, err)
+			}
+			if _, wrapped := fields["task"]; wrapped {
+				t.Fatalf("%s JSON unexpectedly wrapped task fields: %s", test.name, stdout.String())
+			}
+			for _, field := range []string{"id", "shortId", "title", "status", "readiness", "handoffs"} {
+				if _, present := fields[field]; !present {
+					t.Fatalf("%s JSON missing additive task field %q: %s", test.name, field, stdout.String())
+				}
+			}
+			var got core.TaskView
+			if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+				t.Fatalf("%s task JSON decode error = %v", test.name, err)
+			}
+			if !reflect.DeepEqual(got, task) {
+				t.Fatalf("%s decoded task = %#v, want %#v", test.name, got, task)
+			}
+		})
+	}
+}
+
+func TestTaskClaimCommandsOmitEmptyHandoffsFromJSON(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		run  func(context, *claimOutputTestProvider) error
+	}{
+		{
+			name: "task start",
+			run: func(ctx context, p *claimOutputTestProvider) error {
+				return runTaskTransition(ctx, "start", core.StatusInProgress, []string{"wtp-0028"})
+			},
+		},
+		{
+			name: "task next",
+			run: func(ctx context, p *claimOutputTestProvider) error {
+				return runTaskNext(ctx, nil)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p := &claimOutputTestProvider{task: testCLIClaimTask(nil)}
+			var stdout, stderr bytes.Buffer
+			if err := test.run(context{provider: p, stdout: &stdout, stderr: &stderr, jsonOut: true}, p); err != nil {
+				t.Fatalf("%s error = %v", test.name, err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(stdout.Bytes(), &fields); err != nil {
+				t.Fatalf("%s JSON error = %v", test.name, err)
+			}
+			if _, present := fields["handoffs"]; present {
+				t.Fatalf("%s JSON gained handoffs without records: %s", test.name, stdout.String())
+			}
+		})
+	}
+}
+
+func TestRegularTaskShowAndListDoNotAttachRetainedHandoffs(t *testing.T) {
+	p, err := flatfile.New(t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	task, err := p.CreateTask(core.CreateTaskInput{Title: "Ordinary read"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := p.WriteHandoff(provider.HandoffWriteRequest{Task: task.ShortID, Author: "Tony", Message: "claim-only context"}); err != nil {
+		t.Fatalf("WriteHandoff() error = %v", err)
+	}
+
+	for _, test := range []struct {
+		name string
+		run  func(context) error
+	}{
+		{
+			name: "show human",
+			run: func(ctx context) error {
+				return runTaskGet(ctx, []string{task.ShortID}, "show")
+			},
+		},
+		{
+			name: "list human",
+			run: func(ctx context) error {
+				return runTaskList(ctx, nil)
+			},
+		},
+		{
+			name: "show JSON",
+			run: func(ctx context) error {
+				return runTaskGet(ctx, []string{task.ShortID}, "show")
+			},
+		},
+		{
+			name: "list JSON",
+			run: func(ctx context) error {
+				return runTaskList(ctx, nil)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			jsonOut := strings.HasSuffix(test.name, "JSON")
+			if err := test.run(context{provider: p, stdout: &stdout, stderr: &stderr, jsonOut: jsonOut}); err != nil {
+				t.Fatalf("%s error = %v", test.name, err)
+			}
+			if strings.Contains(stdout.String(), "claim-only context") || strings.Contains(stdout.String(), "handoffs:") {
+				t.Fatalf("%s unexpectedly attached retained handoff: %q", test.name, stdout.String())
+			}
+			if jsonOut {
+				var value json.RawMessage
+				if err := json.Unmarshal(stdout.Bytes(), &value); err != nil {
+					t.Fatalf("%s JSON error = %v", test.name, err)
+				}
+				if bytes.Contains(value, []byte(`"handoffs"`)) {
+					t.Fatalf("%s JSON unexpectedly contains handoffs: %s", test.name, stdout.String())
+				}
+			}
+		})
+	}
+}
+
+func testCLIClaimTask(handoffs []core.Handoff) core.TaskView {
+	return core.TaskView{
+		Task: core.Task{
+			ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+			ShortID:      "wtp-0028",
+			Title:        "Claim output",
+			Priority:     core.PriorityHigh,
+			Status:       core.StatusInProgress,
+			Assignee:     "Tony",
+			Dependencies: []string{},
+			Comments:     []core.Comment{},
+			CreatedAt:    time.Date(2026, time.August, 9, 17, 0, 0, 0, time.UTC),
+			UpdatedAt:    time.Date(2026, time.August, 9, 18, 0, 0, 0, time.UTC),
+		},
+		Handoffs: handoffs,
 	}
 }
 
@@ -967,6 +1742,69 @@ type updateTestProvider struct {
 	commentCalls   int
 }
 
+type claimOutputTestProvider struct {
+	updateTestProvider
+	task      core.TaskView
+	nextAgent string
+}
+
+func (p *claimOutputTestProvider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
+	p.gotID = idOrShortID
+	p.gotStatus = target
+	p.gotActor = actor
+	p.statusCalls++
+	return p.task, nil
+}
+
+func (p *claimOutputTestProvider) GetNextTask(agent string) (core.TaskView, error) {
+	p.nextAgent = agent
+	return p.task, nil
+}
+
+type handoffTestProvider struct {
+	updateTestProvider
+	writeRequest provider.HandoffWriteRequest
+	writeResult  provider.HandoffWriteResult
+	listFilter   provider.HandoffFilter
+	listResult   provider.HandoffListResult
+	listCalls    int
+	purgeRequest provider.HandoffPurgeRequest
+	purgeResult  provider.HandoffPurgeResult
+	purgeErr     error
+	purgeCalls   int
+}
+
+func (p *handoffTestProvider) WriteHandoff(request provider.HandoffWriteRequest) (provider.HandoffWriteResult, error) {
+	p.writeRequest = request
+	return p.writeResult, nil
+}
+
+func (p *handoffTestProvider) ListHandoffs(filter provider.HandoffFilter) (provider.HandoffListResult, error) {
+	p.listCalls++
+	p.listFilter = filter
+	return p.listResult, nil
+}
+
+func (p *handoffTestProvider) PurgeHandoffs(request provider.HandoffPurgeRequest) (provider.HandoffPurgeResult, error) {
+	p.purgeCalls++
+	p.purgeRequest = request
+	return p.purgeResult, p.purgeErr
+}
+
+type handoffWriteTestProvider struct {
+	updateTestProvider
+	writeRequest provider.HandoffWriteRequest
+	writeResult  provider.HandoffWriteResult
+	writeErr     error
+	writeCalls   int
+}
+
+func (p *handoffWriteTestProvider) WriteHandoff(request provider.HandoffWriteRequest) (provider.HandoffWriteResult, error) {
+	p.writeCalls++
+	p.writeRequest = request
+	return p.writeResult, p.writeErr
+}
+
 type graphTestProvider struct {
 	tasks      []core.TaskView
 	lastFilter provider.TaskFilter
@@ -975,6 +1813,18 @@ type graphTestProvider struct {
 
 func (p *updateTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
 	return nil, errors.New("unexpected call")
+}
+
+func (p *updateTestProvider) WriteHandoff(provider.HandoffWriteRequest) (provider.HandoffWriteResult, error) {
+	return provider.HandoffWriteResult{}, errors.New("unexpected call")
+}
+
+func (p *updateTestProvider) ListHandoffs(provider.HandoffFilter) (provider.HandoffListResult, error) {
+	return provider.HandoffListResult{}, errors.New("unexpected call")
+}
+
+func (p *updateTestProvider) PurgeHandoffs(provider.HandoffPurgeRequest) (provider.HandoffPurgeResult, error) {
+	return provider.HandoffPurgeResult{}, errors.New("unexpected call")
 }
 
 func (p *updateTestProvider) GetTask(idOrShortID, agent string) (core.TaskView, error) {
@@ -1055,6 +1905,18 @@ func (p graphTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskVie
 	return p.tasks, nil
 }
 
+func (p graphTestProvider) WriteHandoff(provider.HandoffWriteRequest) (provider.HandoffWriteResult, error) {
+	return provider.HandoffWriteResult{}, errors.New("unexpected call")
+}
+
+func (p graphTestProvider) ListHandoffs(provider.HandoffFilter) (provider.HandoffListResult, error) {
+	return provider.HandoffListResult{}, errors.New("unexpected call")
+}
+
+func (p graphTestProvider) PurgeHandoffs(provider.HandoffPurgeRequest) (provider.HandoffPurgeResult, error) {
+	return provider.HandoffPurgeResult{}, errors.New("unexpected call")
+}
+
 func (p graphTestProvider) GetTask(idOrShortID, agent string) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
 }
@@ -1111,6 +1973,18 @@ func (p readyTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskVie
 	return nil, errors.New("unexpected call")
 }
 
+func (p readyTestProvider) WriteHandoff(provider.HandoffWriteRequest) (provider.HandoffWriteResult, error) {
+	return provider.HandoffWriteResult{}, errors.New("unexpected call")
+}
+
+func (p readyTestProvider) ListHandoffs(provider.HandoffFilter) (provider.HandoffListResult, error) {
+	return provider.HandoffListResult{}, errors.New("unexpected call")
+}
+
+func (p readyTestProvider) PurgeHandoffs(provider.HandoffPurgeRequest) (provider.HandoffPurgeResult, error) {
+	return provider.HandoffPurgeResult{}, errors.New("unexpected call")
+}
+
 func (p readyTestProvider) GetTask(idOrShortID, agent string) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
 }
@@ -1149,6 +2023,18 @@ func (p readyTestProvider) ExportCanonical(outDir string) error {
 
 func (p *getTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
 	return nil, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) WriteHandoff(provider.HandoffWriteRequest) (provider.HandoffWriteResult, error) {
+	return provider.HandoffWriteResult{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) ListHandoffs(provider.HandoffFilter) (provider.HandoffListResult, error) {
+	return provider.HandoffListResult{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) PurgeHandoffs(provider.HandoffPurgeRequest) (provider.HandoffPurgeResult, error) {
+	return provider.HandoffPurgeResult{}, errors.New("unexpected call")
 }
 
 func (p *getTestProvider) GetTask(idOrShortID, agent string) (core.TaskView, error) {

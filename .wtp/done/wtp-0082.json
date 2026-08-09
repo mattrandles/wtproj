@@ -1,0 +1,47 @@
+{
+  "id": "ebacf178-ecac-4235-a5f2-d1b2426e2655",
+  "shortId": "wtp-0082",
+  "title": "Run final branch-scope compatibility and verification audit",
+  "description": "After every branch-scoped implementation, test, documentation, and skill task is complete, audit the combined repository for contract drift and apply only integration fixes required by the agreed design. Reconcile cleanly with the previously completed retained-handoff initiative: task/handoff JSON additions, claim-attached output, exports, shared stores, and both skills must continue working. Verify existing tracked legacy .wtp history is untouched; old stores and legacy CLI flags still work; every named branch uses first-8-hex SHA-256 scoped IDs/indexes; detached/non-Git stays global; foreign tasks are never automatic but explicit start works; branch rename and hash-collision errors are documented. Run gofmt validation, go test ./..., go vet ./..., relevant skill validators, and ./scripts/verify.sh commit. Record concrete failures and pause instead of weakening tests, changing product decisions, or performing migrations.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "verification",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "032fc3d2-701d-49bb-8338-7720ccab88d9",
+    "426cc00c-4f94-4c51-a067-1c0245826ca8",
+    "87ba29d5-6416-4241-b28f-9d631b00ac97",
+    "98684cb9-5da1-43c9-898d-d042f9434b0b",
+    "cb09ffa9-fd4e-4b6b-8710-4b8cb190db3a"
+  ],
+  "comments": [
+    {
+      "id": "5d4ea9ca-160a-41b1-b2ef-af72b644e1fb",
+      "author": "codex-wtp-loop",
+      "message": "Started final integration audit. Confirmed task is correctly claimed on main; reviewing the combined branch-scoping and retained-handoff diff before running the required verification matrix.",
+      "createdAt": "2026-08-09T21:37:56.369358959Z"
+    },
+    {
+      "id": "42eaff7f-1b88-4d4e-9132-5c62696dae7c",
+      "author": "codex-wtp-loop",
+      "message": "Compatibility audit complete with no integration fix required. Confirmed retained handoffs remain claim-attached/non-consuming and included in shared-store export; legacy CLI/store paths remain covered; branch hash/index, detached/non-Git fallback, foreign explicit-start, rename, and collision contracts agree across code, tests, help/schema, README, and both skills. Tracked legacy records wtp-0001 through wtp-0046 are unchanged from origin/main. Baseline gofmt, go test ./... -count=1, go vet ./..., and both quick_validate.py skill checks passed.",
+      "createdAt": "2026-08-09T21:40:41.313858186Z"
+    },
+    {
+      "id": "ae4213b7-4e1b-41e1-826e-20fc3fa417c0",
+      "author": "codex-wtp-loop",
+      "message": "Post-verification workflow note: the installed PATH wtp predates the new handoff command and returned unknown command; the audited source CLI is verified, so final handoff/state operations are being run through go run ./cmd/wtp without changing tests, product decisions, or storage.",
+      "createdAt": "2026-08-09T21:41:27.483910123Z"
+    }
+  ],
+  "createdAt": "2026-08-09T16:11:31.063041934Z",
+  "updatedAt": "2026-08-09T21:41:27.620792294Z",
+  "startedAt": "2026-08-09T21:37:23.938607312Z",
+  "completedAt": "2026-08-09T21:41:27.620792294Z"
+}

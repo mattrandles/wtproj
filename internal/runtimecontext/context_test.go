@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/mattrandles/wtproj/internal/core"
 )
 
 func TestDiscoverMainAndLinkedWorktrees(t *testing.T) {
@@ -45,6 +47,10 @@ func TestDiscoverMainAndLinkedWorktrees(t *testing.T) {
 			if context.Branch != mainBranch {
 				t.Fatalf("Branch = %q, want %q", context.Branch, mainBranch)
 			}
+			scope := context.Scope()
+			if scope == nil || scope.Branch != mainBranch || scope.BranchID != core.BranchID(mainBranch) {
+				t.Fatalf("Scope() = %#v, want branch %q with ID %s", scope, mainBranch, core.BranchID(mainBranch))
+			}
 			if context.WorktreeName != filepath.Base(mainRoot) {
 				t.Fatalf("WorktreeName = %q, want %q", context.WorktreeName, filepath.Base(mainRoot))
 			}
@@ -52,7 +58,7 @@ func TestDiscoverMainAndLinkedWorktrees(t *testing.T) {
 	}
 
 	linkedRoot := filepath.Join(fixtureRoot, "linked worktree with spaces")
-	runGit(t, mainRoot, "worktree", "add", "-b", "linked-branch", linkedRoot)
+	runGit(t, mainRoot, "worktree", "add", "-b", "Feature/ABC", linkedRoot)
 	linkedNested := filepath.Join(linkedRoot, "another", "nested directory")
 	if err := os.MkdirAll(linkedNested, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
@@ -68,8 +74,12 @@ func TestDiscoverMainAndLinkedWorktrees(t *testing.T) {
 	if !context.InGit || context.DetachedHEAD {
 		t.Fatalf("Git state = InGit %t, DetachedHEAD %t; want true, false", context.InGit, context.DetachedHEAD)
 	}
-	if context.Branch != "linked-branch" {
-		t.Fatalf("Branch = %q, want linked-branch", context.Branch)
+	if context.Branch != "Feature/ABC" {
+		t.Fatalf("Branch = %q, want Feature/ABC", context.Branch)
+	}
+	scope := context.Scope()
+	if scope == nil || scope.Branch != "Feature/ABC" || scope.BranchID != "f718f729" {
+		t.Fatalf("Scope() = %#v, want Feature/ABC scope", scope)
 	}
 	linkedGitDir := runGitOutput(t, linkedRoot, "rev-parse", "--path-format=absolute", "--git-dir")
 	if context.WorktreeName != filepath.Base(linkedGitDir) {
@@ -101,6 +111,9 @@ func TestDiscoverDetachedHEAD(t *testing.T) {
 	if context.Branch != "" {
 		t.Fatalf("Branch = %q, want empty in detached HEAD", context.Branch)
 	}
+	if scope := context.Scope(); scope != nil {
+		t.Fatalf("Scope() = %#v, want nil in detached HEAD", scope)
+	}
 	assertPathEqual(t, context.RepositoryRoot, root)
 	assertPathEqual(t, context.WorktreeRoot, root)
 }
@@ -121,6 +134,9 @@ func TestDiscoverNonGitDirectory(t *testing.T) {
 	}
 	if context.RepositoryRoot != "" || context.WorktreeRoot != "" || context.Branch != "" || context.WorktreeName != "" {
 		t.Fatalf("non-Git context contains Git metadata: %#v", context)
+	}
+	if scope := context.Scope(); scope != nil {
+		t.Fatalf("Scope() = %#v, want nil outside Git", scope)
 	}
 }
 
