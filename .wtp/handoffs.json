@@ -53,6 +53,19 @@
       "author": "codex-wtp-loop",
       "message": "Branch-scoped ID initiative final audit passed with no integration fixes required. Verified retained handoffs/export/shared stores, unchanged legacy history wtp-0001..0046, legacy CLI/store compatibility, named-branch SHA-256 scopes, detached/non-Git fallback, foreign explicit start, and rename/collision documentation. gofmt, go test ./... -count=1, go vet ./..., both skill validators, and ./scripts/verify.sh commit all passed.",
       "createdAt": "2026-08-09T21:41:27.551095292Z"
+    },
+    {
+      "id": "b28d5e38-2951-4e8d-8d35-c2af74921f07",
+      "taskId": "a37276d5-ac00-49c2-91f0-cc42e941a776",
+      "author": "codex-wtp-loop",
+      "message": "Current state for review worker: repository is on main at commit 69aaa67 (feat: add retained handoffs and branch-scoped tasks). The worktree has one intentional uncommitted change in CHANGELOG.md adding release 0.3.0; do not discard it. The locally installed /home/matty/.local/bin/wtp was rebuilt with embedded version 0.3.0 and reports commit 69aaa67. No GitHub push or release has been performed. Prior retained-handoff and branch-scope implementation tasks are done; review the combined code and this release-note change for cleanup, redundancy, concurrency/storage/worktree conflicts, and runtime issues. Preserve the agreed behavior, make only justified fixes, and verify before completion.",
+      "createdAt": "2026-08-09T21:49:54.191030911Z"
+    },
+    {
+      "id": "f919cb24-130b-43b4-906e-a2db78e35aba",
+      "author": "codex-wtp-loop",
+      "message": "Reviewed 69aaa67 plus the retained 0.3.0 changelog entry. Fixed branch-scope drift when a same-named tag makes Git shorten HEAD as heads/\u003cbranch\u003e; runtime discovery now strips refs/heads/ from the full symbolic ref, with linked-worktree regression coverage. Full tests, vet, targeted race tests, skill validators, smoke, and verify.sh commit pass. CHANGELOG stays uncommitted; installed wtp is still 0.3.0 at 69aaa67; nothing pushed or published.",
+      "createdAt": "2026-08-09T21:59:15.705204657Z"
     }
   ]
 }

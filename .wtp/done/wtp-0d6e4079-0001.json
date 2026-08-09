@@ -1,0 +1,47 @@
+{
+  "id": "a37276d5-ac00-49c2-91f0-cc42e941a776",
+  "shortId": "wtp-0d6e4079-0001",
+  "title": "Review latest changes for cleanliness and WTP runtime conflicts",
+  "description": "Review the latest retained-handoff and branch-scoped task changes at HEAD 69aaa67, plus the intentional uncommitted CHANGELOG.md release entry for 0.3.0. Inspect for code cleanliness, unnecessary or duplicated code, stale contracts, race or concurrency hazards, storage/branch/worktree conflicts, and runtime failures when multiple users or worktrees invoke wtp. Fix concrete issues found while preserving the agreed retained-handoff and branch-scoped behavior. Do not push to GitHub or publish a release. Preserve the local 0.3.0 installation state. Run proportionate verification, including gofmt, go test ./..., go vet ./..., and relevant repository verification scripts. Record findings, changes, and verification in task comments and a retained handoff before completion.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "review",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "ff1f0d7e-8986-47e1-a241-09046a2e8b09",
+      "author": "codex-wtp-loop",
+      "message": "Review started at 69aaa67. Preserving the intentional CHANGELOG.md 0.3.0 edit and WTP runtime metadata; inspecting retained-handoff, branch-scope, locking, and worktree interactions before proportionate verification.",
+      "createdAt": "2026-08-09T21:50:54.058767973Z"
+    },
+    {
+      "id": "2dc75016-f873-42cf-aa32-04d5fdcd70c4",
+      "author": "codex-wtp-loop",
+      "message": "Found and fixed a concrete scope instability: main can return heads/\u003cbranch\u003e when a tag shares the branch name, changing the SHA-256 scope and provenance. Discovery now strips refs/heads/ from the full symbolic ref; regression coverage uses a linked Feature/ABC worktree with a same-named tag. Focused runtimecontext/CLI/flatfile tests pass.",
+      "createdAt": "2026-08-09T21:56:09.519728356Z"
+    },
+    {
+      "id": "758c3b77-2f9b-480d-a512-1bdb2d6658d4",
+      "author": "codex-wtp-loop",
+      "message": "Clarification: the affected Git command was symbolic-ref --short HEAD; under a same-named tag it can return heads/Feature/ABC instead of Feature/ABC. The fix reads the full symbolic ref and strips only refs/heads/.",
+      "createdAt": "2026-08-09T21:56:15.755771279Z"
+    },
+    {
+      "id": "a566452d-9f4d-49ab-932f-91aa9d9eb259",
+      "author": "codex-wtp-loop",
+      "message": "Review complete: no additional retained-handoff, allocation, locking, export, legacy-compatibility, or shared-store conflicts were found. Verification passed: gofmt clean; go test ./... -count=1; go vet ./...; race tests for runtimecontext, CLI, and flatfile; both skill validators; and ./scripts/verify.sh commit including smoke coverage. CHANGELOG.md remains intentionally uncommitted, and the installed wtp remains 0.3.0 at 69aaa67.",
+      "createdAt": "2026-08-09T21:59:10.641410549Z"
+    }
+  ],
+  "createdAt": "2026-08-09T21:49:46.754144153Z",
+  "updatedAt": "2026-08-09T21:59:19.643594382Z",
+  "startedAt": "2026-08-09T21:50:01.50458285Z",
+  "completedAt": "2026-08-09T21:59:19.643594382Z"
+}

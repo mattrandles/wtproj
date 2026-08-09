@@ -59,6 +59,10 @@ func TestDiscoverMainAndLinkedWorktrees(t *testing.T) {
 
 	linkedRoot := filepath.Join(fixtureRoot, "linked worktree with spaces")
 	runGit(t, mainRoot, "worktree", "add", "-b", "Feature/ABC", linkedRoot)
+	// A same-named tag makes `git symbolic-ref --short HEAD` report
+	// heads/Feature/ABC. Discovery must still use the exact branch name so a
+	// tag cannot change task allocation or automatic-selection scope.
+	runGit(t, mainRoot, "tag", "Feature/ABC")
 	linkedNested := filepath.Join(linkedRoot, "another", "nested directory")
 	if err := os.MkdirAll(linkedNested, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)

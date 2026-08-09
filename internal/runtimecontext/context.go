@@ -96,9 +96,16 @@ func Discover(invocationDir string) (Context, error) {
 	result.WorktreeRoot = worktreeRoot
 	result.WorktreeName = worktreeName(worktreeRoot, commonDir, gitDir)
 
-	branch, err := gitOutput(absoluteDir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	branchRef, err := gitOutput(absoluteDir, "symbolic-ref", "--quiet", "HEAD")
 	if err == nil {
-		result.Branch = string(branch)
+		const branchRefPrefix = "refs/heads/"
+		if !bytes.HasPrefix(branchRef, []byte(branchRefPrefix)) || len(branchRef) == len(branchRefPrefix) {
+			return Context{}, fmt.Errorf("resolve current Git branch: unexpected symbolic ref %q", branchRef)
+		}
+		// Derive the exact branch name from the full ref. Git's --short form
+		// adds a heads/ prefix when another ref (for example, a tag) has the
+		// same name, which would incorrectly change the branch task scope.
+		result.Branch = string(branchRef[len(branchRefPrefix):])
 		return result, nil
 	}
 	var exitError *exec.ExitError
