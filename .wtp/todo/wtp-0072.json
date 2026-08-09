@@ -1,0 +1,23 @@
+{
+  "id": "055a8350-4552-499d-a36c-836940fbc020",
+  "shortId": "wtp-0072",
+  "title": "Preserve legacy allocation for detached and non-Git contexts",
+  "description": "Lock down compatibility for providers without a named-branch scope. Detached HEAD and non-Git task creation must continue allocating wtp-NNNN from meta/index.json, and stores containing existing legacy tasks/indexes must open without migration. Named branches may read and explicitly manipulate legacy tasks but must never allocate from the global index. Add provider and CLI integration tests for detached HEAD, non-Git invocation, existing index continuation, explicit --git-branch metadata outside Git not creating a scope, and a named branch opening a legacy store without modifying old IDs.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "compatibility",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "17e1161b-e17e-4184-a134-44078a9d7a00"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:11:30.805945467Z",
+  "updatedAt": "2026-08-09T16:11:30.805945467Z",
+  "startedAt": null,
+  "completedAt": null
+}

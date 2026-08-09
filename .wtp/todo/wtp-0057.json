@@ -1,0 +1,23 @@
+{
+  "id": "ac45ffe7-ded7-42c0-b46d-cfb78848100b",
+  "shortId": "wtp-0057",
+  "title": "Test handoff write CLI behavior",
+  "description": "Add CLI unit tests for wtp handoff write covering required nonblank message, optional agent and task, append versus --replace, task ID resolution errors, human confirmation with retained scope count and an applicable purge command, root --json output shaped as {handoff,scopeCount}, unexpected arguments, and provider error propagation. Use a focused provider test double and do not duplicate storage tests.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "94a0eedf-caf3-4dfb-be3a-5f42ac0b27dd"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:00:16.674036866Z",
+  "updatedAt": "2026-08-09T16:00:16.674036866Z",
+  "startedAt": null,
+  "completedAt": null
+}

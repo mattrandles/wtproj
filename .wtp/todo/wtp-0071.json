@@ -1,0 +1,23 @@
+{
+  "id": "17e1161b-e17e-4184-a134-44078a9d7a00",
+  "shortId": "wtp-0071",
+  "title": "Harden scoped indexes against stale state and hash collisions",
+  "description": "Make scoped allocation fail with an actionable error when index-{branchId}.json records a different branch name than the current branch. Before allocating, compare the proposed short ID with loaded tasks and advance past already-used sequences so a stale or manually lowered index cannot duplicate a task. Preserve atomicity and acceptable gaps when index persistence succeeds but task publication fails. Add internal flat-file tests for stale indexes, missing scoped indexes with existing scoped tasks, exact 32-bit hash-collision metadata mismatch, concurrent writers, and failure paths that do not overwrite task files. Avoid broad scheduler changes.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "storage",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "2cac6e58-1933-4a94-aae7-cdc65ace2f1d"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:11:30.78193393Z",
+  "updatedAt": "2026-08-09T16:11:30.78193393Z",
+  "startedAt": null,
+  "completedAt": null
+}

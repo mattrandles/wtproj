@@ -1,0 +1,23 @@
+{
+  "id": "dbe07cf4-8046-4b0c-8bc1-b8f84f2d798d",
+  "shortId": "wtp-0068",
+  "title": "Extend the short-ID contract for branch-scoped tasks",
+  "description": "Update the canonical task identifier contract to accept both legacy wtp-NNNN and scoped wtp-BBBBBBBB-NNNN forms, where B is exactly 8 lowercase hexadecimal characters and the sequence is at least four decimal digits. Add or expose a focused parser/classifier that lets flat-file code distinguish legacy IDs, extract a branch token, and read the numeric sequence without duplicating regex logic. Preserve every existing legacy validation behavior and improve error text/schema wording to name both accepted forms. Add core validation tests for valid boundary cases and malformed tokens, separators, casing, sequence widths, and unsafe filename-shaped input. Do not migrate existing Task.ShortID values.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "core",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "51529fbc-425c-4081-8491-2035ee6042ff"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:11:30.712852138Z",
+  "updatedAt": "2026-08-09T16:11:30.712852138Z",
+  "startedAt": null,
+  "completedAt": null
+}

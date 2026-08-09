@@ -1,0 +1,23 @@
+{
+  "id": "1df8fd85-a569-4b4b-b0be-3b7b9da3c6b9",
+  "shortId": "wtp-0075",
+  "title": "Preserve explicit operations on foreign-branch tasks",
+  "description": "Verify and, where necessary, adjust explicit task operations so foreign scoped tasks remain visible in list/show/graph and can be updated, commented, paused, completed, or started by exact UUID/short ID. An eligible foreign todo/paused task shown from another branch must report readiness.claimable=false and never appear in ready/next, but task start must still succeed after normal assignee/dependency checks. Add focused provider/CLI tests for foreign short-ID resolution, explicit start, status movement, comments, updates, and ambiguous/unknown identifiers. Do not add a force or steal flag.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "compatibility",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "e9244a59-f91f-4459-80d4-2beaa14df738"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:11:30.878038954Z",
+  "updatedAt": "2026-08-09T16:11:30.878038954Z",
+  "startedAt": null,
+  "completedAt": null
+}

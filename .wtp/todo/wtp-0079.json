@@ -1,0 +1,24 @@
+{
+  "id": "426cc00c-4f94-4c51-a067-1c0245826ca8",
+  "shortId": "wtp-0079",
+  "title": "Update embedded help and schema for scoped storage",
+  "description": "Revise wtp help and wtp schema to be the authoritative interoperability contract for dual short-ID formats, scoped filenames, meta/index-{branchId}.json branch/next fields, the legacy index, exact branch hash derivation, collision errors, allocation sequence behavior, current/legacy/foreign readiness, explicit foreign start, detached/non-Git fallback, branch rename behavior, UUID migration, and unchanged canonical export. Update CLI documentation assertions and examples without changing command flags or JSON task shapes. Ensure external writers have enough detail to generate and preserve valid scoped records.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "docs",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "2cac6e58-1933-4a94-aae7-cdc65ace2f1d",
+    "e9244a59-f91f-4459-80d4-2beaa14df738"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:11:30.983587457Z",
+  "updatedAt": "2026-08-09T16:11:30.983587457Z",
+  "startedAt": null,
+  "completedAt": null
+}

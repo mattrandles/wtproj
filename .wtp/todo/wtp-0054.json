@@ -1,0 +1,23 @@
+{
+  "id": "66ba68f1-ec8a-4265-aa3c-a423b2b15660",
+  "shortId": "wtp-0054",
+  "title": "Test flat-file handoff append, replace, and retrieval",
+  "description": "Add provider tests for global and task-scoped writes, canonical task resolution from short IDs, append-by-default history, same-scope --replace semantics, retained scope counts, default global reads, explicit task and all-scope reads, newest-first ordering with deterministic ties, positive limits, unlimited reads, totalMatching/hasMore, and otherScopesAvailable. Assert unrelated scopes are preserved and missing handoffs.json behaves as empty.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "6ff45471-1f7d-4d6b-9eaa-73265c165807"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:00:16.60309344Z",
+  "updatedAt": "2026-08-09T16:00:16.60309344Z",
+  "startedAt": null,
+  "completedAt": null
+}

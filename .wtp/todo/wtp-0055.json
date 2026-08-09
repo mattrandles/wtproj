@@ -1,0 +1,23 @@
+{
+  "id": "3750fbbe-cdd9-4e16-9f79-011541813438",
+  "shortId": "wtp-0055",
+  "title": "Test handoff storage corruption and concurrency safety",
+  "description": "Add narrowly scoped flat-file tests proving concurrent append writers do not lose records under the global lock, replace is an atomic same-scope collection rewrite, and malformed JSON, duplicate IDs, invalid timestamps, or invalid field values are reported without modifying the existing store. Include recovery coverage showing all-scope reads or ID purges can inspect/remove syntactically valid orphaned task handoffs.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "6ff45471-1f7d-4d6b-9eaa-73265c165807"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:00:16.624428531Z",
+  "updatedAt": "2026-08-09T16:00:16.624428531Z",
+  "startedAt": null,
+  "completedAt": null
+}

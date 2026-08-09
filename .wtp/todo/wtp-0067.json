@@ -1,0 +1,23 @@
+{
+  "id": "51529fbc-425c-4081-8491-2035ee6042ff",
+  "shortId": "wtp-0067",
+  "title": "Define deterministic Git branch scope identities",
+  "description": "Implement the branch-scope primitive used by merge-safe task IDs. For every named Git branch, derive branchId as the first 8 lowercase hexadecimal characters (32 bits) of SHA-256 over the exact case-sensitive short branch name reported by runtime discovery. Detached HEAD and non-Git invocations must return no scope and remain legacy/global. Scope always comes from the actual invocation context; --git-branch metadata overrides must not affect it. Add fixed hash vectors plus named-branch, detached, and non-Git unit coverage. Keep this task limited to scope derivation and types; do not change flat-file allocation or claiming yet. This work intentionally follows wtp-0066 because the retained-handoff initiative overlaps the same codebase surfaces.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "core",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "ed999103-3146-487b-8ffe-f48cef5066a0"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:11:30.686948187Z",
+  "updatedAt": "2026-08-09T16:11:30.686948187Z",
+  "startedAt": null,
+  "completedAt": null
+}

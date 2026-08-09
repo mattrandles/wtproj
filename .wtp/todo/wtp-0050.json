@@ -1,0 +1,24 @@
+{
+  "id": "94a0eedf-caf3-4dfb-be3a-5f42ac0b27dd",
+  "shortId": "wtp-0050",
+  "title": "Add the handoff write, get, and purge CLI",
+  "description": "Add the root command group wtp handoff write|get|purge. Write: --message required, optional --agent, --task, and --replace; human output reports scope count plus the applicable purge command, JSON is {handoff,scopeCount}. Get: mutually exclusive --task/--all-scopes and --limit N/--all; default to newest global record; human output shows records and commands for hidden matching or other-scope records, JSON exposes handoffs,totalMatching,hasMore,otherScopesAvailable. Purge: require exactly one of --id/--global/--task/--all-scopes; allow mutually exclusive --before RFC3339 and positive --older-than using Go duration syntax, disallow age flags with --id, and return {purged:N} in JSON. Reject stray/conflicting flags with precise usage errors and preserve root --json conventions.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "cli",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "6ff45471-1f7d-4d6b-9eaa-73265c165807",
+    "f2ee493a-5bda-4907-b208-33210f0cd656"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:00:16.511260369Z",
+  "updatedAt": "2026-08-09T16:00:16.511260369Z",
+  "startedAt": null,
+  "completedAt": null
+}

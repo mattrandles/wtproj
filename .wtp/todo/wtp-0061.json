@@ -1,0 +1,24 @@
+{
+  "id": "444a8297-a489-4649-907d-6fcdb0bf4836",
+  "shortId": "wtp-0061",
+  "title": "Test claim handoffs in human and JSON CLI output",
+  "description": "Add focused CLI tests for task next and task start when TaskView contains handoffs. Human task output should add a handoffs section with ID/scope/author/time/message only when records exist; JSON should expose the additive handoffs array without wrapping or changing existing task fields. Confirm no-handoff output remains byte-compatible with prior behavior and regular task show/list do not gain attached records.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "test",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "94a0eedf-caf3-4dfb-be3a-5f42ac0b27dd",
+    "a412c9bf-6aa5-46b3-929c-8afac3ff64bf"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:00:16.765643672Z",
+  "updatedAt": "2026-08-09T16:00:16.765643672Z",
+  "startedAt": null,
+  "completedAt": null
+}

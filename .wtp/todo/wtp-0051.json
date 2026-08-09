@@ -1,0 +1,23 @@
+{
+  "id": "a412c9bf-6aa5-46b3-929c-8afac3ff64bf",
+  "shortId": "wtp-0051",
+  "title": "Attach task-scoped handoffs to task claims",
+  "description": "Integrate retained task context into both claim paths. Flat-file GetNextTask and UpdateTaskStatus when targeting inProgress must load and validate handoffs before changing task state, then attach every retained record whose taskId matches the claimed task, newest-first, through TaskView.handoffs. Corrupt handoff storage must fail before the claim mutation. Regular list/show/create/update/pause/done responses must remain unchanged. Extend human task printing with a handoffs section only when attached and preserve additive backward-compatible JSON output.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "backend",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "6ff45471-1f7d-4d6b-9eaa-73265c165807"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:00:16.534631996Z",
+  "updatedAt": "2026-08-09T16:00:16.534631996Z",
+  "startedAt": null,
+  "completedAt": null
+}

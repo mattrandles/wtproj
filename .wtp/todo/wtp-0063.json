@@ -1,0 +1,25 @@
+{
+  "id": "0c6563d6-505d-4867-931b-95b3ffc10926",
+  "shortId": "wtp-0063",
+  "title": "Add shared-store and cross-platform handoff smoke coverage",
+  "description": "Add storage integration coverage proving two projects configured with the same wtpDir observe the same global/task handoff collection, while legacy stores without handoffs.json initialize and read cleanly. Exercise write, get, claim attachment, purge, and export through the installed-style CLI process. Extend both Unix and PowerShell smoke scripts with a minimal handoff round trip using platform-safe quoting and cleanup.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "integration",
+  "model": "GPT 5.6 Luna Max",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "94a0eedf-caf3-4dfb-be3a-5f42ac0b27dd",
+    "a412c9bf-6aa5-46b3-929c-8afac3ff64bf",
+    "cbee4ca3-3dc5-4592-ba0a-a925c9ef5e72"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-09T16:00:16.808308764Z",
+  "updatedAt": "2026-08-09T16:00:16.808308764Z",
+  "startedAt": null,
+  "completedAt": null
+}
