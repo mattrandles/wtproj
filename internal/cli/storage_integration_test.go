@@ -619,8 +619,11 @@ func TestRunReportsInvalidInvocationConfig(t *testing.T) {
 	if err == nil {
 		t.Fatal("Run() error = nil, want invalid configuration failure")
 	}
-	if !strings.Contains(output, "parse "+canonicalTestPath(configPath)) {
-		t.Fatalf("Run() output = %q, want parse error naming %s", output, canonicalTestPath(configPath))
+	// Windows may render a valid 8.3 alias for a temporary-directory prefix
+	// (for example, RUNNER~1 rather than runneradmin). The config-file suffix
+	// and parse error are the stable, user-visible contract.
+	if !strings.Contains(output, "parse ") || !strings.Contains(output, filepath.Base(configPath)+": unexpected end of JSON input") {
+		t.Fatalf("Run() output = %q, want parse error naming %s", output, filepath.Base(configPath))
 	}
 }
 
@@ -639,8 +642,11 @@ func TestRunReportsWTPDirInitializationFailureWithoutChangingTarget(t *testing.T
 	if err == nil {
 		t.Fatal("Run() error = nil, want storage initialization failure")
 	}
-	if !strings.Contains(output, "initialize flat-file storage at "+canonicalTestPath(storagePath)) {
-		t.Fatalf("Run() output = %q, want storage path", output)
+	// See TestRunReportsInvalidInvocationConfig: a child process can report a
+	// Windows temporary-directory prefix through its equivalent 8.3 alias.
+	storageSuffix := filepath.Join("config path with spaces", "storage file")
+	if !strings.Contains(output, "initialize flat-file storage at ") || !strings.Contains(output, storageSuffix+": create ") {
+		t.Fatalf("Run() output = %q, want storage path ending in %s", output, storageSuffix)
 	}
 	if got, readErr := os.ReadFile(storagePath); readErr != nil || string(got) != "keep me" {
 		t.Fatalf("storage target changed: contents=%q error=%v", got, readErr)
@@ -1199,14 +1205,6 @@ func runCLIProcess(dir string, args ...string) (string, error) {
 	command.Env = append(os.Environ(), "WTP_CLI_PROCESS=1")
 	output, err := command.CombinedOutput()
 	return string(output), err
-}
-
-func canonicalTestPath(path string) string {
-	resolved, err := filepath.EvalSymlinks(path)
-	if err == nil {
-		return resolved
-	}
-	return path
 }
 
 func storageManifest(t *testing.T, root string) string {
