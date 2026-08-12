@@ -195,6 +195,7 @@ func run(ctx context.Context, currentVersion string, deps dependencies) (Result,
 	if err != nil {
 		return result, permissionError("replace installed executable", executablePath, err)
 	}
+	faultPoint("update-replacement")
 	keepStage = scheduled
 	result.Updated = !scheduled
 	result.Scheduled = scheduled

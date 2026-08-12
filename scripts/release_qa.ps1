@@ -78,6 +78,17 @@ try {
         if (-not $task.shortId) { Fail "Windows create did not return shortId" }
         $claim = & wtp.exe --json task next --agent "release-qa" | ConvertFrom-Json
         if ($claim.status -ne "inProgress") { Fail "Windows claim did not start task" }
+        Push-Location $repoRoot
+        try {
+            & go run (Join-Path $repoRoot "scripts/assert_allocation_index.go") `
+                --project-dir $project `
+                --store-dir .wtp `
+                --task-id $task.shortId | Out-Null
+            $assertionExitCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+        if ($assertionExitCode -ne 0) { exit $assertionExitCode }
         & wtp.exe export --out exported | Out-Null
         if (-not (Test-Path -LiteralPath (Join-Path $project "exported\$($task.id).json"))) { Fail "Windows export did not write task" }
     } finally {

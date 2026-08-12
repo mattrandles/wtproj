@@ -1,6 +1,7 @@
 package scripts_test
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +18,43 @@ func TestE2ESmokeScriptSucceedsInIsolatedFixture(t *testing.T) {
 	}
 	if !strings.Contains(result.output, "smoke test passed") {
 		t.Fatalf("e2e_smoke.sh output = %q, want success marker", result.output)
+	}
+}
+
+func TestAllocationIndexAssertionPassesFreshUnbornNamedBranch(t *testing.T) {
+	requireCommand(t, "git")
+	requireCommand(t, "go")
+	repoRoot := repositoryRoot(t)
+	project := filepath.Join(t.TempDir(), "fresh unborn project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	runCommand(t, project, "git", "init", "-q")
+	runCommand(t, project, "git", "symbolic-ref", "HEAD", "refs/heads/main")
+	if command := exec.Command("git", "-C", project, "rev-parse", "--verify", "HEAD"); command.Run() == nil {
+		t.Fatal("fresh repository unexpectedly has a commit")
+	}
+
+	binaryName := "wtp"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+	binaryPath := filepath.Join(t.TempDir(), binaryName)
+	runCommand(t, repoRoot, "go", "build", "-o", binaryPath, "./cmd/wtp")
+	createdOutput := runCommand(t, project, binaryPath, "--json", "task", "create", "--title", "fresh unborn regression")
+	var created struct {
+		ShortID string `json:"shortId"`
+	}
+	if err := json.Unmarshal(createdOutput, &created); err != nil {
+		t.Fatalf("decode task create output: %v\n%s", err, createdOutput)
+	}
+	if created.ShortID == "" {
+		t.Fatal("task create returned an empty shortId")
+	}
+	runCommand(t, project, binaryPath, "--json", "task", "next", "--agent", "allocation-regression")
+	output := runCommand(t, repoRoot, "go", "run", filepath.Join(repoRoot, "scripts/assert_allocation_index.go"), "--project-dir", project, "--store-dir", ".wtp", "--task-id", created.ShortID)
+	if !strings.Contains(string(output), "allocation index assertion passed") {
+		t.Fatalf("allocation assertion output = %q, want success marker", output)
 	}
 }
 
@@ -98,6 +136,24 @@ func runScriptWithEnv(t *testing.T, relativePath string, extraEnv []string, args
 	}
 	output, err := command.CombinedOutput()
 	return scriptResult{output: string(output), err: err}
+}
+
+func runCommand(t *testing.T, dir, name string, args ...string) []byte {
+	t.Helper()
+	command := exec.Command(name, args...)
+	command.Dir = dir
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s %s: %v\n%s", name, strings.Join(args, " "), err, output)
+	}
+	return output
+}
+
+func requireCommand(t *testing.T, name string) {
+	t.Helper()
+	if _, err := exec.LookPath(name); err != nil {
+		t.Skipf("%s is not installed", name)
+	}
 }
 
 func requireUnixShell(t *testing.T) {

@@ -1,0 +1,31 @@
+{
+  "id": "23f7916c-a0cc-42d4-9779-05551c5a07a3",
+  "shortId": "wtp-0d6e4079-0002",
+  "title": "Build hermetic black-box workflow QA matrix",
+  "description": "Objective: implement Gate B from docs/pre-release-test-plan.md as an automated, cross-platform, black-box harness that exercises a built wtp executable in disposable operating-system temp workspaces. Read docs/pre-release-test-plan.md, docs/release-qa.md, scripts/e2e_smoke.sh, scripts/e2e_smoke.ps1, internal/cli/storage_integration_test.go, and the CLI help/schema before changing code.\n\nDesign: put shared orchestration and semantic assertions in Go so Unix and Windows run the same scenarios; keep thin shell/PowerShell entry points only where useful. Accept an explicit candidate binary, seed, report path, keep-workdir flag, and per-command timeout. Never resolve wtp from PATH. Create a unique temp root and disposable HOME/USERPROFILE/Git config. Capture a checkout manifest before/after and prove the source checkout is unchanged. Hermetic mode must make no public network request.\n\nRequired scenarios: paths with spaces and Unicode; named branch full lifecycle covering create with all metadata, show/list/update/edit/comment/graph/ready/start/next/pause/done/export; fan-out/fan-in dependencies and deterministic ready ordering; matching/unassigned/foreign agent ownership; global/task handoff append/replace/get/pagination/claim attachment/purge/export; export idempotence, stale managed cleanup, empty store, unmanaged destination and overlap rejection; legacy flag parity; main plus two linked worktrees with distinct case-sensitive branches; branch rename; detached HEAD; non-Git; nested invocation; repo-local, relative config, absolute external, and shared external storage; invalid config, missing env substitution, inaccessible storage, and post-data config change with no unintended mutation.\n\nAssertions and evidence: decode JSON and compare typed fields/collections rather than grep; validate every persisted JSON file and expected index; record command argv, sanitized environment, stdout/stderr, exit code, duration, and assertions. Emit a versioned JSON report with commit/dirty state, OS/arch, tool versions, candidate SHA-256, seed, scenarios, artifact paths, and status plus a concise console summary. Successful runs clean temp data; failures retain it; keep-workdir always retains it. Normalize temp paths, UUIDs, and timestamps so identical seeds can be compared.\n\nIntegration: add documented prerelease workflow entry points without removing the existing fast smoke tests. Add focused tests for the harness and report schema on Linux and Windows. Time out child processes and kill descendants. Do not mutate the real user environment or backlog during fixture execution.\n\nAcceptance: gofmt, go test ./..., go vet ./..., existing commit gates on supported shells, and the new workflow matrix pass twice with the same seed; normalized reports match; git status/content manifest are unchanged apart from intentional implementation files. Update docs/pre-release-test-plan.md with the exact commands and actual report schema. In the task completion comment, include commands, durations, report paths, candidate digest, scenario counts, any platform skips, and residual risks.",
+  "priority": "urgent",
+  "estimate": "xl",
+  "lane": "qa",
+  "model": "GPT-5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "b0d27e27-a07f-4264-9a5d-e375f6bb57b1"
+  ],
+  "comments": [
+    {
+      "id": "e9ea2435-4928-4419-9b15-0b51f81054ea",
+      "author": "codex-wtp-loop",
+      "message": "Implemented Gate B hermetic black-box harness: Go runner at cmd/wtp-prerelease-qa and internal/prerelease with explicit candidate, disposable HOME/USERPROFILE/Git config, process-tree timeouts, typed JSON/store/export assertions, source manifests, versioned report schema, normalized comparison projection, and six cross-platform scenario groups. Added verify.sh/verify.ps1 prerelease entry points, focused schema/manifest tests, README and pre-release plan commands/schema. Final QA: ./scripts/verify.sh commit 3.6s pass; PowerShell commit 3.1s pass; prerelease seed 2026 twice passed 6/6 each, 0 skips, reports /tmp/wtp-qa-final-1.json and /tmp/wtp-qa-final-2.json, candidate SHA-256 3c9f235bd8baa1817dfd3766701f474b54f9de3115ff73064467d6a91d0581b4, normalized projections match, manifest unchanged.",
+      "createdAt": "2026-08-09T23:05:03.713301151Z"
+    }
+  ],
+  "createdAt": "2026-08-09T22:37:17.035710903Z",
+  "updatedAt": "2026-08-09T23:05:14.680549493Z",
+  "startedAt": "2026-08-09T22:49:45.729664234Z",
+  "completedAt": "2026-08-09T23:05:14.680549493Z"
+}

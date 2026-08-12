@@ -52,7 +52,6 @@ func TestGoReleaserConfigMatchesPlatformContract(t *testing.T) {
 		"algorithm: sha256",
 		"github.com/mattrandles/wtproj/internal/buildinfo.Version={{ .Version }}",
 		"github.com/mattrandles/wtproj/internal/buildinfo.Commit={{ .Commit }}",
-		"github.com/mattrandles/wtproj/internal/buildinfo.BuildDate={{ .Date }}",
 		"changelog:\n  use: github-native",
 		"release:\n  draft: false\n  prerelease: auto",
 	}
@@ -60,6 +59,10 @@ func TestGoReleaserConfigMatchesPlatformContract(t *testing.T) {
 		if !strings.Contains(config, snippet) {
 			t.Errorf("GoReleaser config missing contract snippet %q", snippet)
 		}
+	}
+	if !strings.Contains(config, "github.com/mattrandles/wtproj/internal/buildinfo.BuildDate={{ .Date }}") &&
+		!strings.Contains(config, "github.com/mattrandles/wtproj/internal/buildinfo.BuildDate={{ envOrDefault \"WTP_QA_SNAPSHOT_BUILD_DATE\" .Date }}") {
+		t.Errorf("GoReleaser config missing supported build-date metadata expression")
 	}
 }
 

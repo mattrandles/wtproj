@@ -48,7 +48,19 @@ func (p *Provider) acquireLock(name string) (repoLock, error) {
 			return repoLock{path: lockPath}, nil
 		}
 		if !errors.Is(err, os.ErrExist) {
-			return repoLock{}, fmt.Errorf("create lock %s: %w", lockPath, err)
+			// Windows may report ERROR_ACCESS_DENIED while another process has
+			// the existing lock handle open. If the path still exists, this is
+			// contention rather than a permission failure; retry through the
+			// normal stale/deadline path.
+			if _, statErr := os.Stat(lockPath); statErr != nil {
+				// An open lock can make the file itself briefly unstatable on
+				// Windows. The parent directory check distinguishes that case
+				// from an actually inaccessible store.
+				_, directoryErr := os.Stat(filepath.Dir(lockPath))
+				if !os.IsPermission(err) || directoryErr != nil {
+					return repoLock{}, fmt.Errorf("create lock %s: %w", lockPath, err)
+				}
+			}
 		}
 
 		stale, staleErr := lockIsStale(lockPath)
@@ -101,5 +113,16 @@ func lockIsStale(path string) (bool, error) {
 }
 
 func (l repoLock) release() {
-	_ = os.Remove(l.path)
+	// Windows contenders briefly hold read handles while inspecting a lock.
+	// A single remove can therefore lose the release race and strand a live
+	// lock until stale recovery. Retry for a short bounded interval so native
+	// contention remains progress-safe without making release unbounded.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		err := os.Remove(l.path)
+		if err == nil || errors.Is(err, os.ErrNotExist) || time.Now().After(deadline) {
+			return
+		}
+		time.Sleep(lockRetryInterval)
+	}
 }

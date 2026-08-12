@@ -1,0 +1,31 @@
+{
+  "id": "9e2ae715-2011-4382-a2f4-cee2b456bdf9",
+  "shortId": "wtp-0d6e4079-0003",
+  "title": "Add black-box multi-process contention and soak QA",
+  "description": "Objective: implement Gate C1 from docs/pre-release-test-plan.md on top of the hermetic QA harness. The tests must launch separate wtp OS processes against real temp storage; provider goroutines alone do not satisfy this task. First read the plan, the workflow harness/report schema, internal/provider/flatfile/lock.go, and all existing concurrency tests so the new work adds system-level evidence instead of duplicating unit coverage.\n\nScenarios: synchronize process starts with a barrier and enforce individual and suite deadlines. Run at least 32 simultaneous creates in a legacy scope and again in one named-branch scope; assert every process result, unique UUID/short ID, expected contiguous allocation/index state, valid JSON, and no leftover lock. Run at least 16 simultaneous task next commands against fewer ready tasks; prove each eligible task is claimed exactly once, extra claimers return the documented no-work behavior, no foreign-assigned task is stolen, and final persisted assignees/statuses match command results. Run at least 32 simultaneous handoff appends; prove no lost/duplicate records and documented ordering. Run concurrent list/show/graph/export readers and lifecycle writers; each read must be a valid complete old/new atomic state, never corrupt JSON, duplicate logical tasks, or a partial export.\n\nRepeatability: expose repeat and seed options in the common report. The prerelease default is 20 iterations; add a documented scheduled/agent soak mode for at least 100. Record iteration, schedule seed, process timings, exit codes, and invariant failures. On first failure stop launching new iterations, terminate descendants, preserve the full temp store and command logs, and make reproduction possible with one printed command. Compare normalized summaries for two runs with the same seed.\n\nRace coverage: add go test -race ./... to the prerelease gate on supported Go platforms, with an explicit report result. Do not silently skip because of cache, unsupported architecture, timeout, or missing compiler; mark such a run not_applicable only where the plan permits and include the reason.\n\nSafety: no production sleeps or weakened lock timeouts solely to make tests pass. If coordination seams are needed, keep them in the QA runner or dependency-injected test-only code. Do not rely on shell job-control behavior that differs on Windows. Ensure child-process cleanup works on Unix and Windows.\n\nAcceptance: the targeted contention suite passes 20 iterations on the host, a 100-iteration soak completes or produces a retained reproducible failure, go test -race ./... passes, existing verification stays green, and the JSON report proves every invariant and process count. Add unit tests that deliberately break report invariants so the evaluator cannot mistake an incomplete run for a pass. Update the plan/runbook with exact quick, prerelease, and soak commands. Completion comment must include seed(s), iterations, process totals, duration, candidate digest, report/artifact paths, race result, and any residual platform risk.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "qa",
+  "model": "GPT-5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "23f7916c-a0cc-42d4-9779-05551c5a07a3"
+  ],
+  "comments": [
+    {
+      "id": "17b16e6f-3235-4748-9c52-a48d4ae13632",
+      "author": "codex-wtp-loop",
+      "message": "Implemented Gate C1 black-box multi-process contention and soak QA in cmd/wtp-prerelease-qa and internal/prerelease, with barrier-synchronized direct OS processes, per-process and suite deadlines, Unix/Windows descendant cleanup, fail-fast iteration retention, deterministic schedule seeds, process evidence, explicit race result, report invariant tests, and quick/prerelease/soak runbook commands. Final Linux candidate seed 20260810 repeat 20 passed in 160700ms: 200 scenarios, 4140 process launches, 0 invariant failures, race passed in 108492ms, candidate SHA-256 3c9f235bd8baa1817dfd3766701f474b54f9de3115ff73064467d6a91d0581b4. Reports: /tmp/wtp-c1-prerelease-final.json and independent /tmp/wtp-c1-prerelease-final-b.json; normalized projections cmp identical. 100-iteration soak with same seed passed in 380506ms: 1000 scenarios, 20700 processes, 0 invariant failures, race passed in 108259ms; report /tmp/wtp-c1-soak.json and retained artifact root /tmp/wtp-prerelease-2905930465. Native macOS arm64 runner passed all scenarios including C1 (64 creates, 22 next, 33 handoffs, 88 readers/writers), with race not_applicable because Go is absent and case-only branch scope skipped on case-insensitive filesystem; report /tmp/wtp-c1-mac-report.json. Native Windows amd64 reached the runner but 32 simultaneous legacy creates all hit the documented production 10s lock timeout under startup load; report /tmp/wtp-c1-win-report.json, residual Windows contention risk retained. go test ./..., go vet ./..., go test -race ./..., and diff checks pass.",
+      "createdAt": "2026-08-09T23:47:16.588227275Z"
+    }
+  ],
+  "createdAt": "2026-08-09T22:37:40.248641872Z",
+  "updatedAt": "2026-08-09T23:47:20.092639396Z",
+  "startedAt": "2026-08-09T23:05:32.300416949Z",
+  "completedAt": "2026-08-09T23:47:20.092639396Z"
+}

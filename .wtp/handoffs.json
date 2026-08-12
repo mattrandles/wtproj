@@ -66,6 +66,48 @@
       "author": "codex-wtp-loop",
       "message": "Reviewed 69aaa67 plus the retained 0.3.0 changelog entry. Fixed branch-scope drift when a same-named tag makes Git shorten HEAD as heads/\u003cbranch\u003e; runtime discovery now strips refs/heads/ from the full symbolic ref, with linked-worktree regression coverage. Full tests, vet, targeted race tests, skill validators, smoke, and verify.sh commit pass. CHANGELOG stays uncommitted; installed wtp is still 0.3.0 at 69aaa67; nothing pushed or published.",
       "createdAt": "2026-08-09T21:59:15.705204657Z"
+    },
+    {
+      "id": "c792b45b-2fae-4b4b-972d-b8894d2386e9",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0006 complete: centralized semantic allocation-index validation for named unborn branches and legacy detached/non-Git stores across Unix/PowerShell smoke and release QA. Added fresh-unborn regression. Focused test, verify.sh commit, and verify.sh release pass; release took 24.568s. Linux native passed; native Windows verify.ps1 commit/release remains pending. Temp QA roots cleaned; pre-existing README/.wtp/docs changes preserved.",
+      "createdAt": "2026-08-09T22:49:24.831294263Z"
+    },
+    {
+      "id": "f6d5908a-cccd-4f79-83e8-01ee65a0ebb4",
+      "author": "codex-wtp-loop",
+      "message": "Gate B implementation is complete in /mnt/dev/dev/wtproj. Added cmd/wtp-prerelease-qa plus internal/prerelease Go harness, Unix/Windows descendant timeout hooks, explicit candidate/seed/repeat/report/keep-workdir/timeout options, hermetic disposable env, typed lifecycle/dependency/ownership/handoff/export/Git-topology/config/nested scenarios, persisted JSON/index/export validation, source manifests, versioned report schema and normalized projection. Added prerelease verify.sh/verify.ps1 entry points, focused tests, README/docs schema and exact commands. Verification: gofmt, go test ./..., go vet ./..., Unix commit gate and PowerShell commit gate passed; prerelease seed 2026 passed twice (6 scenarios, 0 skips) with normalized projections matching. Reports: /tmp/wtp-qa-final-1.json and /tmp/wtp-qa-final-2.json. Candidate digest: 3c9f235bd8baa1817dfd3766701f474b54f9de3115ff73064467d6a91d0581b4. Residual risks: Gate C contention, C2 fault injection, and native release-artifact orchestration remain separate backlog tasks; Windows matrix execution was compile-checked here but not natively run.",
+      "createdAt": "2026-08-09T23:05:11.121798267Z"
+    },
+    {
+      "id": "0854c636-82ff-4c51-a61a-b0978b9cb213",
+      "author": "codex-wtp-loop",
+      "message": "Gate C1 complete. Code: cmd/wtp-prerelease-qa, internal/prerelease/contention.go plus harness/report/process cleanup updates, docs/pre-release-test-plan.md, README.md, verify.sh/verify.ps1. Linux seed 20260810: repeat20 passed, 4140 process totals, 160700ms, candidate digest 3c9f235bd8baa1817dfd3766701f474b54f9de3115ff73064467d6a91d0581b4, race passed 108492ms; normalized comparison against /tmp/wtp-c1-prerelease-final-b.json identical. Soak repeat100 passed, 20700 processes, 380506ms, race passed 108259ms; report /tmp/wtp-c1-soak.json, retained root /tmp/wtp-prerelease-2905930465. macOS arm64 C1 passed with race NA (no Go) and case-only branch NA; Windows amd64 runner reached C1 but 32 creates hit 10s production lock timeout, retained as residual platform risk in /tmp/wtp-c1-win-report.json. Full go test, vet, race, and verification checks are green.",
+      "createdAt": "2026-08-09T23:47:16.684495896Z"
+    },
+    {
+      "id": "4bf1ca61-71a5-4386-8b2e-bd20105427c7",
+      "author": "codex-wtp-loop",
+      "message": "C2/D1 complete: recovery.go adds public-command corruption/index/lock/permission/residue matrix with storage preservation evidence, clean reopen checks, and four test-only fault points; provider cleans valid status residue and rollback permission allocation failures. release_fixture_server.go scenario.json controls exact statuses/bodies/delays/redirects/assets/truncation/connection close; release_qa.sh emits wtp-release-qa/v1 updater report with 16 cases and preservation checks. Final hermetic reports /tmp/wtp-c2-final.json and /tmp/wtp-c2-final-b.json passed twice normalized-identical, candidate digest 3f79b82ee24853341dfe6667d39e85a4e8ec513a0822f8953b537d656ccd0f5b, 111524ms. Updater report /tmp/wtp-c2-updater-report.json, release digest f279f4b3832d70f4f2476a81655ca5ed9b21ffab422e7e871c320ee4f08da6be. go test/vet/race/commit/release QA pass; native Windows and privileged read-only cases are residuals.",
+      "createdAt": "2026-08-10T00:19:33.941152512Z"
+    },
+    {
+      "id": "7538fbb4-fb52-4f93-847d-9cadd51d0d9c",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0005: Implemented prerelease evidence gate, exact six-asset candidate manifest, reproducibility comparison with fixed candidate build date, Unix/PowerShell prerelease modes, native/manual CI workflow, merge/preflight/evaluator template, and docs. Verification: go test ./..., go vet ./..., workflow YAML parse, shell syntax/diff check, candidate reproducibility comparison passed. Candidate v0.9.15 commit a474fee7d89391849176d5d1c13d3fa1e1a5bc7c manifest /tmp/wtp-candidate-final6/candidate/candidate-manifest.json; reports /tmp/wtp-qa-final6. Linux repeat20 passed twice normalized-identical (220 scenarios each); macOS arm64 repeat20 passed (220); Windows Go 1.26.5 native repeat1 passed (11) but repeat20 bounded without report. Updater 16/16 passed. Merged preflight/evaluator verdict is INCONCLUSIVE due missing valid Windows repeat20 and mac report source commit identity; deliberate missing-shard and missing-lifecycle preflights also INCONCLUSIVE. Residuals documented in WTP completion comment: rerun Windows repeat20 and deferred updater helper, rerun mac from git-backed checkout. No CI URL; local evidence paths recorded.",
+      "createdAt": "2026-08-10T01:48:17.417040005Z"
+    },
+    {
+      "id": "2b6943a6-f300-4e8b-8747-0bfce9007e9b",
+      "author": "codex-wtp-loop",
+      "message": "Detached overnight native runs are active for wtp-0d6e4079-0005. macOS screen session wtp-overnight-mac-20260811 PID 6699, Git-backed HEAD a474fee7d89391849176d5d1c13d3fa1e1a5bc7c, report /tmp/wtp-overnight-20260811/report/macos-repeat20.json. Windows scheduled task wtp-overnight-20260811 PID 9440, same HEAD, report C:\\Users\\matty\\AppData\\Local\\Temp\\wtp-overnight-20260811\\report\\windows-repeat20.json. Heartbeats persist after SSH disconnect; explicit Go paths used (mac /opt/homebrew/bin/go, Windows C:\\Program Files\\Go\\bin\\go.exe). Candidate hashes match the transferred manifest. Inspect remotely later; do not mark done until reports and evaluator preflight are verified.",
+      "createdAt": "2026-08-11T06:41:04.444997018Z"
+    },
+    {
+      "id": "73d157a8-cf52-4944-b45e-46c167545d2d",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0005 final: WTP task JSON had a trailing interrupted-write byte and was repaired before final status update. Native acceptance is green: Linux repeat20 twice normalized-identical; Windows amd64 overnight report passed 220 scenarios/20 iterations with candidate c0202c48d2b71e81de701178f1de4d30dcc933e289f5e7e7045763ffc7e712dc; macOS arm64 report passed 220 scenarios/20 iterations with race passed and candidate c053152668500bc93a90eb74436e919ee40b735ce90465262e722c7557e0d07c. Mac report path /tmp/wtp-macos-followup-20260812b/report/macos-repeat20.json; Windows report path C:\\Users\\matty\\AppData\\Local\\Temp\\wtp-overnight-20260811\\report\\windows-repeat20.json. User explicitly accepts platform-green release status; residual is candidate digest non-identity across the recovered mac rebuild versus earlier Linux/Windows bytes.",
+      "createdAt": "2026-08-11T23:56:46.206245047Z"
     }
   ]
 }

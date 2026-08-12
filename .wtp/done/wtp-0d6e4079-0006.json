@@ -1,0 +1,35 @@
+{
+  "id": "b0d27e27-a07f-4264-9a5d-e375f6bb57b1",
+  "shortId": "wtp-0d6e4079-0006",
+  "title": "Repair release QA for branch-scoped fresh repositories",
+  "description": "Objective: restore the existing full release gate after branch-scope discovery began treating an unborn named Git branch as a named scope. Reproduce with ./scripts/verify.sh release: scripts/release_qa.sh exercise_workflow currently requires .wtp/meta/index.json, but git init uses main and wtp correctly writes .wtp/meta/index-0d6e4079.json. The release run currently ends with project workflow did not create .wtp storage.\n\nImplement the smallest cross-platform contract-correct fix. Audit every Unix and PowerShell smoke/release assertion that assumes a legacy index filename. Centralize or consistently apply an assertion that requires exactly the appropriate valid allocation index: a scoped index for a named branch and legacy index for detached/non-Git. Do not merely accept any file matching index-* without decoding it; verify branch metadata and next allocation are consistent with tasks created by the workflow. Preserve support for legacy stores. Add a regression test that runs the relevant script or helper in a fresh unborn repository so this cannot drift again.\n\nVerification: run the focused new regression, ./scripts/verify.sh commit, and ./scripts/verify.sh release from a clean checkout. On Windows-capable CI also run ./scripts/verify.ps1 commit and release; otherwise explicitly record that native Windows execution is pending. Confirm all temp workspaces are cleaned on success and the source checkout is unchanged. Completion comment must include the original failure, root cause, files changed, exact commands/results, release-gate duration, platform coverage, and any remaining skip. Do not broaden this task into the new pre-release harness.",
+  "priority": "urgent",
+  "estimate": "s",
+  "lane": "qa",
+  "model": "GPT-5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "b8ba5b08-7dc1-43a5-a40d-e968eb307211",
+      "author": "codex-wtp-loop",
+      "message": "Implemented shared semantic allocation-index assertion in scripts/assert_allocation_index.go and wired Unix/PowerShell smoke and release QA to it. It derives unborn named-branch scope, requires the exact scoped/legacy index set, decodes branch/next/task metadata, and checks next allocation. Focused unborn regression, ./scripts/verify.sh commit, and ./scripts/verify.sh release pass; native Windows execution remains pending.",
+      "createdAt": "2026-08-09T22:48:41.413071054Z"
+    },
+    {
+      "id": "cf1ee1fb-e012-4e65-8f1b-700f5ffa716e",
+      "author": "codex-wtp-loop",
+      "message": "Completed. Original failure: ./scripts/verify.sh release reported project workflow did not create .wtp storage because release_qa.sh hard-coded legacy .wtp/meta/index.json. Root cause: named unborn branch main is a valid Git scope, so wtp correctly writes .wtp/meta/index-0d6e4079.json. Added scripts/assert_allocation_index.go plus updates to scripts/e2e_smoke.sh, scripts/e2e_smoke.ps1, scripts/release_qa.sh, scripts/release_qa.ps1, and scripts/scripts_test.go. The shared assertion derives named/detached/non-Git context, requires exactly the scoped or legacy index set, decodes JSON, verifies branch/task metadata, and checks next allocation. Results: go test ./scripts -run 'TestAllocationIndexAssertionPassesFreshUnbornNamedBranch|TestE2ESmokeScriptSucceedsInIsolatedFixture' -count=1 PASS; ./scripts/verify.sh commit PASS; time ./scripts/verify.sh release PASS, 24.568s, including six assets, three install scopes, workflow, updater, and PowerShell asset validation. Temp roots cleaned successfully and no generated source artifacts remain; pre-existing README/.wtp/docs changes were preserved. Platform: Linux native PASS; Windows native ./scripts/verify.ps1 commit/release pending because this host is not Windows. No pre-release harness changes.",
+      "createdAt": "2026-08-09T22:49:20.577909127Z"
+    }
+  ],
+  "createdAt": "2026-08-09T22:39:48.596880323Z",
+  "updatedAt": "2026-08-09T22:49:30.629843472Z",
+  "startedAt": "2026-08-09T22:43:12.148925318Z",
+  "completedAt": "2026-08-09T22:49:30.629843472Z"
+}

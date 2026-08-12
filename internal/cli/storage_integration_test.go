@@ -619,8 +619,8 @@ func TestRunReportsInvalidInvocationConfig(t *testing.T) {
 	if err == nil {
 		t.Fatal("Run() error = nil, want invalid configuration failure")
 	}
-	if !strings.Contains(output, "parse "+configPath) {
-		t.Fatalf("Run() output = %q, want parse error naming %s", output, configPath)
+	if !strings.Contains(output, "parse "+canonicalTestPath(configPath)) {
+		t.Fatalf("Run() output = %q, want parse error naming %s", output, canonicalTestPath(configPath))
 	}
 }
 
@@ -639,7 +639,7 @@ func TestRunReportsWTPDirInitializationFailureWithoutChangingTarget(t *testing.T
 	if err == nil {
 		t.Fatal("Run() error = nil, want storage initialization failure")
 	}
-	if !strings.Contains(output, "initialize flat-file storage at "+storagePath) {
+	if !strings.Contains(output, "initialize flat-file storage at "+canonicalTestPath(storagePath)) {
 		t.Fatalf("Run() output = %q, want storage path", output)
 	}
 	if got, readErr := os.ReadFile(storagePath); readErr != nil || string(got) != "keep me" {
@@ -1199,6 +1199,14 @@ func runCLIProcess(dir string, args ...string) (string, error) {
 	command.Env = append(os.Environ(), "WTP_CLI_PROCESS=1")
 	output, err := command.CombinedOutput()
 	return string(output), err
+}
+
+func canonicalTestPath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err == nil {
+		return resolved
+	}
+	return path
 }
 
 func storageManifest(t *testing.T, root string) string {

@@ -1,0 +1,31 @@
+{
+  "id": "f2d37c60-0ed6-4c7b-a96a-2b95ff2adae1",
+  "shortId": "wtp-0d6e4079-0004",
+  "title": "Add black-box fault recovery and no-data-loss QA",
+  "description": "Objective: implement Gate C2 and the updater failure matrix in D1 from docs/pre-release-test-plan.md using the compiled candidate and the shared hermetic report. Read existing flat-file publication/migration/corruption tests, updater tests, release_fixture_server.go, release_qa scripts, and lock.go first. Preserve existing focused tests; this task proves the same safety boundaries through public commands and real files/processes.\n\nStorage fault fixtures: corrupt/truncated task JSON; invalid canonical fields/timestamps/status; missing dependency; dependency cycle; corrupt/truncated handoffs; missing, stale, malformed, and conflicting indexes; legacy UUID-named files; duplicate old/new status residue; unmanaged export entries; export/storage overlap; fresh, malformed, and stale lock; read-only files/directories and destination collisions. For every command under test, hash and inventory the relevant storage before/after, assert the exact expected exit code and actionable error, then reopen with list/show/graph/export as applicable. The store must be a complete old or complete new valid state, never partial. Do not assert that deliberate corrupt input becomes valid unless recovery is the documented behavior.\n\nInterruption: add runner-controlled deterministic fault points around create publication, status move, handoff replacement, export publication, and update replacement. Prefer existing dependency seams. Any new hook must be test-only/compile-time or dependency-injected and demonstrably absent from release binaries. Terminate the writer at each point, reopen the store with a clean process, validate logical deduplication and on-disk invariants, and record whether old or new atomic state won.\n\nUpdater fixture: extend the loopback server so scenarios can program exact API status/body/delay, redirects, asset sets, checksum metadata, truncated downloads, connection termination, and replacement outcome. Exercise success, equal/older no-op, invalid tag, missing/duplicate assets, malformed checksum lines, mismatch, failed/truncated/timeout download, unsafe URL/redirect, unwritable target, symlink launch where supported, and replacement rollback. For every failure, compare the installed executable digest/mode and project .wtp manifest byte-for-byte, prove no staging debris remains except documented Windows helper evidence, and prove the old binary still starts.\n\nLock timing: test a fresh lock timeout and stale-lock recovery without waiting real minutes. Introduce a clock/timing dependency only if it leaves production defaults unchanged and release builds cannot select test values. Malformed locks must have explicit documented behavior and a bounded deadline.\n\nCross-platform: implement semantic behavior in shared Go where possible and include platform-specific assertions for Unix permissions/symlinks and Windows deferred helper rollback/error file. Do not claim Windows updater coverage from source inspection or cross-compilation; native execution belongs in the final gate.\n\nAcceptance: all negative scenarios emit structured report entries; intentionally weakened fixtures prove the preservation assertions fail; existing unit/commit/release tests remain green; the suite passes twice with a fixed seed and retained reports compare after normalization; no scenario contacts the public network or changes the checkout/real install. Update plan and release QA docs with commands and preservation guarantees. Completion comment must list scenarios, candidate digest, before/after manifest evidence, duration, platform-specific cases/skips, report paths, and residual risks.",
+  "priority": "urgent",
+  "estimate": "xl",
+  "lane": "qa",
+  "model": "GPT-5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "23f7916c-a0cc-42d4-9779-05551c5a07a3"
+  ],
+  "comments": [
+    {
+      "id": "e1f184b3-2ca3-4184-8467-a3b8f346ba81",
+      "author": "codex-wtp-loop",
+      "message": "Implemented Gate C2 black-box failure recovery and D1 updater matrix. C2 covers corrupt/truncated task and handoff JSON, invalid fields/timestamps, missing dependency, cycle, missing/stale/malformed/conflicting indexes, UUID filename migration, status residue cleanup, locks, destination collision, Unix read-only file/dir, and compile-time-only create/status/handoff/export interruption points. Added before/after SHA-256 preservation evidence and clean-process reopen validation. Extended loopback release fixture and Unix release QA with 16 structured updater scenarios covering no-ops, invalid tags/assets, checksum failures, connection termination, truncation, timeout, unsafe URL/redirect, symlink, permissions, and replacement rollback; failures preserve executable digest/mode and .wtp manifest. Final prerelease reports /tmp/wtp-c2-final.json and /tmp/wtp-c2-final-b.json passed twice with identical normalized projections, candidate SHA-256 3f79b82ee24853341dfe6667d39e85a4e8ec513a0822f8953b537d656ccd0f5b, duration 111524ms; updater report /tmp/wtp-c2-updater-report.json, release candidate SHA-256 f279f4b3832d70f4f2476a81655ca5ed9b21ffab422e7e871c320ee4f08da6be. go test, go vet, go test -race, commit smoke, and release QA pass. Native Windows execution/deferred helper and privileged Unix read-only semantics remain final-gate residuals.",
+      "createdAt": "2026-08-10T00:19:33.924422334Z"
+    }
+  ],
+  "createdAt": "2026-08-09T22:38:05.102861133Z",
+  "updatedAt": "2026-08-10T00:19:36.908412404Z",
+  "startedAt": "2026-08-09T23:47:38.705167507Z",
+  "completedAt": "2026-08-10T00:19:36.908412404Z"
+}

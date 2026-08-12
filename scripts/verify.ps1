@@ -1,8 +1,12 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("commit", "release")]
+    [ValidateSet("commit", "release", "prerelease")]
     [string] $Mode = "commit"
+
+    ,
+    [Parameter(Position = 1, ValueFromRemainingArguments = $true)]
+    [string[]] $Arguments
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,6 +29,72 @@ function Invoke-Checked([string] $Description, [scriptblock] $Command) {
     & $Command
     if ($LASTEXITCODE -ne 0) {
         Fail "$Description exited with code $LASTEXITCODE"
+    }
+}
+
+if ($Mode -eq "prerelease") {
+    Require-Command "go" "prerelease verification"
+    Require-Command "git" "prerelease verification"
+    $workDir = Join-Path ([System.IO.Path]::GetTempPath()) ("wtp-prerelease-" + [System.Guid]::NewGuid().ToString())
+    $preserveWorkDir = $false
+    $unformatted = & gofmt -l ./cmd ./internal
+    if ($LASTEXITCODE -ne 0) {
+        Fail "gofmt -l failed with code $LASTEXITCODE"
+    }
+    if ($unformatted) {
+        Write-Error ("gofmt needed for:`n{0}" -f ($unformatted -join [Environment]::NewLine))
+        exit 1
+    }
+    Invoke-Checked "go test ./..." { & go test ./... }
+    Invoke-Checked "go vet ./..." { & go vet ./... }
+    $candidate = $null
+    $report = $null
+    $runnerArgs = @("--source-root", $repoRoot)
+    for ($index = 0; $index -lt $Arguments.Count; $index++) {
+        $argument = $Arguments[$index]
+        if ($argument -eq "--candidate") {
+            $index++
+            $candidate = $Arguments[$index]
+            $runnerArgs += @("--candidate", $candidate)
+        } elseif ($argument.StartsWith("--candidate=")) {
+            $candidate = $argument.Substring("--candidate=".Length)
+            $runnerArgs += @("--candidate", $candidate)
+        } elseif ($argument -eq "--report") {
+            $index++
+            $report = $Arguments[$index]
+            $runnerArgs += @("--report", $report)
+        } elseif ($argument.StartsWith("--report=")) {
+            $report = $argument.Substring("--report=".Length)
+            $runnerArgs += @("--report", $report)
+        } else {
+            $runnerArgs += $argument
+        }
+    }
+    try {
+        New-Item -ItemType Directory -Force -Path $workDir | Out-Null
+        if (-not $candidate) {
+            $candidate = Join-Path $workDir "wtp.exe"
+            Invoke-Checked "build prerelease candidate" { & go build -tags wtp_fault_injection -o $candidate (Join-Path $repoRoot "cmd/wtp") }
+            $runnerArgs += @("--candidate", $candidate)
+        }
+        if (-not $report) {
+            $report = Join-Path ([System.IO.Path]::GetTempPath()) ("wtp-prerelease-" + [System.Guid]::NewGuid().ToString() + ".json")
+            $runnerArgs += @("--report", $report)
+        }
+        try {
+            Invoke-Checked "prerelease workflow matrix" { & go run ./cmd/wtp-prerelease-qa @runnerArgs }
+        } catch {
+            $preserveWorkDir = $true
+            throw
+        }
+        Write-Host ("prerelease verification passed; report: {0}" -f $report)
+        exit 0
+    } finally {
+        if (-not $preserveWorkDir -and (Test-Path -LiteralPath $workDir)) {
+            Remove-Item -LiteralPath $workDir -Recurse -Force
+        } elseif ($preserveWorkDir) {
+            Write-Error "prerelease artifacts retained at: $workDir"
+        }
     }
 }
 

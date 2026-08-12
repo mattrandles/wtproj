@@ -105,9 +105,13 @@ handoff_after_purge_json="$work_dir/handoff_after_purge.json"
   "$binary_path" task done "$task_b_short_id" --agent Bob > /dev/null
   "$binary_path" export --out exported > /dev/null
 
-  if [ ! -f ".wtp/meta/index.json" ] && ! find ".wtp/meta" -maxdepth 1 -type f -name 'index-*.json' -print -quit | grep -q .; then
-    fail "missing index file"
-  fi
+  (
+    cd "$repo_root"
+    go run "$repo_root/scripts/assert_allocation_index.go" \
+      --project-dir "$test_repo" \
+      --store-dir .wtp \
+      --task-id "$task_b_short_id" > /dev/null
+  )
   [ -f "exported/$(extract_json_string id "$task_a_json").json" ] || fail "missing export for task A"
   [ -f "exported/$(extract_json_string id "$task_b_json").json" ] || fail "missing export for task B"
 

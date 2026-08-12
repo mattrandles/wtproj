@@ -197,8 +197,20 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 			return err
 		}
 		if err := p.writeTask(task); err != nil {
+			// Permission failures are deterministic environmental rejection: roll
+			// back the allocation publication. Other replacement failures retain
+			// the documented monotonic allocation gap used by the focused seam
+			// tests, while still preserving every task byte.
+			if errors.Is(err, os.ErrPermission) {
+				rollback := index
+				rollback.Next--
+				if rollbackErr := p.writeIndex(rollback); rollbackErr != nil {
+					return fmt.Errorf("write task: %v; restore allocation index: %w", err, rollbackErr)
+				}
+			}
 			return err
 		}
+		faultPoint("create-publication")
 		created = task
 		tasksAfter = append(tasks, task)
 		return nil
@@ -517,6 +529,7 @@ func (p *Provider) ExportCanonical(outDir string) error {
 		if err := p.writeJSONAtomic(filepath.Join(exportDir, handoffsFilename), handoffFile{Handoffs: handoffs}); err != nil {
 			return err
 		}
+		faultPoint("export-publication")
 		for _, entry := range entries {
 			if _, keep := expected[entry.Name()]; keep {
 				continue
@@ -583,6 +596,7 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 	tasksByID := make(map[string]core.Task)
 	pathsByID := make(map[string]string)
 	idsByShortID := make(map[string]string)
+	var residuePaths []string
 	for _, status := range statusOrder {
 		dir := p.statusDir(status)
 		entries, err := os.ReadDir(dir)
@@ -638,7 +652,18 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 			}
 			tasksByID[task.ID] = newer
 			pathsByID[task.ID] = newerPath
+			residuePaths = append(residuePaths, olderPath)
 		}
+	}
+	// A process can be terminated after publishing the new status file but
+	// before removing the old one. The newer file is the complete winning
+	// state; remove only the older copy after the whole store has validated so
+	// read commands converge the on-disk store without risking partial repair.
+	for _, path := range residuePaths {
+		// Cleanup is best effort. The newer copy is already a complete valid
+		// state, and retaining a valid older residue is safer than turning a
+		// successful read into data loss when deletion is temporarily denied.
+		_ = p.removeFile(path)
 	}
 	tasks := make([]core.Task, 0, len(tasksByID))
 	for _, task := range tasksByID {
@@ -655,6 +680,7 @@ func (p *Provider) replaceTask(task core.Task) error {
 	if err := p.writeJSONAtomic(targetPath, task); err != nil {
 		return err
 	}
+	faultPoint("status-move-publication")
 
 	for _, status := range statusOrder {
 		for _, filename := range taskFilenames(task) {

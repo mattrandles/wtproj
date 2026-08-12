@@ -166,10 +166,18 @@ try {
         & $binaryPath task done $taskBShortID --agent Bob | Out-Null
         & $binaryPath export --out exported | Out-Null
 
-        $hasLegacyIndex = Test-Path ".wtp/meta/index.json"
-        $hasScopedIndex = @(Get-ChildItem ".wtp/meta" -Filter "index-*.json" -File).Count -gt 0
-        if (-not $hasLegacyIndex -and -not $hasScopedIndex) {
-            Fail "missing index file"
+        Push-Location $repoRoot
+        try {
+            & go run (Join-Path $repoRoot "scripts/assert_allocation_index.go") `
+                --project-dir $testRepo `
+                --store-dir .wtp `
+                --task-id $taskBShortID | Out-Null
+            $assertionExitCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+        if ($assertionExitCode -ne 0) {
+            exit $assertionExitCode
         }
 
         $taskAID = Extract-JsonString $taskAJson "id"

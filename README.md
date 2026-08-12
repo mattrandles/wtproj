@@ -515,3 +515,31 @@ The Unix gate cross-compiles and validates Windows assets but executes the
 Unix updater workflow. The PowerShell gate executes the Windows workflow only
 on Windows; on other hosts it still validates all generated asset checksums
 and formats.
+
+For the hermetic black-box workflow matrix, run the cross-platform Go harness
+through either shell entry point:
+
+```sh
+./scripts/verify.sh prerelease --seed 1 --repeat 1 --report /tmp/wtp-qa/report.json
+```
+
+```powershell
+./scripts/verify.ps1 prerelease --seed 1 --repeat 1 --timeout 30s --suite-timeout 3m --report "$env:TEMP/wtp-qa/report.json"
+```
+
+The runner defaults to 20 complete iterations. Use `--repeat 100` for a local
+soak run, and pass `--candidate /absolute/path/to/wtp` (or
+`--candidate C:\qa\wtp.exe` on Windows) to exercise an exact release artifact.
+Run the native checks in the controlled development environments that have the
+required platform access; they are deliberately not part of the GitHub release
+workflow.
+The report includes separate-process contention counts, process timings and
+exit codes, retained failure artifacts, and the explicit `go test -race ./...`
+result. See
+[the pre-release test plan](docs/pre-release-test-plan.md) for the report
+schema, exact quick/prerelease/soak commands, repeat comparison, retention
+behavior, and the full Gate B/C1 matrix.
+
+See the [pre-release test plan](docs/pre-release-test-plan.md) for the broader
+workflow, contention, failure-recovery, native-candidate, and evidence-review
+gate being tracked for release qualification.

@@ -12,6 +12,23 @@ the release-asset contract test, and this direct-download QA:
 ./scripts/verify.ps1 release
 ```
 
+To validate the exact six files selected for a local pre-release check, set
+`WTP_QA_CANDIDATE_DIR` to the flat candidate directory and
+`WTP_QA_CANDIDATE_VERSION` to its embedded version:
+
+```sh
+WTP_QA_CANDIDATE_DIR=/absolute/path/candidate \
+WTP_QA_CANDIDATE_VERSION=1.2.3 \
+WTP_QA_REPORT=/absolute/path/updater.json \
+./scripts/release_qa.sh
+```
+
+The harness builds only a disposable lower-version fixture for the initial
+installation. It copies the supplied candidate assets byte-for-byte for the
+target release, verifies their checksums and executable formats, and exercises
+the loopback updater matrix against those exact target bytes. It never rebuilds
+the candidate directory.
+
 The legacy harness remains available when only the direct-download fixture is
 needed:
 
@@ -45,6 +62,16 @@ create, atomic claim, and export. The project-local executable runs the real
 `wtp update` command against the local release fixture; the test verifies the
 new binary starts and that its project's `.wtp` files are unchanged byte for
 byte.
+
+The Unix harness also runs a programmable updater failure matrix against
+fresh copies of the initial release asset. The loopback server reads a
+temporary `scenario.json` between cases and can return exact API/asset status
+and bodies, delays, redirects, malformed or truncated responses, connection
+termination, and custom asset sets. Failed cases must leave the installed
+executable digest and permissions unchanged, leave the project `.wtp`
+manifest byte-for-byte unchanged, leave no `.wtp-update-*` debris, and prove
+the old executable still starts. Set `WTP_QA_REPORT` to retain the structured
+`wtp-release-qa/v1` report outside the temporary harness root.
 
 The embedded loopback fixture URL is available only to QA snapshots. Normal
 GoReleaser builds retain the canonical HTTPS GitHub endpoint. Even a QA build
@@ -80,3 +107,8 @@ upgrade validation remains deterministic and publish-independent.
 By default the global-PATH scope is a temporary directory. To test a specific
 writable global directory, set `WTP_QA_GLOBAL_DIR`; an unwritable requested
 directory is reported as skipped rather than escalating privileges.
+
+Windows deferred replacement-helper execution, rollback, and error-file
+behavior require native Windows execution. Unix permission and symlink cases
+are recorded separately; cross-compilation validates formats and source
+compatibility only and is not native Windows updater evidence.

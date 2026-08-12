@@ -305,7 +305,11 @@ func (p *Provider) writeHandoffs(handoffs []core.Handoff) error {
 	if handoffs == nil {
 		handoffs = []core.Handoff{}
 	}
-	return p.writeJSONAtomic(p.handoffsPath(), handoffFile{Handoffs: handoffs})
+	if err := p.writeJSONAtomic(p.handoffsPath(), handoffFile{Handoffs: handoffs}); err != nil {
+		return err
+	}
+	faultPoint("handoff-replacement")
+	return nil
 }
 
 func validateHandoffs(handoffs []core.Handoff) error {
