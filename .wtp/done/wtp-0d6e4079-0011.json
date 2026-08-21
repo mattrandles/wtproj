@@ -1,0 +1,35 @@
+{
+  "id": "7836db02-b743-478e-9309-218edc7fba3f",
+  "shortId": "wtp-0d6e4079-0011",
+  "title": "Define configurable status catalog and project configuration",
+  "description": "Implement the configuration and core contract for project-defined task states. Add ordered .wtp.json additionalStatuses definitions of {name, category}; preserve the default todo, inProgress, paused, and done catalog when absent. Validate lower-camel names, reject duplicates/default-name collisions/all, and restrict categories to waiting, blocked, and failed. Build an immutable ordered core status catalog used per invocation (no global mutable status set), with parsing, category lookup, lifecycle normalization, dependency-resolution semantics, and task validation aware of the catalog. Semantics: waiting is started/unfinished/non-claimable; blocked is unstarted/unfinished/non-claimable; failed is started/completed/terminal and does not resolve dependencies; done alone resolves dependencies. Destination-state normalization must support reopening: todo/blocked clear lifecycle timestamps, inProgress/paused/waiting require startedAt and clear completedAt, done/failed require both. Preserve default core APIs as legacy-default wrappers where practical, propagate the catalog from config through the provider factory, and add unit/config tests. Do not yet change flat-file directory iteration, CLI commands, stats, or docs beyond compilation needs.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "core",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1827baf8-945a-44ad-9505-6543552b5fa5",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task and repository layout; beginning focused review of config, core status/task validation, provider interfaces, and factory propagation.",
+      "createdAt": "2026-08-21T14:01:02.372956715Z"
+    },
+    {
+      "id": "6e7ee00a-d2e7-4bcf-a882-7dfbb92ff7c5",
+      "author": "codex-wtp-loop",
+      "message": "Implemented immutable ordered status catalogs, .wtp.json additionalStatuses validation, catalog-aware task lifecycle/dependency semantics, provider propagation, and focused tests. go test ./..., go vet ./..., and git diff --check pass.",
+      "createdAt": "2026-08-21T14:09:12.540005624Z"
+    }
+  ],
+  "createdAt": "2026-08-21T13:58:10.639959564Z",
+  "updatedAt": "2026-08-21T14:09:12.578642411Z",
+  "startedAt": "2026-08-21T14:00:38.064915658Z",
+  "completedAt": "2026-08-21T14:09:12.578642411Z"
+}

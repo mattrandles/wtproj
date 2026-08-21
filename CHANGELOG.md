@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-21
+
+### Added
+
+- Added configurable project task statuses with catalog-aware storage,
+  scheduling, CLI filtering, statistics, documentation, and regression tests.
+
 ## [0.3.1] - 2026-08-21
 
 ### Added

@@ -79,13 +79,6 @@ const (
 	EstimateXL Estimate = "xl"
 )
 
-var validStatuses = []Status{
-	StatusTodo,
-	StatusInProgress,
-	StatusPaused,
-	StatusDone,
-}
-
 var validPriorities = []Priority{
 	PriorityLow,
 	PriorityMedium,
@@ -148,6 +141,7 @@ type TaskView struct {
 type CreateTaskInput struct {
 	Title        string
 	Description  string
+	Status       Status
 	Priority     Priority
 	Estimate     Estimate
 	Lane         string
@@ -175,9 +169,15 @@ type OptionalEstimate struct {
 	Value Estimate
 }
 
+type OptionalStatus struct {
+	Set   bool
+	Value Status
+}
+
 type UpdateTaskInput struct {
 	Title        OptionalString
 	Description  OptionalString
+	Status       OptionalStatus
 	Priority     OptionalPriority
 	Estimate     OptionalEstimate
 	Lane         OptionalString
@@ -191,11 +191,7 @@ type UpdateTaskInput struct {
 }
 
 func ParseStatus(value string) (Status, error) {
-	status := Status(value)
-	if !slices.Contains(validStatuses, status) {
-		return "", fmt.Errorf("invalid status %q", value)
-	}
-	return status, nil
+	return DefaultStatusCatalog().ParseStatus(value)
 }
 
 func ParsePriority(value string) (Priority, error) {
@@ -221,6 +217,12 @@ func ParseEstimate(value string) (Estimate, error) {
 }
 
 func (t Task) Validate() error {
+	return t.ValidateWithCatalog(DefaultStatusCatalog())
+}
+
+// ValidateWithCatalog validates a task against an invocation's status
+// catalog.
+func (t Task) ValidateWithCatalog(catalog StatusCatalog) error {
 	if !canonicalUUIDPattern.MatchString(t.ID) {
 		return fmt.Errorf("task id %q must be a canonical lowercase UUID", t.ID)
 	}
@@ -230,7 +232,7 @@ func (t Task) Validate() error {
 	if strings.TrimSpace(t.Title) == "" {
 		return errors.New("task title is required")
 	}
-	if _, err := ParseStatus(string(t.Status)); err != nil {
+	if _, err := catalog.ParseStatus(string(t.Status)); err != nil {
 		return err
 	}
 	if _, err := ParsePriority(string(t.Priority)); err != nil {
@@ -296,7 +298,7 @@ func (t Task) Validate() error {
 			return fmt.Errorf("task comment %d createdAt must be between task createdAt and updatedAt", index)
 		}
 	}
-	if err := t.validateLifecycleTimestamps(); err != nil {
+	if err := t.validateLifecycleTimestamps(catalog); err != nil {
 		return err
 	}
 	return nil
@@ -315,7 +317,7 @@ func validateOptionalAbsolutePath(field, value string) error {
 	return nil
 }
 
-func (t Task) validateLifecycleTimestamps() error {
+func (t Task) validateLifecycleTimestamps(catalog StatusCatalog) error {
 	if t.StartedAt != nil {
 		if !isUTC(*t.StartedAt) {
 			return errors.New("task startedAt must be in UTC")
@@ -333,25 +335,8 @@ func (t Task) validateLifecycleTimestamps() error {
 		}
 	}
 
-	switch t.Status {
-	case StatusTodo:
-		if t.StartedAt != nil || t.CompletedAt != nil {
-			return errors.New("todo task cannot have startedAt or completedAt")
-		}
-	case StatusInProgress, StatusPaused:
-		if t.StartedAt == nil {
-			return fmt.Errorf("%s task requires startedAt", t.Status)
-		}
-		if t.CompletedAt != nil {
-			return fmt.Errorf("%s task cannot have completedAt", t.Status)
-		}
-	case StatusDone:
-		if t.StartedAt == nil || t.CompletedAt == nil {
-			return errors.New("done task requires startedAt and completedAt")
-		}
-	}
-	if t.StartedAt != nil && t.CompletedAt != nil && t.CompletedAt.Before(*t.StartedAt) {
-		return errors.New("task completedAt cannot be before startedAt")
+	if err := catalog.NormalizeLifecycle(t.Status, t.StartedAt, t.CompletedAt); err != nil {
+		return err
 	}
 	return nil
 }
@@ -377,14 +362,33 @@ func PriorityRank(priority Priority) int {
 }
 
 func AllowedTransition(from, to Status) bool {
+	return AllowedTransitionWithCatalog(DefaultStatusCatalog(), from, to)
+}
+
+// AllowedTransitionWithCatalog validates a lifecycle transition against an
+// invocation catalog. Built-in transitions retain their legacy behavior;
+// project-defined states follow their lifecycle category.
+func AllowedTransitionWithCatalog(catalog StatusCatalog, from, to Status) bool {
+	if !catalog.Contains(from) || !catalog.Contains(to) || from == to {
+		return false
+	}
 	switch from {
 	case StatusTodo:
-		return to == StatusInProgress
+		return to == StatusInProgress || catalog.CategoryOf(to) == StatusCategoryBlocked
 	case StatusInProgress:
-		return to == StatusPaused || to == StatusDone
+		return to == StatusPaused || to == StatusDone || catalog.CategoryOf(to) == StatusCategoryWaiting || catalog.CategoryOf(to) == StatusCategoryBlocked || catalog.CategoryOf(to) == StatusCategoryFailed
 	case StatusPaused:
-		return to == StatusInProgress || to == StatusDone
+		return to == StatusInProgress || to == StatusDone || catalog.CategoryOf(to) == StatusCategoryWaiting || catalog.CategoryOf(to) == StatusCategoryBlocked || catalog.CategoryOf(to) == StatusCategoryFailed
 	case StatusDone:
+		return false
+	}
+	fromCategory := catalog.CategoryOf(from)
+	switch fromCategory {
+	case StatusCategoryWaiting:
+		return to == StatusInProgress || to == StatusPaused || to == StatusDone || catalog.CategoryOf(to) == StatusCategoryFailed || catalog.CategoryOf(to) == StatusCategoryBlocked
+	case StatusCategoryBlocked:
+		return to == StatusTodo || to == StatusInProgress
+	case StatusCategoryFailed:
 		return false
 	default:
 		return false

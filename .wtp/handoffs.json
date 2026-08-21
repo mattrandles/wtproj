@@ -132,6 +132,42 @@
       "author": "codex-wtp-loop",
       "message": "Stats documentation complete: CLI help and README now document all four invocation forms, valid statuses/attributes, overview versus focused JSON shapes, unset categorical buckets, comment/dependency metrics, status-filtered handoff totals, and overview/model/status-model examples. Verified gofmt, git diff --check, go test ./..., and built wtp help output.",
       "createdAt": "2026-08-21T11:56:11.579996619Z"
+    },
+    {
+      "id": "35f79a8e-5cd3-477d-b5fc-55a9f0c98ad2",
+      "author": "codex-wtp-loop",
+      "message": "Implemented configurable ordered status catalogs: .wtp.json additionalStatuses validates lower-camel names, duplicate/default/all collisions, and waiting/blocked/failed categories; absent config preserves todo/inProgress/paused/done. Added immutable per-invocation core catalog APIs, catalog-aware parsing/task validation/transition/lifecycle normalization/dependency resolution, with waiting/blocked/failed semantics and reopening timestamp rules. Propagated catalog through app factory into flatfile and Trello config; legacy constructors/wrappers remain. Added config/core/factory tests. Verification: go test ./..., go vet ./..., git diff --check all pass. Flat-file directory iteration, CLI, stats, and docs intentionally unchanged.",
+      "createdAt": "2026-08-21T14:09:12.559010556Z"
+    },
+    {
+      "id": "6f5ad01e-7f7a-4f1c-a8f6-5454303e4cdf",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0d6e4079-0012 flat-file catalog integration. Provider now creates/iterates configured status dirs, validates stale unconfigured task dirs, supports permissive configured status moves with normalized lifecycle metadata, catalog-aware recovery residue/migration/cleanup, done-only dependency resolution, and todo/paused-only scheduling. Added focused custom-state provider tests. Verification: go test -count=1 ./..., go vet ./..., git diff --check all pass. Existing preceding core/config and unrelated worktree changes remain intact.",
+      "createdAt": "2026-08-21T14:14:43.937100869Z"
+    },
+    {
+      "id": "e86f49c6-4105-40ae-a585-348657af8180",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0013 complete: added catalog-aware task create/update/set-status CLI, preserved start/pause/done aliases, custom list/graph/stats parsing, active ordered zero-filled stats buckets, atomic status+metadata updates, and custom lifecycle/reopen behavior. Added CLI/stats/provider-double coverage and updated help/README. Verification: go test -count=1 ./..., go vet ./..., git diff --check all pass. Existing preceding core/config/provider worktree changes remain intact.",
+      "createdAt": "2026-08-21T14:23:44.924054032Z"
+    },
+    {
+      "id": "19f77205-517e-4497-a717-b40e3e5666c1",
+      "author": "codex-wtp-loop",
+      "message": "Worker for wtp-0d6e4079-0014 lost its stream immediately after reporting all requested verification green (go test ./..., vet, smoke); final handoff/done command did not complete. Implementation and task progress comment are present. Next worker: inspect the existing changes, rerun the commit gate, then write the required handoff and mark the exact task done.",
+      "createdAt": "2026-08-21T14:47:21.867226261Z"
+    },
+    {
+      "id": "ada29060-a4c5-4b7d-8238-48c8b3e34224",
+      "author": "codex-wtp-loop",
+      "message": "Verified inherited configurable-status implementation. go test ./..., go vet ./..., git diff --check, and ./scripts/verify.sh all pass (including smoke and commit verification); no code corrections needed.",
+      "createdAt": "2026-08-21T14:48:30.355041206Z"
+    },
+    {
+      "id": "c22e88f4-6f3d-4d68-b716-fbd85e92bfdb",
+      "author": "codex-wtp-loop",
+      "message": "Senior audit passed with no corrections. Catalog is per-provider invocation and immutable; no-config keeps four statuses/directories; unconfigured live status records fail safely; atomic status publication plus residue recovery is sound; waiting/blocked/failed never auto-claim; only done resolves dependencies; stats ordering is deterministic. Targeted edge tests, go test ./..., go vet ./..., git diff --check, and ./scripts/verify.sh all passed (including smoke and commit verification). No further review action required.",
+      "createdAt": "2026-08-21T14:50:24.505567979Z"
     }
   ]
 }

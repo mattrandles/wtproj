@@ -1,0 +1,44 @@
+{
+  "id": "b4f348b7-184b-4bff-9740-02ea28656810",
+  "shortId": "wtp-0d6e4079-0013",
+  "title": "Add custom-status CLI commands, filtering, and stats support",
+  "description": "Implement the user-facing custom-state CLI on the catalog-aware provider. Add task create --status STATUS (default todo), task update/edit --status STATUS with atomic metadata changes, and task set-status \u003ctask-id\u003e STATUS. Keep start, pause, and done as backward-compatible aliases through the same state-setting path. Parse configured statuses for task list --status, graph --status (plus all), and positional stats STATUS without hard-coded status lists. Make stats receive the active ordered catalog so statusCounts includes default and configured states in catalog order, including zero buckets; retain existing default JSON/text output byte-for-byte in unconfigured projects and existing focused-report shapes. Update CLI/provider test doubles and add thorough CLI/stats tests for custom create/update/set-status, alias compatibility, invalid names, reopen behavior, list/graph filters, all stats forms, filtered handoffs, and zero-count buckets. This task depends on catalog and provider work; do not defer test coverage.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "42fa709e-2e80-4405-bcf2-857604c3e891",
+    "7836db02-b743-478e-9309-218edc7fba3f"
+  ],
+  "comments": [
+    {
+      "id": "d31d13f4-1899-4990-95c2-69e1efbd9afa",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the catalog-aware provider and identified the CLI/stats gaps: catalog-scoped parsing, status-bearing create/update inputs, set-status, and ordered catalog stats buckets. Implementing these paths with compatibility-preserving defaults.",
+      "createdAt": "2026-08-21T14:16:43.776438526Z"
+    },
+    {
+      "id": "ecdb842f-1190-4b33-9a02-b1f341dad6e4",
+      "author": "codex-wtp-loop",
+      "message": "Implemented catalog-scoped CLI status parsing, create/update status inputs, set-status, ordered stats buckets, and flat-file lifecycle handling for custom states. Added end-to-end custom create/update/reopen/list/graph/stats coverage plus updated test doubles and help/README contracts.",
+      "createdAt": "2026-08-21T14:22:42.737332878Z"
+    },
+    {
+      "id": "e0833a60-f107-45b4-9006-bd9bd0c52ada",
+      "author": "codex-wtp-loop",
+      "message": "Final verification is green: go test -count=1 ./..., go vet ./..., and git diff --check. The implementation preserves default stats/report shapes and output while using the active catalog for custom status parsing and ordered zero-filled buckets.",
+      "createdAt": "2026-08-21T14:23:39.408179854Z"
+    }
+  ],
+  "createdAt": "2026-08-21T13:58:10.797647532Z",
+  "updatedAt": "2026-08-21T14:23:48.089261227Z",
+  "startedAt": "2026-08-21T14:15:04.550499581Z",
+  "completedAt": "2026-08-21T14:23:48.089261227Z"
+}

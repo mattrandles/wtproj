@@ -1353,6 +1353,131 @@ func TestRunGraphRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
+func TestCustomStatusCLICreateUpdateSetStatusAndReopen(t *testing.T) {
+	catalog := testCustomStatusCatalog(t)
+	p, err := flatfile.NewWithCatalog(t.TempDir(), nil, catalog)
+	if err != nil {
+		t.Fatalf("NewWithCatalog() error = %v", err)
+	}
+	ctx := context{provider: p, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+
+	if err := runTaskCreate(ctx, []string{"--title", "Reviewable", "--status", "waitingForReview"}); err != nil {
+		t.Fatalf("runTaskCreate(custom) error = %v", err)
+	}
+	created := mustSingleTask(t, p, core.Status("waitingForReview"))
+	if created.StartedAt == nil || created.CompletedAt != nil {
+		t.Fatalf("custom waiting lifecycle = started %v completed %v", created.StartedAt, created.CompletedAt)
+	}
+
+	if err := runTaskUpdate(ctx, []string{created.ShortID, "--status", "blockedByReview", "--title", "Blocked review"}); err != nil {
+		t.Fatalf("runTaskUpdate(custom) error = %v", err)
+	}
+	updated, err := p.GetTask(created.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(updated) error = %v", err)
+	}
+	if updated.Status != core.Status("blockedByReview") || updated.Title != "Blocked review" || updated.StartedAt != nil || updated.CompletedAt != nil {
+		t.Fatalf("updated custom task = %#v", updated.Task)
+	}
+
+	if err := runTaskSetStatus(ctx, []string{created.ShortID, "inProgress", "--agent", "Reviewer"}); err != nil {
+		t.Fatalf("runTaskSetStatus() error = %v", err)
+	}
+	if err := runTask(ctx, []string{"done", created.ShortID}); err != nil {
+		t.Fatalf("done alias error = %v", err)
+	}
+	if err := runTask(ctx, []string{"set-status", created.ShortID, "waitingForReview"}); err != nil {
+		t.Fatalf("reopen set-status error = %v", err)
+	}
+	reopened, err := p.GetTask(created.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(reopened) error = %v", err)
+	}
+	if reopened.Status != core.Status("waitingForReview") || reopened.StartedAt == nil || reopened.CompletedAt != nil {
+		t.Fatalf("reopened task lifecycle = status %s started %v completed %v", reopened.Status, reopened.StartedAt, reopened.CompletedAt)
+	}
+}
+
+func TestCustomStatusCLIRejectsUnconfiguredNames(t *testing.T) {
+	catalog := testCustomStatusCatalog(t)
+	p := &updateTestProvider{catalog: catalog}
+	ctx := context{provider: p, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	for _, args := range [][]string{
+		{"--title", "bad", "--status", "notConfigured"},
+	} {
+		if err := runTaskCreate(ctx, args); err == nil || !strings.Contains(err.Error(), `invalid status "notConfigured"`) {
+			t.Fatalf("runTaskCreate(%v) error = %v", args, err)
+		}
+	}
+	if p.createCalls != 0 {
+		t.Fatalf("invalid create called provider %d times", p.createCalls)
+	}
+}
+
+func TestCustomStatusCLIListGraphAndStatsFilters(t *testing.T) {
+	catalog := testCustomStatusCatalog(t)
+	custom := core.Status("waitingForReview")
+	p := &statsTestProvider{graphTestProvider: graphTestProvider{
+		catalog: catalog,
+		tasks: []core.TaskView{
+			{Task: core.Task{ID: "custom", ShortID: "wtp-0001", Title: "Custom", Status: custom}},
+			{Task: core.Task{ID: "todo", ShortID: "wtp-0002", Title: "Todo", Status: core.StatusTodo}},
+		},
+	}}
+	ctx := context{provider: p, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, jsonOut: true}
+	if err := runTaskList(ctx, []string{"--status", string(custom)}); err != nil {
+		t.Fatalf("runTaskList(custom) error = %v", err)
+	}
+	if p.lastFilter.Status == nil || *p.lastFilter.Status != custom {
+		t.Fatalf("list filter = %#v, want %s", p.lastFilter, custom)
+	}
+	p.lastFilter = provider.TaskFilter{}
+	ctx.stdout = &bytes.Buffer{}
+	if err := runGraph(ctx, []string{"--status", string(custom)}); err != nil {
+		t.Fatalf("runGraph(custom) error = %v", err)
+	}
+	if !strings.Contains(ctx.stdout.(*bytes.Buffer).String(), "wtp-0001") || strings.Contains(ctx.stdout.(*bytes.Buffer).String(), "wtp-0002") {
+		t.Fatalf("custom graph output = %q", ctx.stdout.(*bytes.Buffer).String())
+	}
+
+	ctx.stdout = &bytes.Buffer{}
+	if err := runStats(ctx, []string{string(custom)}); err != nil {
+		t.Fatalf("runStats(custom) error = %v", err)
+	}
+	var report stats.Report
+	if err := json.Unmarshal([]byte(ctx.stdout.(*bytes.Buffer).String()), &report); err != nil {
+		t.Fatalf("decode custom stats: %v", err)
+	}
+	want := []stats.Bucket{{Value: "todo", Count: 0}, {Value: "inProgress", Count: 0}, {Value: "paused", Count: 0}, {Value: "done", Count: 0}, {Value: "waitingForReview", Count: 1}, {Value: "blockedByReview", Count: 0}}
+	if !reflect.DeepEqual(report.StatusCounts, want) {
+		t.Fatalf("custom statusCounts = %#v, want %#v", report.StatusCounts, want)
+	}
+}
+
+func testCustomStatusCatalog(t *testing.T) core.StatusCatalog {
+	t.Helper()
+	catalog, err := core.NewStatusCatalog([]core.StatusDefinition{
+		{Name: "waitingForReview", Category: core.StatusCategoryWaiting},
+		{Name: "blockedByReview", Category: core.StatusCategoryBlocked},
+	})
+	if err != nil {
+		t.Fatalf("NewStatusCatalog() error = %v", err)
+	}
+	return catalog
+}
+
+func mustSingleTask(t *testing.T, p provider.Provider, status core.Status) core.TaskView {
+	t.Helper()
+	tasks, err := p.ListTasks(provider.TaskFilter{Status: &status})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("ListTasks(%s) returned %d tasks, want 1", status, len(tasks))
+	}
+	return tasks[0]
+}
+
 func TestParseStatsArgsAcceptsOnlyDocumentedForms(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1727,6 +1852,11 @@ func TestHelpMentionsTaskMetadataOptions(t *testing.T) {
 			t.Fatalf("help output missing %q", needle)
 		}
 	}
+	for _, needle := range []string{"wtp task set-status <task-id> STATUS", "additionalStatuses", "waiting, blocked, or failed", "task start, task pause, and task done remain aliases", "statusCounts includes every configured status in catalog order"} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("help output missing configurable-status contract %q", needle)
+		}
+	}
 }
 
 func TestSchemaDocumentsTaskAndHandoffContracts(t *testing.T) {
@@ -1738,6 +1868,11 @@ func TestSchemaDocumentsTaskAndHandoffContracts(t *testing.T) {
 	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, `"gitRepo": "/workspace/repo"`, "Configuration and discovery:", "linked worktrees use that worktree's configuration", "model: optional free-form string", "gitRepo: optional absolute path", "worktreeDir: optional absolute path", "--git-branch=", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid", ".wtp/handoffs.json", `"handoffs": [`, "Handoff field semantics:", "handoff write appends by default", "--task and --all-scopes conflict", "A cutoff is exclusive", "Handoff reads and task claims are non-consuming", "task start and task next attach", "Handoff JSON response shapes:", `"scopeCount": 1`, `"otherScopesAvailable": false`, `"purged": 1`, "missing .wtp/handoffs.json", "Legacy task compatibility:", "--export-tasks=<directory>", "Short IDs, branch scopes, and allocation indexes:", "{\"branch\":\"<exact branch name>\",\"next\":<positive integer>}", "SHA-256", "first four digest bytes", "wtp-0d6e4079-0001.json", "task ready and task next select current-scope", "Foreign tasks are not automatically claimable", "task start <task-id>", "Filename compatibility migration:", "canonical task UUID>.json", "conflicting files are rejected before migration", "export directory contains exactly one canonical UUID-named", "scoped short-ID filenames and allocation indexes are not exported", "preserve unknown future fields", ".wtp/meta/wtp.lock", "tolerate gaps", "Canonical export is unchanged"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("schema output missing %q", needle)
+		}
+	}
+	for _, needle := range []string{"additionalStatuses", "waiting requires startedAt", "Only done resolves dependencies", "blocked also has no lifecycle timestamps"} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("schema output missing configurable-status contract %q", needle)
 		}
 	}
 }
@@ -2094,6 +2229,7 @@ type getTestProvider struct {
 }
 
 type updateTestProvider struct {
+	catalog        core.StatusCatalog
 	gotCreateInput core.CreateTaskInput
 	gotID          string
 	gotInput       core.UpdateTaskInput
@@ -2170,6 +2306,7 @@ func (p *handoffWriteTestProvider) WriteHandoff(request provider.HandoffWriteReq
 }
 
 type graphTestProvider struct {
+	catalog    core.StatusCatalog
 	tasks      []core.TaskView
 	lastFilter provider.TaskFilter
 	listCalls  int
@@ -2180,6 +2317,23 @@ type statsTestProvider struct {
 	handoffs          []core.Handoff
 	lastHandoffFilter provider.HandoffFilter
 }
+
+func (p *updateTestProvider) StatusCatalog() core.StatusCatalog {
+	if len(p.catalog.Statuses()) == 0 {
+		return core.DefaultStatusCatalog()
+	}
+	return p.catalog
+}
+
+func (p graphTestProvider) StatusCatalog() core.StatusCatalog {
+	if len(p.catalog.Statuses()) == 0 {
+		return core.DefaultStatusCatalog()
+	}
+	return p.catalog
+}
+
+func (readyTestProvider) StatusCatalog() core.StatusCatalog { return core.DefaultStatusCatalog() }
+func (getTestProvider) StatusCatalog() core.StatusCatalog   { return core.DefaultStatusCatalog() }
 
 func (p *statsTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
 	p.lastFilter = filter

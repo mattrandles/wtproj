@@ -129,8 +129,15 @@ func main() {
 func findTask(store, shortID string) (taskRecord, error) {
 	var found taskRecord
 	var foundPath string
-	for _, status := range []string{"todo", "inProgress", "paused", "done"} {
-		path := filepath.Join(store, status, shortID+".json")
+	entries, err := os.ReadDir(store)
+	if err != nil {
+		return taskRecord{}, err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "meta" {
+			continue
+		}
+		path := filepath.Join(store, entry.Name(), shortID+".json")
 		task, err := readJSON[taskRecord](path)
 		if errors.Is(err, os.ErrNotExist) {
 			continue

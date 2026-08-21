@@ -1,0 +1,37 @@
+{
+  "id": "42fa709e-2e80-4405-bcf2-857604c3e891",
+  "shortId": "wtp-0d6e4079-0012",
+  "title": "Make flat-file storage and scheduling catalog-aware",
+  "description": "Use the configured status catalog from the preceding core/config task throughout the flat-file provider. Create configured status directories; dynamically iterate them for load, migration, status moves, cleanup, and recovery residue validation; and prevent a task from being silently ignored when its stored status is absent from the active project configuration. Preserve legacy default-layout behavior exactly when no states are added. Implement generic, permissive configured-state transitions in UpdateTaskStatus and atomic status-plus-metadata updates as required by the provider interface: any configured destination is valid, including reopening terminal states, and destination lifecycle timestamps are normalized by catalog rules. Only done resolves dependency readiness. Keep todo and paused eligible for ready/next exactly as today; waiting, blocked, failed, and other non-selectable categories must never be automatically chosen. Add focused flat-file tests for custom directory persistence, moves, create/reopen timestamp behavior, dependency blocking after failure, scheduling exclusion, migration/recovery residues, and rejected stale configuration.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "storage",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "7836db02-b743-478e-9309-218edc7fba3f"
+  ],
+  "comments": [
+    {
+      "id": "666c5d77-7162-4450-bee7-d35a85f0450d",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the claimed task and existing catalog-aware core changes. Flat-file storage still hard-codes the four legacy status directories and transition rules; implementing dynamic catalog iteration, stale-status detection, permissive configured transitions, and focused provider tests.",
+      "createdAt": "2026-08-21T14:10:42.405916828Z"
+    },
+    {
+      "id": "8d35ffab-1f59-41e7-80ec-e9dd6947055a",
+      "author": "codex-wtp-loop",
+      "message": "Implemented flat-file catalog awareness: configured directories are created and iterated for load/migration/moves/cleanup/residue recovery; unconfigured task-status directories are rejected; configured transitions are permissive with catalog lifecycle normalization while legacy transitions/layout remain unchanged; dependency readiness resolves only on done and scheduling remains todo/paused-only. Added focused custom persistence, lifecycle/reopen, failure dependency, scheduling, migration/recovery, and stale-config tests. Verification passes: go test -count=1 ./..., go vet ./..., git diff --check.",
+      "createdAt": "2026-08-21T14:14:38.806646245Z"
+    }
+  ],
+  "createdAt": "2026-08-21T13:58:10.719727912Z",
+  "updatedAt": "2026-08-21T14:14:48.749002813Z",
+  "startedAt": "2026-08-21T14:09:23.27711054Z",
+  "completedAt": "2026-08-21T14:14:48.749002813Z"
+}

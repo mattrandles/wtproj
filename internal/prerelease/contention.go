@@ -599,7 +599,14 @@ func (r *scenarioRunner) jsonAt(out any, cwd string, args ...string) error {
 }
 
 func storedTasks(path string) ([]core.Task, error) {
-	statuses := []core.Status{core.StatusTodo, core.StatusInProgress, core.StatusPaused, core.StatusDone}
+	statuses, err := statusDirectories(path)
+	if err != nil {
+		return nil, err
+	}
+	catalog, err := statusCatalogForStore(path, statuses)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]core.Task, 0)
 	seen := map[string]bool{}
 	for _, status := range statuses {
@@ -619,7 +626,7 @@ func storedTasks(path string) ([]core.Task, error) {
 			if err := json.Unmarshal(data, &task); err != nil {
 				return nil, err
 			}
-			if err := task.Validate(); err != nil {
+			if err := task.ValidateWithCatalog(catalog); err != nil {
 				return nil, err
 			}
 			if task.Status != status {

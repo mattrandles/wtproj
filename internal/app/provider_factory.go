@@ -12,12 +12,16 @@ import (
 )
 
 func NewProvider(wtpDir string, cfg config.Config, invocationScope *core.BranchScope) (provider.Provider, error) {
+	catalog, err := cfg.StatusCatalog()
+	if err != nil {
+		return nil, fmt.Errorf("validate status configuration: %w", err)
+	}
 	switch cfg.EffectiveTool() {
 	case "flatfile":
 		if !filepath.IsAbs(wtpDir) {
 			return nil, fmt.Errorf("flat-file storage directory must be absolute: %q", wtpDir)
 		}
-		flatfile, err := flatfileprovider.New(filepath.Clean(wtpDir), invocationScope)
+		flatfile, err := flatfileprovider.NewWithCatalog(filepath.Clean(wtpDir), invocationScope, catalog)
 		if err != nil {
 			return nil, fmt.Errorf("initialize flat-file storage at %s: %w", wtpDir, err)
 		}

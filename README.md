@@ -130,6 +130,41 @@ under a repository-local lock, preventing two local agents from claiming the
 same work. Use `task ready` to preview eligible tasks. `wtp help` lists every
 command; `wtp schema` documents the task-file and interoperability contract.
 
+### Configurable statuses
+
+Projects can append lifecycle statuses in `.wtp.json`:
+
+```json
+{
+  "additionalStatuses": [
+    {"name": "waitingForReview", "category": "waiting"},
+    {"name": "vendorBlocked", "category": "blocked"},
+    {"name": "verificationFailed", "category": "failed"}
+  ]
+}
+```
+
+The built-in `todo`, `inProgress`, `paused`, and `done` statuses always come
+first; additional statuses retain their JSON order. Names must be lower camel
+case, and categories must be `waiting`, `blocked`, or `failed`. `waiting`
+requires `startedAt` and has no `completedAt`; `blocked` has neither lifecycle
+timestamp; `failed` requires both timestamps. `done` and `failed` are terminal,
+but only `done` resolves dependencies. Custom statuses are not eligible for
+`task ready` or `task next`.
+
+Use `task set-status <task-id> STATUS` for any configured state. The existing
+`task start`, `task pause`, and `task done` commands remain aliases for the
+built-in lifecycle states. The `--status` filters on `task list` and `graph`,
+and the positional status accepted by `stats`, all use the active configured
+catalog; `graph --status all` includes every state.
+
+Stats `statusCounts` follows catalog order and includes zero-count buckets.
+Other buckets are lexical for model, lane, and assignee, and canonical for
+priority and estimate. Empty categorical values are `""` in JSON and
+`(unset)` in human output. If configuration removes a status still used by a
+task file, opening the store fails with an actionable error and does not alter
+the existing files.
+
 ### Task IDs and branch-scoped automatic claiming
 
 Tasks use one of these short-ID forms:
@@ -185,8 +220,8 @@ before the command, for example `wtp --json task list`.
 | `wtp schema` | none |
 | `wtp version` | `--json` |
 | `wtp update` | `--json` |
-| `wtp task create` | `--title` (required), `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent` |
-| `wtp task update <task-id>` | `--title`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent`; supply at least one |
+| `wtp task create` | `--title` (required), `--status`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent` |
+| `wtp task update <task-id>` | `--status`, `--title`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent`; supply at least one |
 | `wtp task edit <task-id>` | same options as `task update` |
 | `wtp task list` | `--status`, `--agent` |
 | `wtp task show <task-id>` | `--agent` |
@@ -194,6 +229,7 @@ before the command, for example `wtp --json task list`.
 | `wtp task start <task-id>` | `--agent` |
 | `wtp task pause <task-id>` | `--agent` |
 | `wtp task done <task-id>` | `--agent` |
+| `wtp task set-status <task-id> STATUS` | `--agent` |
 | `wtp task comment <task-id>` | `--message` (required), `--agent` |
 | `wtp task ready` | `--agent`, `--limit` |
 | `wtp task next` | `--agent` |
@@ -205,8 +241,8 @@ before the command, for example `wtp --json task list`.
 | `wtp export` | `--out` |
 
 `--priority` accepts `low`, `medium`, `high`, or `urgent`; `--estimate`
-accepts `xs`, `s`, `m`, `l`, or `xl`. `--status` accepts `todo`,
-`inProgress`, `paused`, or `done`; `graph --status` also accepts `all`.
+accepts `xs`, `s`, `m`, `l`, or `xl`. `--status` accepts any configured status,
+including project-defined statuses; `graph --status` also accepts `all`.
 `--depends-on` takes comma-separated task IDs. `--git-repo` and
 `--worktree-dir` require absolute paths. During `task update` or `task edit`,
 an empty `--model=`, `--git-repo=`, `--git-branch=`, `--worktree-name=`, or
@@ -221,7 +257,7 @@ wtp stats ATTRIBUTE
 wtp stats STATUS ATTRIBUTE
 ```
 
-`STATUS` is `todo`, `inProgress`, `paused`, or `done`. `ATTRIBUTE` is one of
+`STATUS` is any configured status. `ATTRIBUTE` is one of
 `model`, `lane`, `priority`, `estimate`, `assignee`, `comments`, or
 `dependencies`; a status must precede an attribute. The first two forms return
 the overview, across all statuses or the selected status. The last two return
@@ -229,8 +265,8 @@ only the selected breakdown or metric and `totalTasks`.
 
 With `--json`, an overview contains `totalTasks`, `statusCounts`, `attributes`,
 `comments`, `dependencies`, and `handoffs`, plus `status` when a status filter
-is supplied. `statusCounts` always contains `todo`, `inProgress`, `paused`, and
-`done`, including zero-count buckets. A focused report contains `totalTasks`,
+is supplied. `statusCounts` contains every configured status in catalog order,
+including zero-count buckets. A focused report contains `totalTasks`,
 `attribute`, and exactly one of `buckets`, `comments`, or `dependencies`, plus
 `status` when filtered. Focused reports do not include overview fields or
 handoff metrics.
@@ -502,7 +538,9 @@ wtp task update "$task_id" --git-branch= --worktree-name=
 ```
 
 Task files are human-readable and friendly to version control; task status is
-represented by `todo`, `inProgress`, `paused`, and `done` directories. `wtp`
+represented by one directory per configured status. Without additional
+statuses, the layout is exactly the original `todo`, `inProgress`, `paused`,
+and `done` directories. `wtp`
 recognizes legacy UUID-named task files and safely migrates valid files to the
 current stable short-ID filenames when storage is opened. That filename
 compatibility migration is separate from branch scopes: `wtp` does not

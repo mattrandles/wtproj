@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattrandles/wtproj/internal/config"
 	"github.com/mattrandles/wtproj/internal/core"
 )
 
@@ -1300,9 +1301,17 @@ type allocationIndex struct {
 }
 
 func validateStore(path string) error {
-	statuses := map[string]core.Status{"todo": core.StatusTodo, "inProgress": core.StatusInProgress, "paused": core.StatusPaused, "done": core.StatusDone}
+	statuses, err := statusDirectories(path)
+	if err != nil {
+		return err
+	}
+	catalog, err := statusCatalogForStore(path, statuses)
+	if err != nil {
+		return err
+	}
 	ids := map[string]bool{}
-	for dir, status := range statuses {
+	for _, status := range statuses {
+		dir := string(status)
 		entries, err := os.ReadDir(filepath.Join(path, dir))
 		if err != nil {
 			return fmt.Errorf("read store %s: %w", dir, err)
@@ -1319,7 +1328,7 @@ func validateStore(path string) error {
 			if err = json.Unmarshal(data, &task); err != nil {
 				return fmt.Errorf("decode %s: %w", entry.Name(), err)
 			}
-			if err = task.Validate(); err != nil {
+			if err = task.ValidateWithCatalog(catalog); err != nil {
 				return fmt.Errorf("validate %s: %w", entry.Name(), err)
 			}
 			if task.Status != status {
@@ -1369,6 +1378,80 @@ func validateStore(path string) error {
 		}
 	}
 	return nil
+}
+
+func statusDirectories(path string) ([]core.Status, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	statuses := make([]core.Status, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != "meta" {
+			statuses = append(statuses, core.Status(entry.Name()))
+		}
+	}
+	sort.Slice(statuses, func(i, j int) bool {
+		return statusDirectoryOrder(statuses[i]) < statusDirectoryOrder(statuses[j])
+	})
+	return statuses, nil
+}
+
+func statusDirectoryOrder(status core.Status) int {
+	switch status {
+	case core.StatusTodo:
+		return 0
+	case core.StatusInProgress:
+		return 1
+	case core.StatusPaused:
+		return 2
+	case core.StatusDone:
+		return 3
+	default:
+		return 4
+	}
+}
+
+func statusCatalogForStore(path string, statuses []core.Status) (core.StatusCatalog, error) {
+	if discovered, err := config.Discover(filepath.Dir(path)); err == nil && len(discovered.AdditionalStatuses) > 0 {
+		return discovered.StatusCatalog()
+	}
+	additional := make([]core.StatusDefinition, 0)
+	for _, status := range statuses {
+		switch status {
+		case core.StatusTodo, core.StatusInProgress, core.StatusPaused, core.StatusDone:
+			continue
+		}
+		category := core.StatusCategoryBlocked
+		entries, err := os.ReadDir(filepath.Join(path, string(status)))
+		if err != nil {
+			return core.StatusCatalog{}, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(path, string(status), entry.Name()))
+			if err != nil {
+				return core.StatusCatalog{}, err
+			}
+			var task struct {
+				StartedAt   *time.Time `json:"startedAt"`
+				CompletedAt *time.Time `json:"completedAt"`
+			}
+			if err := json.Unmarshal(data, &task); err != nil {
+				return core.StatusCatalog{}, err
+			}
+			if task.CompletedAt != nil {
+				category = core.StatusCategoryFailed
+			} else if task.StartedAt != nil {
+				category = core.StatusCategoryWaiting
+			}
+			break
+		}
+		additional = append(additional, core.StatusDefinition{Name: status, Category: category})
+	}
+	return core.NewStatusCatalog(additional)
 }
 
 func validateExport(path string, taskCount int) error {

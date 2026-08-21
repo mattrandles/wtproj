@@ -25,6 +25,13 @@ func NormalizeDependencies(values []string) []string {
 }
 
 func ValidateDependencies(taskID string, dependencies []string, allTasks []Task) error {
+	return ValidateDependenciesWithCatalog(DefaultStatusCatalog(), taskID, dependencies, allTasks)
+}
+
+// ValidateDependenciesWithCatalog validates dependency references and cycles
+// for an invocation's catalog. The catalog also supplies the dependency
+// resolution predicate used by DependenciesResolved.
+func ValidateDependenciesWithCatalog(_ StatusCatalog, taskID string, dependencies []string, allTasks []Task) error {
 	byID := make(map[string]Task, len(allTasks))
 	for _, task := range allTasks {
 		byID[task.ID] = task
@@ -90,4 +97,20 @@ func ValidateDependencies(taskID string, dependencies []string, allTasks []Task)
 		}
 	}
 	return nil
+}
+
+// DependenciesResolved reports whether every dependency of task is resolved
+// according to the catalog. Done is the only resolving status by default.
+func DependenciesResolved(catalog StatusCatalog, task Task, allTasks []Task) bool {
+	byID := make(map[string]Task, len(allTasks))
+	for _, candidate := range allTasks {
+		byID[candidate.ID] = candidate
+	}
+	for _, dependencyID := range task.Dependencies {
+		candidate, ok := byID[dependencyID]
+		if !ok || !catalog.DependencyResolved(candidate.Status) {
+			return false
+		}
+	}
+	return true
 }

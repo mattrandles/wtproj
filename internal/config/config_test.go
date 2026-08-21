@@ -43,6 +43,46 @@ func TestDiscoverNormalizesConfig(t *testing.T) {
 	}
 }
 
+func TestDiscoverLoadsOrderedAdditionalStatuses(t *testing.T) {
+	dir := t.TempDir()
+	content := `{"additionalStatuses":[{"name":"needsReview","category":"waiting"},{"name":"vendorBlocked","category":"blocked"}]}`
+	if err := os.WriteFile(filepath.Join(dir, ".wtp.json"), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	cfg, err := Discover(dir)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+	catalog, err := cfg.StatusCatalog()
+	if err != nil {
+		t.Fatalf("StatusCatalog() error = %v", err)
+	}
+	statuses := catalog.Statuses()
+	if len(statuses) != 6 || statuses[4].Name != "needsReview" || statuses[5].Name != "vendorBlocked" {
+		t.Fatalf("ordered statuses = %#v", statuses)
+	}
+}
+
+func TestDiscoverRejectsInvalidAdditionalStatuses(t *testing.T) {
+	for _, additional := range []string{
+		`[{"name":"todo","category":"waiting"}]`,
+		`[{"name":"needs-review","category":"waiting"}]`,
+		`[{"name":"needsReview","category":"done"}]`,
+		`[{"name":"all","category":"failed"}]`,
+	} {
+		t.Run(additional, func(t *testing.T) {
+			dir := t.TempDir()
+			content := `{"additionalStatuses":` + additional + `}`
+			if err := os.WriteFile(filepath.Join(dir, ".wtp.json"), []byte(content), 0o644); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+			if _, err := Discover(dir); err == nil {
+				t.Fatal("Discover() accepted invalid additional status")
+			}
+		})
+	}
+}
+
 func TestDiscoverDefaultsMissingConfigToAnchorStorage(t *testing.T) {
 	anchor := t.TempDir()
 

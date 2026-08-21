@@ -97,18 +97,19 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	}
 }
 
-const statsUsage = "usage: wtp stats [todo|inProgress|paused|done] [model|lane|priority|estimate|assignee|comments|dependencies]"
+const statsUsage = "usage: wtp stats [STATUS] [model|lane|priority|estimate|assignee|comments|dependencies]"
 
 // runStats accepts only positional status and attribute arguments. Keeping
 // this parser separate from flag.FlagSet makes reversed and extra arguments
 // unambiguous, while root --json remains the sole output switch.
 func runStats(ctx context, args []string) error {
-	status, attribute, focused, err := parseStatsArgs(args)
+	catalog := ctx.provider.StatusCatalog()
+	status, attribute, focused, err := parseStatsArgs(args, catalog)
 	if err != nil {
 		return err
 	}
 
-	report, err := stats.Aggregate(ctx.provider, stats.Options{Status: status})
+	report, err := stats.Aggregate(ctx.provider, stats.Options{Status: status, Catalog: catalog})
 	if err != nil {
 		return err
 	}
@@ -118,7 +119,11 @@ func runStats(ctx context, args []string) error {
 	return printStatsOverview(ctx, report)
 }
 
-func parseStatsArgs(args []string) (*core.Status, stats.Attribute, bool, error) {
+func parseStatsArgs(args []string, catalogs ...core.StatusCatalog) (*core.Status, stats.Attribute, bool, error) {
+	catalog := core.DefaultStatusCatalog()
+	if len(catalogs) > 0 && len(catalogs[0].Statuses()) > 0 {
+		catalog = catalogs[0]
+	}
 	if len(args) > 2 {
 		return nil, "", false, errors.New(statsUsage)
 	}
@@ -126,7 +131,7 @@ func parseStatsArgs(args []string) (*core.Status, stats.Attribute, bool, error) 
 		return nil, "", false, nil
 	}
 
-	if status, err := core.ParseStatus(args[0]); err == nil {
+	if status, err := catalog.ParseStatus(args[0]); err == nil {
 		if len(args) == 1 {
 			return &status, "", false, nil
 		}
@@ -394,6 +399,8 @@ func runTask(ctx context, args []string) error {
 		return runTaskTransition(ctx, "pause", core.StatusPaused, args[1:])
 	case "done":
 		return runTaskTransition(ctx, "done", core.StatusDone, args[1:])
+	case "set-status":
+		return runTaskSetStatus(ctx, args[1:])
 	case "comment":
 		return runTaskComment(ctx, args[1:])
 	case "ready":
@@ -648,6 +655,7 @@ func runTaskCreate(ctx context, args []string) error {
 	flags.SetOutput(ctx.stderr)
 	title := flags.String("title", "", "task title")
 	description := flags.String("description", "", "task description")
+	statusValue := flags.String("status", string(core.StatusTodo), "task status")
 	priorityValue := flags.String("priority", "", "task priority (low|medium|high|urgent)")
 	estimateValue := flags.String("estimate", "", "task estimate (xs|s|m|l|xl)")
 	lane := flags.String("lane", "", "task lane or area")
@@ -666,7 +674,7 @@ func runTaskCreate(ctx context, args []string) error {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task create --title \"...\" [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task create --title \"...\" [--status STATUS] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
 	}
 	if strings.TrimSpace(*title) == "" {
 		return errors.New("task title is required")
@@ -679,9 +687,14 @@ func runTaskCreate(ctx context, args []string) error {
 	if err != nil {
 		return err
 	}
+	status, err := parseConfiguredStatus(ctx.provider, *statusValue)
+	if err != nil {
+		return err
+	}
 	task, err := ctx.provider.CreateTask(core.CreateTaskInput{
 		Title:        *title,
 		Description:  *description,
+		Status:       status,
 		Priority:     priority,
 		Estimate:     estimate,
 		Lane:         *lane,
@@ -702,13 +715,14 @@ func runTaskCreate(ctx context, args []string) error {
 func runTaskUpdate(ctx context, args []string) error {
 	id, options, err := splitSinglePositionalArgs(args)
 	if err != nil {
-		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task update <task-id> [--status STATUS] [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
 	}
 	flags := flag.NewFlagSet("task update", flag.ContinueOnError)
 	flags.SetOutput(ctx.stderr)
 
 	var title optionString
 	var description optionString
+	var statusValue optionString
 	var priorityValue optionString
 	var estimateValue optionString
 	var lane optionString
@@ -722,6 +736,7 @@ func runTaskUpdate(ctx context, args []string) error {
 
 	flags.Var(&title, "title", "task title")
 	flags.Var(&description, "description", "task description")
+	flags.Var(&statusValue, "status", "task status")
 	flags.Var(&priorityValue, "priority", "task priority (low|medium|high|urgent)")
 	flags.Var(&estimateValue, "estimate", "task estimate (xs|s|m|l|xl)")
 	flags.Var(&lane, "lane", "task lane or area")
@@ -736,9 +751,9 @@ func runTaskUpdate(ctx context, args []string) error {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task update <task-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
+		return errors.New("usage: wtp task update <task-id> [--status STATUS] [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
 	}
-	if !title.set && !description.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !gitRepo.set && !gitBranch.set && !worktreeName.set && !worktreeDir.set && !dependsOn.set && !agent.set {
+	if !title.set && !description.set && !statusValue.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !gitRepo.set && !gitBranch.set && !worktreeName.set && !worktreeDir.set && !dependsOn.set && !agent.set {
 		return errors.New("task update requires at least one field to change")
 	}
 
@@ -750,10 +765,18 @@ func runTaskUpdate(ctx context, args []string) error {
 	if err != nil {
 		return err
 	}
+	status := core.Status("")
+	if statusValue.set {
+		status, err = parseConfiguredStatus(ctx.provider, statusValue.value)
+		if err != nil {
+			return err
+		}
+	}
 
 	task, err := ctx.provider.UpdateTask(id, core.UpdateTaskInput{
 		Title:        core.OptionalString{Set: title.set, Value: title.value},
 		Description:  core.OptionalString{Set: description.set, Value: description.value},
+		Status:       core.OptionalStatus{Set: statusValue.set, Value: status},
 		Priority:     core.OptionalPriority{Set: priorityValue.set, Value: priority},
 		Estimate:     core.OptionalEstimate{Set: estimateValue.set, Value: estimate},
 		Lane:         core.OptionalString{Set: lane.set, Value: lane.value},
@@ -780,11 +803,11 @@ func runTaskList(ctx context, args []string) error {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task list [--status todo|inProgress|paused|done] [--agent Tony]")
+		return errors.New("usage: wtp task list [--status STATUS] [--agent Tony]")
 	}
 	filter := provider.TaskFilter{}
 	if strings.TrimSpace(*statusValue) != "" {
-		status, err := core.ParseStatus(*statusValue)
+		status, err := parseConfiguredStatus(ctx.provider, *statusValue)
 		if err != nil {
 			return err
 		}
@@ -817,6 +840,22 @@ func runTaskTransition(ctx context, name string, target core.Status, args []stri
 	}
 	agent := optionValue(options, "agent")
 	task, err := ctx.provider.UpdateTaskStatus(id, target, agent)
+	if err != nil {
+		return err
+	}
+	return printValue(ctx, task)
+}
+
+func runTaskSetStatus(ctx context, args []string) error {
+	id, statusValue, options, err := parseTaskStatusOptions(args)
+	if err != nil {
+		return fmt.Errorf("%w; usage: wtp task set-status <task-id> STATUS [--agent Tony]", err)
+	}
+	status, err := parseConfiguredStatus(ctx.provider, statusValue)
+	if err != nil {
+		return err
+	}
+	task, err := ctx.provider.UpdateTaskStatus(id, status, optionValue(options, "agent"))
 	if err != nil {
 		return err
 	}
@@ -887,14 +926,14 @@ func runTaskReady(ctx context, args []string) error {
 func runGraph(ctx context, args []string) error {
 	flags := flag.NewFlagSet("graph", flag.ContinueOnError)
 	flags.SetOutput(ctx.stderr)
-	statusValue := flags.String("status", string(core.StatusTodo), "graph status filter (todo|inProgress|paused|done|all)")
+	statusValue := flags.String("status", string(core.StatusTodo), "graph status filter (configured status or all)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp graph [--status todo|inProgress|paused|done|all]")
+		return errors.New("usage: wtp graph [--status STATUS|all]")
 	}
-	statusFilter, err := parseGraphStatus(*statusValue)
+	statusFilter, err := parseGraphStatus(*statusValue, ctx.provider.StatusCatalog())
 	if err != nil {
 		return err
 	}
@@ -927,7 +966,11 @@ func handleNoEligibleReady(ctx context, err error, batch bool) error {
 	return writeErr
 }
 
-func parseGraphStatus(value string) (*core.Status, error) {
+func parseGraphStatus(value string, catalogs ...core.StatusCatalog) (*core.Status, error) {
+	catalog := core.DefaultStatusCatalog()
+	if len(catalogs) > 0 && len(catalogs[0].Statuses()) > 0 {
+		catalog = catalogs[0]
+	}
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		status := core.StatusTodo
@@ -936,9 +979,9 @@ func parseGraphStatus(value string) (*core.Status, error) {
 	if trimmed == "all" {
 		return nil, nil
 	}
-	status, err := core.ParseStatus(trimmed)
+	status, err := catalog.ParseStatus(trimmed)
 	if err != nil {
-		return nil, errors.New("graph status must be one of todo, inProgress, paused, done, or all")
+		return nil, fmt.Errorf("invalid graph status %q", value)
 	}
 	return &status, nil
 }
@@ -1188,26 +1231,27 @@ func help(w io.Writer) error {
 	_, err := io.WriteString(w, `wtp
 
 Commands:
-  wtp task create --title "..." [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]
-	wtp task update <task-id> [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]
-	wtp task edit <task-id> [same options as update]
-  wtp task list [--status todo|inProgress|paused|done] [--agent Tony]
+	  wtp task create --title "..." [--status STATUS] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]
+		wtp task update <task-id> [--status STATUS] [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]
+		wtp task edit <task-id> [same options as update]
+	  wtp task list [--status STATUS] [--agent Tony]
   wtp task show <task-id> [--agent Tony]
   wtp task get <task-id> [--agent Tony]
-  wtp task start <task-id> [--agent Tony]
-	wtp task pause <task-id> [--agent Tony]
-	wtp task done <task-id> [--agent Tony]
+	  wtp task start <task-id> [--agent Tony]
+		wtp task pause <task-id> [--agent Tony]
+		wtp task done <task-id> [--agent Tony]
+	  wtp task set-status <task-id> STATUS [--agent Tony]
 	wtp task comment <task-id> [--agent Tony] --message "..."
   wtp task ready [--agent Tony] [--limit N]
   wtp task next [--agent Tony]
 	wtp handoff write --message "..." [--agent Tony] [--task <task-id>] [--replace]
 	wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]
 	wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]
-	wtp graph [--status todo|inProgress|paused|done|all]
-	wtp stats
-	wtp stats [todo|inProgress|paused|done]
-	wtp stats [model|lane|priority|estimate|assignee|comments|dependencies]
-	wtp stats [todo|inProgress|paused|done] [model|lane|priority|estimate|assignee|comments|dependencies]
+	  wtp graph [--status STATUS|all]
+	  wtp stats
+	  wtp stats [STATUS]
+	  wtp stats [model|lane|priority|estimate|assignee|comments|dependencies]
+	  wtp stats [STATUS] [model|lane|priority|estimate|assignee|comments|dependencies]
 	wtp export --out .wtp-export
 	wtp version
 	wtp update
@@ -1230,9 +1274,27 @@ On task create, omitted Git/worktree fields default independently from the curre
 Configuration is read from .wtp.json at the current Git worktree root (or the invocation directory outside Git); wtpDir selects storage and is relative to that file when not absolute.
 The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
 Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
-graph prints dependency trees for matching tasks; it defaults to todo and accepts done, paused, inProgress, todo, or all.
-stats supports exactly four forms: wtp stats and wtp stats STATUS print an overview; wtp stats ATTRIBUTE and wtp stats STATUS ATTRIBUTE print a focused report. STATUS is todo, inProgress, paused, or done. ATTRIBUTE is model, lane, priority, estimate, assignee, comments, or dependencies; a status must precede an attribute. Overview JSON has totalTasks, statusCounts, attributes, comments, dependencies, and handoffs, plus status when filtered. statusCounts always includes all four statuses. Focused JSON has totalTasks, attribute, and exactly one of buckets, comments, or dependencies, plus status when filtered. Categorical buckets use value and count; model, lane, and assignee are lexical, while priority and estimate use their canonical order. Empty categorical values are value "" in JSON and (unset) in text.
+	graph prints dependency trees for matching tasks; it defaults to todo and accepts every configured status or all.
+	stats supports exactly four forms: wtp stats and wtp stats STATUS print an overview; wtp stats ATTRIBUTE and wtp stats STATUS ATTRIBUTE print a focused report. STATUS is any configured status. ATTRIBUTE is model, lane, priority, estimate, assignee, comments, or dependencies; a status must precede an attribute. Overview JSON has totalTasks, statusCounts, attributes, comments, dependencies, and handoffs, plus status when filtered. statusCounts includes every configured status in catalog order, including zero buckets. Focused JSON has totalTasks, attribute, and exactly one of buckets, comments, or dependencies, plus status when filtered. Categorical buckets use value and count; model, lane, and assignee are lexical, while priority and estimate use their canonical order. Empty categorical values are value "" in JSON and (unset) in text.
 The comments metrics count selected tasks with at least one comment and all comment records. The dependency metrics count selected tasks with direct dependencies, independent selected tasks, and the total number of direct dependency entries; dependencies are not deduplicated or expanded transitively. Overview handoffs include every global retained handoff and every task-scoped handoff; a status-filtered report keeps global handoffs and task-scoped handoffs for selected tasks, while allStatusTotal remains the count before filtering. Focused reports do not include handoff metrics.
+Configurable statuses:
+  .wtp.json may append project-specific lifecycle states with this shape:
+    {"additionalStatuses":[
+      {"name":"waitingForReview","category":"waiting"},
+      {"name":"vendorBlocked","category":"blocked"},
+      {"name":"verificationFailed","category":"failed"}
+    ]}
+  The built-in statuses todo, inProgress, paused, and done always come first;
+  additional statuses are ordered as written. Names are lower camel case and
+  categories are waiting, blocked, or failed. waiting requires startedAt and
+  has no completedAt; blocked has neither timestamp; failed requires both
+  timestamps. done and failed are terminal; only done resolves dependencies.
+  waiting, blocked, and failed are not claimable by task next or task ready.
+  Status transitions set or clear lifecycle timestamps according to category.
+  task start, task pause, and task done remain aliases for the built-in states;
+  task set-status <task-id> STATUS is the generic transition command.
+  Removing a configured status while task files still use it fails storage
+  opening safely and leaves the existing files untouched.
 Examples:
   wtp stats
   wtp stats model
@@ -1333,6 +1395,13 @@ Configuration and discovery:
 	- In Git, .wtp.json is read only from the current worktree root; nested directories and linked worktrees use that worktree's configuration.
 	- Outside Git, .wtp.json is read only from the invocation directory. Parent directories are not searched.
 	- Without configuration, storage is <discovery directory>/.wtp.
+	- The optional additionalStatuses property appends project-defined statuses:
+	  {"additionalStatuses":[{"name":"waitingForReview","category":"waiting"},{"name":"vendorBlocked","category":"blocked"},{"name":"verificationFailed","category":"failed"}]}
+	  Built-in statuses always precede additions; additions retain JSON order.
+	  Names use lower camel case. Categories are waiting, blocked, or failed.
+	  waiting requires startedAt and forbids completedAt; blocked forbids both;
+	  failed requires both timestamps. Only done resolves dependencies; failed is
+	  terminal but does not resolve dependencies. Custom states are not claimable.
 	- The optional .wtp.json wtpDir property selects storage. Relative wtpDir values are resolved from the configuration file; absolute values are accepted.
 	- Adding, changing, or removing .wtp.json never moves or deletes an existing store.
 
@@ -1343,6 +1412,9 @@ Task file rules:
 	  .wtp/todo/wtp-0d6e4079-0001.json.
 	- The JSON payload includes both a canonical UUID id and a stable shortId.
 	- Dependencies are stored as canonical UUID strings, even when CLI input uses short IDs.
+	- Dependencies are stored as canonical UUID strings, even when CLI input uses short IDs.
+	- With no additionalStatuses, the layout contains exactly the four built-in
+	  status directories. Configured statuses add one directory per definition.
 	- New tasks and status moves use the shortId filename in the destination
 	  status directory. A filename must be either that exact shortId plus .json
 	  or the task's exact canonical UUID plus .json for legacy migration input.
@@ -1484,7 +1556,7 @@ Field semantics:
 	- gitBranch: optional branch name where the task was created; empty for a detached HEAD unless explicitly overridden.
 	- worktreeName: optional name of the current Git worktree where the task was created.
 	- worktreeDir: optional absolute path to the current Git worktree root where the task was created.
-	- status: required enum todo|inProgress|paused|done.
+	- status: required configured status; the default catalog contains todo|inProgress|paused|done and .wtp.json may append waiting, blocked, or failed category states.
 	- assignee: optional string.
 	- dependencies: array of canonical lowercase task UUIDs.
 	- comments: array of comment objects with a canonical lowercase UUID id, optional non-blank author,
@@ -1502,8 +1574,11 @@ Behavioral rules:
 	- A task cannot start or be claimed until all dependencies are done.
 	- Status determines the directory where the task file is stored.
 	- createdAt must not be after updatedAt; comments and lifecycle timestamps must fall within that range.
-	- todo has no lifecycle timestamps; inProgress and paused require startedAt but no completedAt;
-	  done requires both, with completedAt not before startedAt.
+	- todo has no lifecycle timestamps; blocked also has no lifecycle timestamps;
+	  inProgress, paused, and waiting require startedAt but no completedAt; done and failed require both, with
+	  completedAt not before startedAt.
+	- Only done dependencies are resolved. waiting, blocked, and failed dependencies
+	  remain unresolved, and custom states are not eligible for automatic claims.
 	- task next prefers paused tasks before todo, then higher priority, then older tasks.
 	- model is advisory metadata and does not affect task ordering or claimability.
 	- task create discovers each Git/worktree field independently when it is omitted; an explicit value, including an empty value, overrides only that field.
@@ -1925,6 +2000,53 @@ func optionValue(options map[string]string, name string) string {
 		return ""
 	}
 	return strings.TrimSpace(options[name])
+}
+
+func parseConfiguredStatus(p provider.Provider, value string) (core.Status, error) {
+	catalog := p.StatusCatalog()
+	if len(catalog.Statuses()) == 0 {
+		catalog = core.DefaultStatusCatalog()
+	}
+	return catalog.ParseStatus(strings.TrimSpace(value))
+}
+
+func parseTaskStatusOptions(args []string) (string, string, map[string]string, error) {
+	allowed := map[string]struct{}{"agent": {}}
+	options := make(map[string]string, 1)
+	positionals := make([]string, 0, 2)
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "" {
+			continue
+		}
+		if strings.HasPrefix(arg, "--") {
+			nameAndValue := strings.TrimPrefix(arg, "--")
+			name, value, hasValue := strings.Cut(nameAndValue, "=")
+			if _, ok := allowed[name]; !ok {
+				return "", "", nil, fmt.Errorf("unknown option %q", arg)
+			}
+			if !hasValue {
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+					return "", "", nil, fmt.Errorf("option %q requires a value", "--"+name)
+				}
+				value = args[i+1]
+				i++
+			}
+			if strings.TrimSpace(value) == "" {
+				return "", "", nil, fmt.Errorf("option %q requires a value", "--"+name)
+			}
+			options[name] = value
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			return "", "", nil, fmt.Errorf("unknown option %q", arg)
+		}
+		positionals = append(positionals, arg)
+	}
+	if len(positionals) != 2 {
+		return "", "", nil, errors.New("expected exactly one task ID and one status")
+	}
+	return positionals[0], positionals[1], options, nil
 }
 
 func trimEmptyArgs(args []string) []string {

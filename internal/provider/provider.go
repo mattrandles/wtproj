@@ -52,6 +52,7 @@ type HandoffPurgeResult struct {
 }
 
 type Provider interface {
+	StatusCatalog() core.StatusCatalog
 	ListTasks(filter TaskFilter) ([]core.TaskView, error)
 	WriteHandoff(request HandoffWriteRequest) (HandoffWriteResult, error)
 	ListHandoffs(filter HandoffFilter) (HandoffListResult, error)

@@ -1,0 +1,49 @@
+{
+  "id": "835f4d70-04c8-4333-96b8-7f34a2cfaa84",
+  "shortId": "wtp-0d6e4079-0014",
+  "title": "Document configurable statuses and add end-to-end regression coverage",
+  "description": "Finish the project-facing contract for configurable statuses after CLI support lands. Update README, help text, and wtp schema output with the additionalStatuses JSON example, categories, timestamp and dependency semantics, generic set-status command, existing aliases, dynamic filters, and stats ordering/zero-bucket behavior. Replace hard-coded default-status expectations in shared test helpers, prerelease fixtures, and smoke/release checks only where dynamic behavior requires it, while retaining explicit tests that no-config projects still expose exactly the original four statuses and layout. Add integration coverage that opens a configured project, creates waiting/blocked/failed tasks, exercises list/graph/stats JSON and human output, verifies no-config compatibility, and fails safely when configuration removes a live state. Run go test ./... and the appropriate commit verification script.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "documentation",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "b4f348b7-184b-4bff-9740-02ea28656810"
+  ],
+  "comments": [
+    {
+      "id": "26ccfb01-7afd-4e01-8b18-7d06325319f4",
+      "author": "codex-wtp-loop",
+      "message": "Audited the inherited configurable-status implementation and identified remaining contract gaps in schema/help, dynamic stats documentation, release smoke fixtures, and end-to-end integration coverage. Preserving prior worker edits while filling those gaps.",
+      "createdAt": "2026-08-21T14:24:37.272838874Z"
+    },
+    {
+      "id": "4bd3bf68-fb1b-4d9e-8c52-5e56f17f2cfd",
+      "author": "codex-wtp-loop",
+      "message": "Completed the configurable-status contract: README/help/schema now document additionalStatuses, categories, lifecycle timestamps, dependency resolution, aliases, dynamic filters, ordering, and zero buckets. Added configured/no-config process integration coverage, stale-live-state safety checks, and dynamic status-directory handling in integration/prerelease/allocation helpers. go test ./... and ./scripts/verify.sh commit both pass.",
+      "createdAt": "2026-08-21T14:32:41.706731513Z"
+    },
+    {
+      "id": "bc0a5735-975f-4178-8bc2-9c39a9472d1a",
+      "author": "codex-wtp-loop",
+      "message": "Worker stream disconnected after reporting go test ./..., vet, and smoke green; final handoff/done did not execute. Pausing for safe recovery and a fresh verification worker.",
+      "createdAt": "2026-08-21T14:47:21.892684203Z"
+    },
+    {
+      "id": "59838db7-a7f7-4b81-9cc9-c9a0e1361fd7",
+      "author": "codex-wtp-loop",
+      "message": "Final verification complete: go test ./..., go vet ./..., git diff --check, and ./scripts/verify.sh all pass, including smoke and commit verification. Reviewed the existing scoped changes; no corrections needed.",
+      "createdAt": "2026-08-21T14:48:33.7055262Z"
+    }
+  ],
+  "createdAt": "2026-08-21T13:58:10.878068803Z",
+  "updatedAt": "2026-08-21T14:48:36.206578088Z",
+  "startedAt": "2026-08-21T14:24:00.462665574Z",
+  "completedAt": "2026-08-21T14:48:36.206578088Z"
+}

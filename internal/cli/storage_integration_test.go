@@ -14,6 +14,7 @@ import (
 
 	"github.com/mattrandles/wtproj/internal/core"
 	"github.com/mattrandles/wtproj/internal/provider"
+	"github.com/mattrandles/wtproj/internal/stats"
 )
 
 // TestCLIProcess runs Run in a separate process so each invocation has its own
@@ -959,6 +960,119 @@ func TestRunChangingConfigDoesNotMoveExistingDefaultStorage(t *testing.T) {
 	}
 }
 
+func TestRunConfiguredStatusesEndToEndAndNoConfigCompatibility(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "configured status project")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	writeConfigFile(t, root, `{"additionalStatuses":[{"name":"waitingForReview","category":"waiting"},{"name":"vendorBlocked","category":"blocked"},{"name":"verificationFailed","category":"failed"}]}`)
+
+	todo := runCLIJSONTask(t, root, "--json", "task", "create", "--title", "todo dependency")
+	waiting := runCLIJSONTask(t, root, "--json", "task", "create", "--title", "waiting review", "--status", "waitingForReview")
+	blocked := runCLIJSONTask(t, root, "--json", "task", "create", "--title", "blocked review", "--status", "vendorBlocked", "--depends-on", waiting.ShortID)
+	failed := runCLIJSONTask(t, root, "--json", "task", "create", "--title", "failed review", "--status", "verificationFailed", "--depends-on", todo.ShortID)
+	if waiting.StartedAt == nil || waiting.CompletedAt != nil {
+		t.Fatalf("waiting lifecycle = started %v completed %v", waiting.StartedAt, waiting.CompletedAt)
+	}
+	if blocked.StartedAt != nil || blocked.CompletedAt != nil {
+		t.Fatalf("blocked lifecycle = started %v completed %v", blocked.StartedAt, blocked.CompletedAt)
+	}
+	if failed.StartedAt == nil || failed.CompletedAt == nil {
+		t.Fatalf("failed lifecycle = started %v completed %v", failed.StartedAt, failed.CompletedAt)
+	}
+
+	filtered := runCLIJSONTasks(t, root, "--json", "task", "list", "--status", "vendorBlocked")
+	if len(filtered) != 1 || filtered[0].ID != blocked.ID {
+		t.Fatalf("custom list filter = %#v, want blocked task %s", filtered, blocked.ID)
+	}
+	listText, err := runCLIProcess(root, "task", "list", "--status", "waitingForReview")
+	if err != nil || !strings.Contains(listText, "waitingForReview") || !strings.Contains(listText, "waiting review") {
+		t.Fatalf("custom human list = %q, err %v", listText, err)
+	}
+
+	graphJSON, err := runCLIProcess(root, "--json", "graph", "--status", "all")
+	if err != nil {
+		t.Fatalf("custom graph JSON: %v\n%s", err, graphJSON)
+	}
+	for _, needle := range []string{"waitingForReview", "vendorBlocked", "verificationFailed", "blocked review", "waiting review"} {
+		if !strings.Contains(graphJSON, needle) {
+			t.Fatalf("custom graph JSON missing %q: %s", needle, graphJSON)
+		}
+	}
+	graphText, err := runCLIProcess(root, "graph", "--status", "vendorBlocked")
+	if err != nil || !strings.Contains(graphText, "[vendorBlocked] blocked review") {
+		t.Fatalf("custom human graph = %q, err %v", graphText, err)
+	}
+
+	statsOutput, err := runCLIProcess(root, "--json", "stats")
+	if err != nil {
+		t.Fatalf("custom stats JSON: %v\n%s", err, statsOutput)
+	}
+	var report stats.Report
+	if err := json.Unmarshal([]byte(statsOutput), &report); err != nil {
+		t.Fatalf("decode custom stats JSON: %v\n%s", err, statsOutput)
+	}
+	wantStatusCounts := []stats.Bucket{
+		{Value: "todo", Count: 1}, {Value: "inProgress", Count: 0},
+		{Value: "paused", Count: 0}, {Value: "done", Count: 0},
+		{Value: "waitingForReview", Count: 1}, {Value: "vendorBlocked", Count: 1},
+		{Value: "verificationFailed", Count: 1},
+	}
+	if !slices.Equal(report.StatusCounts, wantStatusCounts) {
+		t.Fatalf("custom stats statusCounts = %#v, want %#v", report.StatusCounts, wantStatusCounts)
+	}
+	filteredStats, err := runCLIProcess(root, "--json", "stats", "vendorBlocked", "dependencies")
+	if err != nil || !strings.Contains(filteredStats, `"status": "vendorBlocked"`) || !strings.Contains(filteredStats, `"directDependencyTotal": 1`) {
+		t.Fatalf("custom filtered stats = %q, err %v", filteredStats, err)
+	}
+	statsText, err := runCLIProcess(root, "stats")
+	if err != nil || !strings.Contains(statsText, "waitingForReview: 1") || !strings.Contains(statsText, "vendorBlocked: 1") || !strings.Contains(statsText, "verificationFailed: 1") {
+		t.Fatalf("custom human stats = %q, err %v", statsText, err)
+	}
+
+	configuredStore := filepath.Join(root, ".wtp")
+	beforeRemoval := storageManifest(t, configuredStore)
+	writeConfigFile(t, root, `{"additionalStatuses":[{"name":"vendorBlocked","category":"blocked"},{"name":"verificationFailed","category":"failed"}]}`)
+	staleOutput, staleErr := runCLIProcess(root, "--json", "task", "list")
+	if staleErr == nil || !strings.Contains(staleOutput, "absent from active configuration") {
+		t.Fatalf("removed live status did not fail safely: err=%v output=%q", staleErr, staleOutput)
+	}
+	if afterRemoval := storageManifest(t, configuredStore); afterRemoval != beforeRemoval {
+		t.Fatalf("removing live status changed storage\nbefore %s\nafter %s", beforeRemoval, afterRemoval)
+	}
+
+	noConfig := filepath.Join(t.TempDir(), "no config project")
+	if err := os.MkdirAll(noConfig, 0o755); err != nil {
+		t.Fatalf("MkdirAll(no config) error = %v", err)
+	}
+	runCLIJSONTask(t, noConfig, "--json", "task", "create", "--title", "legacy layout task")
+	entries, err := os.ReadDir(filepath.Join(noConfig, ".wtp"))
+	if err != nil {
+		t.Fatalf("ReadDir(no-config store) error = %v", err)
+	}
+	var layout []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			layout = append(layout, entry.Name())
+		}
+	}
+	slices.Sort(layout)
+	if want := []string{"done", "inProgress", "meta", "paused", "todo"}; !slices.Equal(layout, want) {
+		t.Fatalf("no-config status layout = %v, want exactly %v", layout, want)
+	}
+	legacyStats, err := runCLIProcess(noConfig, "--json", "stats")
+	if err != nil {
+		t.Fatalf("no-config stats: %v\n%s", err, legacyStats)
+	}
+	var legacyReport stats.Report
+	if err := json.Unmarshal([]byte(legacyStats), &legacyReport); err != nil {
+		t.Fatalf("decode no-config stats: %v", err)
+	}
+	if want := []stats.Bucket{{Value: "todo", Count: 1}, {Value: "inProgress", Count: 0}, {Value: "paused", Count: 0}, {Value: "done", Count: 0}}; !slices.Equal(legacyReport.StatusCounts, want) {
+		t.Fatalf("no-config statusCounts = %#v, want exactly %#v", legacyReport.StatusCounts, want)
+	}
+}
+
 func createIntegrationRepository(t *testing.T, parent, name string) string {
 	t.Helper()
 	root := filepath.Join(parent, name)
@@ -1142,10 +1256,17 @@ func assertTaskManifest(t *testing.T, root string, tasks ...core.TaskView) {
 	slices.Sort(want)
 
 	var got []string
-	for _, status := range []core.Status{core.StatusTodo, core.StatusInProgress, core.StatusPaused, core.StatusDone} {
-		entries, err := os.ReadDir(filepath.Join(root, string(status)))
+	directories, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("ReadDir(%s) error = %v", root, err)
+	}
+	for _, directory := range directories {
+		if !directory.IsDir() || directory.Name() == "meta" {
+			continue
+		}
+		entries, err := os.ReadDir(filepath.Join(root, directory.Name()))
 		if err != nil {
-			t.Fatalf("ReadDir(%s) error = %v", status, err)
+			t.Fatalf("ReadDir(%s) error = %v", directory.Name(), err)
 		}
 		for _, entry := range entries {
 			if entry.Type().IsRegular() {

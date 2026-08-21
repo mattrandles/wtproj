@@ -66,9 +66,9 @@ type HandoffMetrics struct {
 	TaskScoped     int `json:"taskScoped"`
 }
 
-// Report is the renderer-neutral stats result. StatusCounts always contains
-// todo, inProgress, paused, and done in that order, including zero-count
-// buckets. Other categorical slices contain observed values only.
+// Report is the renderer-neutral stats result. StatusCounts contains every
+// status in the active catalog order, including zero-count buckets. Other
+// categorical slices contain observed values only.
 type Report struct {
 	Status       string            `json:"status,omitempty"`
 	TotalTasks   int               `json:"totalTasks"`
@@ -95,7 +95,8 @@ type FocusedReport struct {
 // is passed through the provider's existing TaskFilter; provider and storage
 // interfaces are intentionally unchanged.
 type Options struct {
-	Status *core.Status
+	Status  *core.Status
+	Catalog core.StatusCatalog
 }
 
 // Aggregate loads tasks and retained handoffs from p and returns their
@@ -107,9 +108,16 @@ func Aggregate(p provider.Provider, options Options) (Report, error) {
 		return Report{}, fmt.Errorf("stats provider is nil")
 	}
 
+	catalog := options.Catalog
+	if len(catalog.Statuses()) == 0 {
+		catalog = p.StatusCatalog()
+	}
+	if len(catalog.Statuses()) == 0 {
+		catalog = core.DefaultStatusCatalog()
+	}
 	filter := provider.TaskFilter{}
 	if options.Status != nil {
-		status, err := core.ParseStatus(string(*options.Status))
+		status, err := catalog.ParseStatus(string(*options.Status))
 		if err != nil {
 			return Report{}, err
 		}
@@ -127,7 +135,7 @@ func Aggregate(p provider.Provider, options Options) (Report, error) {
 
 	report := Report{
 		TotalTasks:   len(tasks),
-		StatusCounts: statusBuckets(tasks),
+		StatusCounts: statusBuckets(tasks, catalog),
 		Attributes: Attributes{
 			Model:    textBuckets(tasks, func(task core.TaskView) string { return task.Model }),
 			Lane:     textBuckets(tasks, func(task core.TaskView) string { return task.Lane }),
@@ -196,15 +204,19 @@ func (r Report) Focus(attribute Attribute) FocusedReport {
 	return focused
 }
 
-func statusBuckets(tasks []core.TaskView) []Bucket {
+func statusBuckets(tasks []core.TaskView, catalogs ...core.StatusCatalog) []Bucket {
+	catalog := core.DefaultStatusCatalog()
+	if len(catalogs) > 0 && len(catalogs[0].Statuses()) > 0 {
+		catalog = catalogs[0]
+	}
 	counts := map[core.Status]int{}
 	for _, task := range tasks {
 		counts[task.Status]++
 	}
-	statuses := []core.Status{core.StatusTodo, core.StatusInProgress, core.StatusPaused, core.StatusDone}
-	result := make([]Bucket, 0, len(statuses))
-	for _, status := range statuses {
-		result = append(result, Bucket{Value: string(status), Count: counts[status]})
+	definitions := catalog.Statuses()
+	result := make([]Bucket, 0, len(definitions))
+	for _, definition := range definitions {
+		result = append(result, Bucket{Value: string(definition.Name), Count: counts[definition.Name]})
 	}
 	return result
 }

@@ -1,0 +1,31 @@
+{
+  "id": "d18c72b8-dadf-4872-bf30-568b22a40ee7",
+  "shortId": "wtp-0d6e4079-0015",
+  "title": "Senior audit of configurable-status integration and compatibility",
+  "description": "Perform a focused senior review after the Luna implementation tasks complete. Verify the configured catalog is invocation-scoped rather than global; no-config projects retain the exact four-state public and storage contract; status directory scans cannot hide live records; status changes are atomic and recovery-safe; waiting/blocked cannot be auto-claimed; only done unblocks dependencies; and stats/output ordering are deterministic. Run targeted edge-case tests plus go test ./... and the commit verification script. Make only narrowly scoped corrections needed to resolve review findings, then record commands and results in the completion comment. Do not redesign the approved additionalStatuses contract or introduce Sol work.",
+  "priority": "high",
+  "estimate": "xs",
+  "lane": "review",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "835f4d70-04c8-4333-96b8-7f34a2cfaa84"
+  ],
+  "comments": [
+    {
+      "id": "65aca79f-acf9-4a41-9fe5-9addc1be2d7f",
+      "author": "codex-wtp-loop",
+      "message": "Senior audit complete: no corrections needed. Verified invocation-scoped immutable catalog; four-state no-config storage/output; unknown live status directories fail safely; atomic write/status-move residue recovery; waiting/blocked/failed excluded from automatic claims; only done resolves dependencies; deterministic catalog/lexical/canonical stats ordering. Commands passed: targeted core/config/app/flatfile/stats/cli edge tests; go test ./...; go vet ./...; git diff --check; ./scripts/verify.sh (smoke and commit verification).",
+      "createdAt": "2026-08-21T14:50:19.650102836Z"
+    }
+  ],
+  "createdAt": "2026-08-21T13:58:10.958509852Z",
+  "updatedAt": "2026-08-21T14:50:27.513624736Z",
+  "startedAt": "2026-08-21T14:48:47.671369868Z",
+  "completedAt": "2026-08-21T14:50:27.513624736Z"
+}

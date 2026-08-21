@@ -85,11 +85,48 @@ func TestAggregateRejectsInvalidStatusAndProviderErrors(t *testing.T) {
 	}
 }
 
+func TestAggregateUsesOrderedCatalogWithZeroBuckets(t *testing.T) {
+	catalog, err := core.NewStatusCatalog([]core.StatusDefinition{
+		{Name: "waitingForReview", Category: core.StatusCategoryWaiting},
+		{Name: "blockedByReview", Category: core.StatusCategoryBlocked},
+	})
+	if err != nil {
+		t.Fatalf("NewStatusCatalog() error = %v", err)
+	}
+	waiting := core.Status("waitingForReview")
+	report, err := Aggregate(fakeProvider{catalog: catalog, tasks: []core.TaskView{
+		{Task: core.Task{ID: "task-1", Status: core.StatusTodo}},
+		{Task: core.Task{ID: "task-2", Status: waiting}},
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("Aggregate() error = %v", err)
+	}
+	want := []Bucket{
+		{Value: "todo", Count: 1},
+		{Value: "inProgress", Count: 0},
+		{Value: "paused", Count: 0},
+		{Value: "done", Count: 0},
+		{Value: "waitingForReview", Count: 1},
+		{Value: "blockedByReview", Count: 0},
+	}
+	if !reflect.DeepEqual(report.StatusCounts, want) {
+		t.Fatalf("StatusCounts = %#v, want %#v", report.StatusCounts, want)
+	}
+}
+
 type fakeProvider struct {
+	catalog         core.StatusCatalog
 	tasks           []core.TaskView
 	handoffs        []core.Handoff
 	listTasksErr    error
 	listHandoffsErr error
+}
+
+func (p fakeProvider) StatusCatalog() core.StatusCatalog {
+	if len(p.catalog.Statuses()) == 0 {
+		return core.DefaultStatusCatalog()
+	}
+	return p.catalog
 }
 
 func (p fakeProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {

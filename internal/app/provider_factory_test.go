@@ -95,3 +95,19 @@ func TestNewProviderCopiesInvocationScopeIntoFlatfileProvider(t *testing.T) {
 		t.Fatalf("InvocationScope() changed after caller mutation: %#v", got)
 	}
 }
+
+func TestNewProviderPropagatesStatusCatalog(t *testing.T) {
+	p, err := NewProvider(t.TempDir(), config.Config{
+		AdditionalStatuses: []config.AdditionalStatus{{Name: "needsReview", Category: core.StatusCategoryWaiting}},
+	}, nil)
+	if err != nil {
+		t.Fatalf("NewProvider() error = %v", err)
+	}
+	withCatalog, ok := p.(interface{ StatusCatalog() core.StatusCatalog })
+	if !ok {
+		t.Fatalf("provider %T does not expose its status catalog", p)
+	}
+	if !withCatalog.StatusCatalog().Contains("needsReview") {
+		t.Fatal("provider did not receive configured additional status")
+	}
+}

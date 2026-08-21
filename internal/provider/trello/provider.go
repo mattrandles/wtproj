@@ -12,10 +12,11 @@ import (
 )
 
 type runtimeConfig struct {
-	APIKey string
-	Token  string
-	Board  string
-	Lists  map[core.Status]string
+	APIKey  string
+	Token   string
+	Board   string
+	Lists   map[core.Status]string
+	Catalog core.StatusCatalog
 }
 
 func New(cfg config.Config) (provider.Provider, error) {
@@ -26,11 +27,9 @@ func New(cfg config.Config) (provider.Provider, error) {
 }
 
 func resolveConfig(cfg config.Config) (runtimeConfig, error) {
-	requiredStatuses := []core.Status{
-		core.StatusTodo,
-		core.StatusInProgress,
-		core.StatusPaused,
-		core.StatusDone,
+	catalog, err := cfg.StatusCatalog()
+	if err != nil {
+		return runtimeConfig{}, fmt.Errorf("status configuration: %w", err)
 	}
 	if cfg.APIKeyEnv == "" {
 		return runtimeConfig{}, errors.New("trello provider requires apiKeyEnv in .wtp.json")
@@ -51,9 +50,11 @@ func resolveConfig(cfg config.Config) (runtimeConfig, error) {
 		return runtimeConfig{}, fmt.Errorf("trello provider token: %w", err)
 	}
 
-	lists := make(map[core.Status]string, len(requiredStatuses))
+	definitions := catalog.Statuses()
+	lists := make(map[core.Status]string, len(definitions))
 	missing := []string{}
-	for _, status := range requiredStatuses {
+	for _, definition := range definitions {
+		status := definition.Name
 		value := cfg.ListIDs[string(status)]
 		if value == "" {
 			missing = append(missing, string(status))
@@ -67,9 +68,10 @@ func resolveConfig(cfg config.Config) (runtimeConfig, error) {
 	}
 
 	return runtimeConfig{
-		APIKey: apiKey,
-		Token:  token,
-		Board:  cfg.BoardID,
-		Lists:  lists,
+		APIKey:  apiKey,
+		Token:   token,
+		Board:   cfg.BoardID,
+		Lists:   lists,
+		Catalog: catalog,
 	}, nil
 }

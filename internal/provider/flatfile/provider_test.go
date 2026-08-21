@@ -46,6 +46,232 @@ func TestCreateAndResolveByShortID(t *testing.T) {
 	}
 }
 
+func TestCustomStatusDirectoriesPersistAndMove(t *testing.T) {
+	catalog := testCustomStatusCatalog(t)
+	root := t.TempDir()
+	p, err := flatfile.NewWithCatalog(root, nil, catalog)
+	if err != nil {
+		t.Fatalf("NewWithCatalog() error = %v", err)
+	}
+	for _, status := range []core.Status{"todo", "inProgress", "paused", "done", "waitingForReview", "vendorBlocked", "verificationFailed"} {
+		if info, err := os.Stat(filepath.Join(root, string(status))); err != nil || !info.IsDir() {
+			t.Fatalf("status directory %s missing: info=%v err=%v", status, info, err)
+		}
+	}
+
+	task, err := p.CreateTask(core.CreateTaskInput{Title: "Custom status task"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	waiting, err := p.UpdateTaskStatus(task.ShortID, "waitingForReview", "Reviewer")
+	if err != nil {
+		t.Fatalf("UpdateTaskStatus(waitingForReview) error = %v", err)
+	}
+	if waiting.Status != "waitingForReview" || waiting.Assignee != "Reviewer" || waiting.StartedAt == nil || waiting.CompletedAt != nil {
+		t.Fatalf("waiting task lifecycle = %#v", waiting.Task)
+	}
+	if _, err := os.Stat(filepath.Join(root, "waitingForReview", task.ShortID+".json")); err != nil {
+		t.Fatalf("custom status file missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "todo", task.ShortID+".json")); !os.IsNotExist(err) {
+		t.Fatalf("todo source remains after custom move: %v", err)
+	}
+
+	reopened, err := flatfile.NewWithCatalog(root, nil, catalog)
+	if err != nil {
+		t.Fatalf("reopen with catalog error = %v", err)
+	}
+	got, err := reopened.GetTask(task.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask() after reopen error = %v", err)
+	}
+	if got.Status != waiting.Status || got.Assignee != waiting.Assignee {
+		t.Fatalf("reopened custom task = %#v, want status %s and assignee %s", got.Task, waiting.Status, waiting.Assignee)
+	}
+}
+
+func TestCustomStatusTransitionsNormalizeLifecycleAndReopenTerminalStates(t *testing.T) {
+	p := newCustomProvider(t)
+	task, err := p.CreateTask(core.CreateTaskInput{Title: "Lifecycle task"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	waiting, err := p.UpdateTaskStatus(task.ShortID, "waitingForReview", "Reviewer")
+	if err != nil {
+		t.Fatalf("to waiting error = %v", err)
+	}
+	failed, err := p.UpdateTaskStatus(task.ShortID, "verificationFailed", "Reviewer")
+	if err != nil {
+		t.Fatalf("to failed error = %v", err)
+	}
+	if failed.StartedAt == nil || failed.CompletedAt == nil || !failed.CompletedAt.After(*failed.StartedAt) && !failed.CompletedAt.Equal(*failed.StartedAt) {
+		t.Fatalf("failed lifecycle = started %v completed %v", failed.StartedAt, failed.CompletedAt)
+	}
+	reopened, err := p.UpdateTaskStatus(task.ShortID, core.StatusTodo, "Reviewer")
+	if err != nil {
+		t.Fatalf("reopen failed task error = %v", err)
+	}
+	if reopened.StartedAt != nil || reopened.CompletedAt != nil {
+		t.Fatalf("reopened todo retained lifecycle timestamps: %#v", reopened.Task)
+	}
+	done, err := p.UpdateTaskStatus(task.ShortID, core.StatusDone, "Reviewer")
+	if err != nil {
+		t.Fatalf("todo to done error = %v", err)
+	}
+	if done.StartedAt == nil || done.CompletedAt == nil {
+		t.Fatalf("done lifecycle = %#v", done.Task)
+	}
+	waitingAgain, err := p.UpdateTaskStatus(task.ShortID, "waitingForReview", "Reviewer")
+	if err != nil {
+		t.Fatalf("reopen done task error = %v", err)
+	}
+	if waitingAgain.StartedAt == nil || waitingAgain.CompletedAt != nil {
+		t.Fatalf("reopened waiting lifecycle = %#v", waitingAgain.Task)
+	}
+	if !waitingAgain.UpdatedAt.After(waiting.UpdatedAt) {
+		t.Fatalf("status-plus-metadata update did not advance updatedAt: before=%v after=%v", waiting.UpdatedAt, waitingAgain.UpdatedAt)
+	}
+}
+
+func TestFailedDependencyDoesNotResolveReadiness(t *testing.T) {
+	p := newCustomProvider(t)
+	dependency, err := p.CreateTask(core.CreateTaskInput{Title: "Failed dependency"})
+	if err != nil {
+		t.Fatalf("CreateTask(dependency) error = %v", err)
+	}
+	target, err := p.CreateTask(core.CreateTaskInput{Title: "Dependent task", Dependencies: []string{dependency.ShortID}})
+	if err != nil {
+		t.Fatalf("CreateTask(target) error = %v", err)
+	}
+	if _, err := p.UpdateTaskStatus(dependency.ShortID, "verificationFailed", "Reviewer"); err != nil {
+		t.Fatalf("fail dependency error = %v", err)
+	}
+	view, err := p.GetTask(target.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(target) error = %v", err)
+	}
+	if !view.Readiness.Blocked || view.Readiness.Claimable {
+		t.Fatalf("dependent readiness after failure = %#v, want blocked and not claimable", view.Readiness)
+	}
+	if _, err := p.UpdateTaskStatus(target.ShortID, core.StatusInProgress, "Reviewer"); err == nil || !strings.Contains(err.Error(), "unresolved dependencies") {
+		t.Fatalf("starting dependent task error = %v, want unresolved dependency error", err)
+	}
+}
+
+func TestCustomNonSelectableStatusesExcludedFromReadyAndNext(t *testing.T) {
+	p := newCustomProvider(t)
+	for _, status := range []core.Status{"waitingForReview", "vendorBlocked", "verificationFailed"} {
+		task, err := p.CreateTask(core.CreateTaskInput{Title: string(status)})
+		if err != nil {
+			t.Fatalf("CreateTask(%s) error = %v", status, err)
+		}
+		if _, err := p.UpdateTaskStatus(task.ShortID, status, "Reviewer"); err != nil {
+			t.Fatalf("UpdateTaskStatus(%s) error = %v", status, err)
+		}
+	}
+	if _, err := p.PeekNextTask("Reviewer"); !errors.Is(err, provider.ErrNoEligibleTask) {
+		t.Fatalf("PeekNextTask() error = %v, want no eligible task", err)
+	}
+	if _, err := p.GetNextTask("Reviewer"); !errors.Is(err, provider.ErrNoEligibleTask) {
+		t.Fatalf("GetNextTask() error = %v, want no eligible task", err)
+	}
+}
+
+func TestCustomStatusMigrationAndRecoveryResidue(t *testing.T) {
+	catalog := testCustomStatusCatalog(t)
+	root := t.TempDir()
+	p, err := flatfile.NewWithCatalog(root, nil, catalog)
+	if err != nil {
+		t.Fatalf("NewWithCatalog() error = %v", err)
+	}
+	task, err := p.CreateTask(core.CreateTaskInput{Title: "Migrated custom task"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	legacyPath := filepath.Join(root, "todo", task.ID+".json")
+	data, err := os.ReadFile(filepath.Join(root, "todo", task.ShortID+".json"))
+	if err != nil {
+		t.Fatalf("read canonical task: %v", err)
+	}
+	if err := os.WriteFile(legacyPath, data, 0o644); err != nil {
+		t.Fatalf("write legacy task: %v", err)
+	}
+	if _, err := flatfile.NewWithCatalog(root, nil, catalog); err != nil {
+		t.Fatalf("custom filename migration error = %v", err)
+	}
+	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
+		t.Fatalf("legacy custom-layout filename remains: %v", err)
+	}
+
+	updated, err := p.UpdateTaskStatus(task.ShortID, "waitingForReview", "Reviewer")
+	if err != nil {
+		t.Fatalf("move to custom status error = %v", err)
+	}
+	old := task.Task
+	if err := writeTaskJSONForTest(root, old); err != nil {
+		t.Fatalf("write custom recovery residue: %v", err)
+	}
+	listed, err := p.ListTasks(provider.TaskFilter{})
+	if err != nil {
+		t.Fatalf("ListTasks() with custom residue error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].Status != updated.Status {
+		t.Fatalf("custom residue winner = %#v, want %s", listed, updated.Status)
+	}
+	if _, err := os.Stat(filepath.Join(root, "todo", task.ShortID+".json")); !os.IsNotExist(err) {
+		t.Fatalf("custom recovery residue remains: %v", err)
+	}
+}
+
+func TestCustomTaskRejectedWhenStatusConfigurationIsStale(t *testing.T) {
+	catalog := testCustomStatusCatalog(t)
+	root := t.TempDir()
+	p, err := flatfile.NewWithCatalog(root, nil, catalog)
+	if err != nil {
+		t.Fatalf("NewWithCatalog() error = %v", err)
+	}
+	task, err := p.CreateTask(core.CreateTaskInput{Title: "Stale configuration task"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := p.UpdateTaskStatus(task.ShortID, "waitingForReview", "Reviewer"); err != nil {
+		t.Fatalf("custom status move error = %v", err)
+	}
+	if _, err := flatfile.New(root, nil); err == nil || !strings.Contains(err.Error(), "absent from active configuration") {
+		t.Fatalf("New() with stale status configuration error = %v", err)
+	}
+}
+
+func testCustomStatusCatalog(t *testing.T) core.StatusCatalog {
+	t.Helper()
+	catalog, err := core.NewStatusCatalog([]core.StatusDefinition{
+		{Name: "waitingForReview", Category: core.StatusCategoryWaiting},
+		{Name: "vendorBlocked", Category: core.StatusCategoryBlocked},
+		{Name: "verificationFailed", Category: core.StatusCategoryFailed},
+	})
+	if err != nil {
+		t.Fatalf("NewStatusCatalog() error = %v", err)
+	}
+	return catalog
+}
+
+func newCustomProvider(t *testing.T) provider.Provider {
+	t.Helper()
+	p, err := flatfile.NewWithCatalog(t.TempDir(), nil, testCustomStatusCatalog(t))
+	if err != nil {
+		t.Fatalf("NewWithCatalog() error = %v", err)
+	}
+	return p
+}
+
+func writeTaskJSONForTest(root string, task core.Task) error {
+	data, err := json.MarshalIndent(task, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(root, string(task.Status), task.ShortID+".json"), append(data, '\n'), 0o644)
+}
+
 func TestCreateTaskReturnsReadinessAgainstExistingDependencies(t *testing.T) {
 	p := newProvider(t)
 

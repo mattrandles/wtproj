@@ -17,13 +17,6 @@ import (
 	"github.com/mattrandles/wtproj/internal/provider"
 )
 
-var statusOrder = []core.Status{
-	core.StatusTodo,
-	core.StatusInProgress,
-	core.StatusPaused,
-	core.StatusDone,
-}
-
 var canonicalExportFilenamePattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$`)
 
 type indexFile struct {
@@ -37,6 +30,7 @@ type indexFile struct {
 type Provider struct {
 	root            string
 	invocationScope *core.BranchScope
+	catalog         core.StatusCatalog
 	fs              fileSystem
 }
 
@@ -44,7 +38,16 @@ type Provider struct {
 // the legacy global namespace. A supplied scope is copied so later caller
 // changes cannot alter the provider's namespace.
 func New(root string, invocationScope *core.BranchScope) (*Provider, error) {
-	p := &Provider{root: root, fs: defaultFileSystem()}
+	return NewWithCatalog(root, invocationScope, core.DefaultStatusCatalog())
+}
+
+// NewWithCatalog initializes flat-file storage for one invocation with its
+// immutable status catalog. New remains the legacy-default wrapper.
+func NewWithCatalog(root string, invocationScope *core.BranchScope, catalog core.StatusCatalog) (*Provider, error) {
+	if len(catalog.Statuses()) == 0 {
+		catalog = core.DefaultStatusCatalog()
+	}
+	p := &Provider{root: root, catalog: catalog, fs: defaultFileSystem()}
 	if invocationScope != nil {
 		scope := *invocationScope
 		p.invocationScope = &scope
@@ -54,6 +57,9 @@ func New(root string, invocationScope *core.BranchScope) (*Provider, error) {
 	}
 	return p, nil
 }
+
+// StatusCatalog returns the catalog captured by this provider.
+func (p *Provider) StatusCatalog() core.StatusCatalog { return p.catalog }
 
 // InvocationScope returns a copy of the scope captured when this provider was
 // initialized. A nil result preserves the legacy global namespace.
@@ -66,14 +72,9 @@ func (p *Provider) InvocationScope() *core.BranchScope {
 }
 
 func (p *Provider) ensureLayout() error {
-	dirs := []string{
-		p.root,
-		p.statusDir(core.StatusTodo),
-		p.statusDir(core.StatusInProgress),
-		p.statusDir(core.StatusPaused),
-		p.statusDir(core.StatusDone),
-		filepath.Join(p.root, "meta"),
-		filepath.Join(p.root, "meta", "locks"),
+	dirs := []string{p.root, filepath.Join(p.root, "meta"), filepath.Join(p.root, "meta", "locks")}
+	for _, status := range p.statuses() {
+		dirs = append(dirs, p.statusDir(status))
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -81,6 +82,9 @@ func (p *Provider) ensureLayout() error {
 		}
 	}
 	return p.withGlobalLock(func() error {
+		if err := p.validateUnconfiguredStatusDirs(); err != nil {
+			return err
+		}
 		indexPath := p.indexPath()
 		if _, err := os.Stat(indexPath); errors.Is(err, os.ErrNotExist) {
 			if err := p.writeIndex(p.initialIndex()); err != nil {
@@ -93,6 +97,59 @@ func (p *Provider) ensureLayout() error {
 		}
 		return p.migrateTaskFilenames()
 	})
+}
+
+// statuses returns the configured on-disk directory order. The catalog always
+// contains the four legacy states first, so the no-additional-states layout
+// remains byte-for-byte compatible with the legacy provider.
+func (p *Provider) statuses() []core.Status {
+	definitions := p.catalog.Statuses()
+	statuses := make([]core.Status, len(definitions))
+	for index, definition := range definitions {
+		statuses[index] = definition.Name
+	}
+	return statuses
+}
+
+func (p *Provider) validateUnconfiguredStatusDirs() error {
+	entries, err := os.ReadDir(p.root)
+	if err != nil {
+		return fmt.Errorf("read flat-file storage root %s: %w", p.root, err)
+	}
+	configured := make(map[string]struct{}, len(p.statuses()))
+	for _, status := range p.statuses() {
+		configured[string(status)] = struct{}{}
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "meta" {
+			continue
+		}
+		if _, ok := configured[entry.Name()]; ok {
+			continue
+		}
+		dir := filepath.Join(p.root, entry.Name())
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			return fmt.Errorf("read unconfigured status directory %s: %w", dir, err)
+		}
+		for _, file := range files {
+			if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") {
+				continue
+			}
+			path := filepath.Join(dir, file.Name())
+			var task struct {
+				Status core.Status `json:"status"`
+			}
+			if err := readJSON(path, &task); err != nil {
+				return fmt.Errorf("corrupt task file %s: %w", path, err)
+			}
+			if _, err := p.catalog.ParseStatus(string(task.Status)); err != nil {
+				return fmt.Errorf("task file %s uses status %q absent from active configuration", path, task.Status)
+			}
+			return fmt.Errorf("task file %s is stored in unconfigured status directory %s", path, entry.Name())
+		}
+	}
+	return nil
 }
 
 func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
@@ -158,7 +215,7 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 		if err != nil {
 			return err
 		}
-		if err := core.ValidateDependencies("", resolvedDependencies, tasks); err != nil {
+		if err := core.ValidateDependenciesWithCatalog(p.catalog, "", resolvedDependencies, tasks); err != nil {
 			return err
 		}
 		index, err := p.readIndex()
@@ -182,14 +239,20 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 			GitBranch:    strings.TrimSpace(input.GitBranch),
 			WorktreeName: strings.TrimSpace(input.WorktreeName),
 			WorktreeDir:  strings.TrimSpace(input.WorktreeDir),
-			Status:       core.StatusTodo,
+			Status:       input.Status,
 			Assignee:     strings.TrimSpace(input.Assignee),
 			Dependencies: resolvedDependencies,
 			Comments:     []core.Comment{},
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		}
-		if err := task.Validate(); err != nil {
+		if task.Status == "" {
+			task.Status = core.StatusTodo
+		}
+		if err := p.catalog.NormalizeTaskStatus(&task, task.Status, now); err != nil {
+			return err
+		}
+		if err := task.ValidateWithCatalog(p.catalog); err != nil {
 			return err
 		}
 		index.Next++
@@ -240,6 +303,11 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 		if input.Description.Set {
 			task.Description = strings.TrimSpace(input.Description.Value)
 		}
+		if input.Status.Set {
+			if !p.allowedStatusTransition(task.Status, input.Status.Value) {
+				return fmt.Errorf("invalid status transition from %s to %s", task.Status, input.Status.Value)
+			}
+		}
 		if input.Priority.Set {
 			task.Priority = input.Priority.Value
 		}
@@ -272,14 +340,25 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 			if err != nil {
 				return err
 			}
-			if err := core.ValidateDependencies(task.ID, resolvedDependencies, tasks); err != nil {
+			if err := core.ValidateDependenciesWithCatalog(p.catalog, task.ID, resolvedDependencies, tasks); err != nil {
 				return err
 			}
 			task.Dependencies = resolvedDependencies
 		}
 
-		task.UpdatedAt = time.Now().UTC()
-		if err := task.Validate(); err != nil {
+		now := time.Now().UTC()
+		if input.Status.Set {
+			if input.Status.Value == core.StatusInProgress {
+				if err := p.validateStartable(task, tasks); err != nil {
+					return err
+				}
+			}
+			if err := p.catalog.NormalizeTaskStatus(&task, input.Status.Value, now); err != nil {
+				return err
+			}
+		}
+		task.UpdatedAt = now
+		if err := task.ValidateWithCatalog(p.catalog); err != nil {
 			return err
 		}
 		if err := p.replaceTask(task); err != nil {
@@ -308,11 +387,11 @@ func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, acto
 		if err != nil {
 			return err
 		}
-		if !core.AllowedTransition(task.Status, target) {
+		if !p.allowedStatusTransition(task.Status, target) {
 			return fmt.Errorf("invalid status transition from %s to %s", task.Status, target)
 		}
 		if target == core.StatusInProgress {
-			if err := validateStartable(task, tasks); err != nil {
+			if err := p.validateStartable(task, tasks); err != nil {
 				return err
 			}
 			storedHandoffs, err := p.loadHandoffs()
@@ -322,18 +401,14 @@ func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, acto
 			handoffs = taskHandoffs(storedHandoffs, task.ID)
 		}
 		now := time.Now().UTC()
-		task.Status = target
 		task.UpdatedAt = now
 		if strings.TrimSpace(actor) != "" {
 			task.Assignee = strings.TrimSpace(actor)
 		}
-		if target == core.StatusInProgress && task.StartedAt == nil {
-			task.StartedAt = &now
+		if err := p.catalog.NormalizeTaskStatus(&task, target, now); err != nil {
+			return err
 		}
-		if target == core.StatusDone {
-			task.CompletedAt = &now
-		}
-		if err := task.Validate(); err != nil {
+		if err := task.ValidateWithCatalog(p.catalog); err != nil {
 			return err
 		}
 		if err := p.replaceTask(task); err != nil {
@@ -375,7 +450,7 @@ func (p *Provider) AddComment(idOrShortID, actor, message string) (core.TaskView
 			CreatedAt: now,
 		})
 		task.UpdatedAt = now
-		if err := task.Validate(); err != nil {
+		if err := task.ValidateWithCatalog(p.catalog); err != nil {
 			return err
 		}
 		if err := p.replaceTask(task); err != nil {
@@ -445,15 +520,14 @@ func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
 		handoffs = taskHandoffs(storedHandoffs, next.ID)
 
 		now := time.Now().UTC()
-		next.Status = core.StatusInProgress
 		next.UpdatedAt = now
 		if agent != "" {
 			next.Assignee = agent
 		}
-		if next.StartedAt == nil {
-			next.StartedAt = &now
+		if err := p.catalog.NormalizeTaskStatus(&next, core.StatusInProgress, now); err != nil {
+			return err
 		}
-		if err := next.Validate(); err != nil {
+		if err := next.ValidateWithCatalog(p.catalog); err != nil {
 			return err
 		}
 		if err := p.replaceTask(next); err != nil {
@@ -593,11 +667,14 @@ func pathContains(parent, child string) bool {
 }
 
 func (p *Provider) loadTasks() ([]core.Task, error) {
+	if err := p.validateUnconfiguredStatusDirs(); err != nil {
+		return nil, err
+	}
 	tasksByID := make(map[string]core.Task)
 	pathsByID := make(map[string]string)
 	idsByShortID := make(map[string]string)
 	var residuePaths []string
-	for _, status := range statusOrder {
+	for _, status := range p.statuses() {
 		dir := p.statusDir(status)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -615,7 +692,7 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 			if task.Status != status {
 				return nil, fmt.Errorf("task file %s status %s does not match directory %s", path, task.Status, status)
 			}
-			if err := task.Validate(); err != nil {
+			if err := task.ValidateWithCatalog(p.catalog); err != nil {
 				return nil, fmt.Errorf("invalid task file %s: %w", path, err)
 			}
 			if !isTaskFilename(entry.Name(), task) {
@@ -647,7 +724,7 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 				older, newer = task, existing
 				olderPath, newerPath = path, pathsByID[task.ID]
 			}
-			if !isStatusMoveResidue(older, newer) {
+			if !p.isStatusMoveResidue(older, newer) {
 				return nil, fmt.Errorf("duplicate canonical task id %s in %s and %s is not valid status-move residue", task.ID, olderPath, newerPath)
 			}
 			tasksByID[task.ID] = newer
@@ -669,7 +746,7 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 	for _, task := range tasksByID {
 		tasks = append(tasks, task)
 	}
-	if err := core.ValidateDependencies("", nil, tasks); err != nil {
+	if err := core.ValidateDependenciesWithCatalog(p.catalog, "", nil, tasks); err != nil {
 		return nil, fmt.Errorf("invalid dependency graph: %w", err)
 	}
 	return tasks, nil
@@ -682,7 +759,7 @@ func (p *Provider) replaceTask(task core.Task) error {
 	}
 	faultPoint("status-move-publication")
 
-	for _, status := range statusOrder {
+	for _, status := range p.statuses() {
 		for _, filename := range taskFilenames(task) {
 			path := p.taskPath(status, filename)
 			if path == targetPath {
@@ -797,7 +874,7 @@ func (p *Provider) migrateTaskFilenames() error {
 	var migrations []migration
 	tasksByPath := make(map[string]core.Task)
 
-	for _, status := range statusOrder {
+	for _, status := range p.statuses() {
 		dir := p.statusDir(status)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -815,7 +892,7 @@ func (p *Provider) migrateTaskFilenames() error {
 			if task.Status != status {
 				return fmt.Errorf("task file %s status %s does not match directory %s", currentPath, task.Status, status)
 			}
-			if err := task.Validate(); err != nil {
+			if err := task.ValidateWithCatalog(p.catalog); err != nil {
 				return fmt.Errorf("invalid task file %s: %w", currentPath, err)
 			}
 			tasksByPath[currentPath] = task
@@ -855,8 +932,16 @@ func (p *Provider) migrateTaskFilenames() error {
 	return nil
 }
 
-func isStatusMoveResidue(older, newer core.Task) bool {
-	if older.ID != newer.ID || older.ShortID != newer.ShortID || !core.AllowedTransition(older.Status, newer.Status) {
+func (p *Provider) allowedStatusTransition(from, to core.Status) bool {
+	if len(p.statuses()) > 4 {
+		_, err := p.catalog.ParseStatus(string(to))
+		return err == nil
+	}
+	return core.AllowedTransition(from, to)
+}
+
+func (p *Provider) isStatusMoveResidue(older, newer core.Task) bool {
+	if older.ID != newer.ID || older.ShortID != newer.ShortID || older.Status == newer.Status || !p.allowedStatusTransition(older.Status, newer.Status) {
 		return false
 	}
 	want := older
@@ -893,11 +978,11 @@ func resolveTask(idOrShortID string, tasks []core.Task) (core.Task, error) {
 	return matches[0], nil
 }
 
-func validateStartable(task core.Task, tasks []core.Task) error {
+func (p *Provider) validateStartable(task core.Task, tasks []core.Task) error {
 	blocked := []string{}
 	for _, dependencyID := range task.Dependencies {
 		for _, candidate := range tasks {
-			if candidate.ID == dependencyID && candidate.Status != core.StatusDone {
+			if candidate.ID == dependencyID && !p.catalog.DependencyResolved(candidate.Status) {
 				blocked = append(blocked, fmt.Sprintf("%s (%s)", candidate.ShortID, candidate.Title))
 			}
 		}
@@ -929,10 +1014,10 @@ func (p *Provider) selectEligibleTasks(tasks []core.Task, agent string, limit in
 		if p.automaticSelectionTier(task) < 0 {
 			continue
 		}
-		if task.Status != core.StatusPaused && task.Status != core.StatusTodo {
+		if !p.catalog.IsClaimableStatus(task.Status) {
 			continue
 		}
-		if err := validateStartable(task, tasks); err == nil {
+		if err := p.validateStartable(task, tasks); err == nil {
 			eligible = append(eligible, task)
 		}
 	}
@@ -1021,7 +1106,7 @@ func (p *Provider) decorateTasks(tasks []core.Task, allTasks []core.Task, agent 
 }
 
 func (p *Provider) decorateTask(task core.Task, allTasks []core.Task, agent string) core.TaskView {
-	blockedReason := blockedReason(task, allTasks)
+	blockedReason := p.blockedReason(task, allTasks)
 	return core.TaskView{
 		Task: task,
 		Readiness: core.TaskReadiness{
@@ -1034,11 +1119,11 @@ func (p *Provider) decorateTask(task core.Task, allTasks []core.Task, agent stri
 	}
 }
 
-func blockedReason(task core.Task, tasks []core.Task) string {
+func (p *Provider) blockedReason(task core.Task, tasks []core.Task) string {
 	blocked := []string{}
 	for _, dependencyID := range task.Dependencies {
 		for _, candidate := range tasks {
-			if candidate.ID == dependencyID && candidate.Status != core.StatusDone {
+			if candidate.ID == dependencyID && !p.catalog.DependencyResolved(candidate.Status) {
 				blocked = append(blocked, fmt.Sprintf("%s (%s)", candidate.ShortID, candidate.Title))
 			}
 		}
@@ -1054,10 +1139,10 @@ func (p *Provider) isClaimable(task core.Task, tasks []core.Task, agent string) 
 	if p.automaticSelectionTier(task) < 0 {
 		return false
 	}
-	if task.Status != core.StatusPaused && task.Status != core.StatusTodo {
+	if !p.catalog.IsClaimableStatus(task.Status) {
 		return false
 	}
-	if blockedReason(task, tasks) != "" {
+	if p.blockedReason(task, tasks) != "" {
 		return false
 	}
 	agent = strings.TrimSpace(agent)
@@ -1170,14 +1255,3 @@ func (p *Provider) removeFile(path string) error {
 }
 
 var _ provider.Provider = (*Provider)(nil)
-
-func init() {
-	if !slices.Equal(statusOrder, []core.Status{
-		core.StatusTodo,
-		core.StatusInProgress,
-		core.StatusPaused,
-		core.StatusDone,
-	}) {
-		panic("unexpected status order")
-	}
-}
