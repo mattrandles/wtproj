@@ -1,0 +1,37 @@
+{
+  "id": "960434a7-0e8b-455f-a8c3-fae58e07e4c8",
+  "shortId": "wtp-0d6e4079-0009",
+  "title": "Test stats command and report edge cases",
+  "description": "Add focused CLI tests for the new stats report and command contract. Cover human and JSON output for empty and mixed task stores; all four status counts and filtered scopes; categorical buckets and canonical/lexical ordering; explicit unset metadata; comment and dependency metrics; global/task-scoped handoffs and filtered relevant-versus-total handoff counts. Exercise every valid invocation form plus invalid status, unknown attribute, reversed selector order, and excess arguments. Update provider test doubles only as needed and keep existing behavior regression-tested. Finish by running go test ./....",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "testing",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "c1e91168-db5f-497e-b4b8-c5b77e66f64b"
+  ],
+  "comments": [
+    {
+      "id": "fe3c85fa-886c-4c41-bd8c-3c48360fbcd7",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the stats implementation and current CLI seam; existing coverage is sparse. Expanding focused tests for all invocation forms, empty/mixed reports, ordering, metadata metrics, handoff scope filtering, and invalid selectors.",
+      "createdAt": "2026-08-21T11:49:56.291767327Z"
+    },
+    {
+      "id": "db911d68-1f6d-4254-9110-132fa44caff7",
+      "author": "codex-wtp-loop",
+      "message": "Added comprehensive stats CLI coverage: empty and mixed human/JSON reports, all four status buckets and filtered scopes, canonical/lexical ordering with unset values, comments/dependencies, handoff relevance totals, all valid forms, and invalid argument rejection. go test ./... passes.",
+      "createdAt": "2026-08-21T11:53:36.298199431Z"
+    }
+  ],
+  "createdAt": "2026-08-21T11:28:31.696827694Z",
+  "updatedAt": "2026-08-21T11:53:43.04358136Z",
+  "startedAt": "2026-08-21T11:48:54.334620731Z",
+  "completedAt": "2026-08-21T11:53:43.04358136Z"
+}

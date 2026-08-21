@@ -1,0 +1,37 @@
+{
+  "id": "e4ab0482-7b8e-44a5-a237-bd255fd92287",
+  "shortId": "wtp-0d6e4079-0010",
+  "title": "Document stats command",
+  "description": "Update CLI help text and README command reference for wtp stats. Document the four supported invocation forms, valid statuses and attributes, overview versus focused-report behavior, unset categorical values, dependency/comment definitions, and status-filtered handoff accounting. Include concise examples for the overview, model breakdown, and status-scoped model breakdown. Keep the documentation aligned with the implemented JSON contract and existing CLI style; do not describe unsupported generic attributes or historical handoffs.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "documentation",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "c1e91168-db5f-497e-b4b8-c5b77e66f64b"
+  ],
+  "comments": [
+    {
+      "id": "a2a3fc35-3e08-495b-a9d2-ea89f6e69803",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the existing stats implementation/tests and identified documentation gaps: examples, metric definitions, and status-filtered handoff semantics.",
+      "createdAt": "2026-08-21T11:54:35.461961965Z"
+    },
+    {
+      "id": "94c71505-f352-496b-b9b8-7cffb5910063",
+      "author": "codex-wtp-loop",
+      "message": "Updated stats CLI help and README with four forms, valid selectors, report contracts, metric definitions, unset buckets, handoff filtering, and examples; verification passed.",
+      "createdAt": "2026-08-21T11:56:11.56032602Z"
+    }
+  ],
+  "createdAt": "2026-08-21T11:28:36.923807491Z",
+  "updatedAt": "2026-08-21T11:56:11.601561885Z",
+  "startedAt": "2026-08-21T11:53:52.87154133Z",
+  "completedAt": "2026-08-21T11:56:11.601561885Z"
+}

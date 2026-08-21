@@ -1,0 +1,35 @@
+{
+  "id": "6c23b255-566f-40ea-93b0-96649e04d14a",
+  "shortId": "wtp-0d6e4079-0007",
+  "title": "Implement stats aggregation model",
+  "description": "Create the internal stats report types and aggregation helpers for the approved wtp stats feature. Use Provider.ListTasks plus ListHandoffs; do not alter provider/storage interfaces. Support optional status-scoped task selection; overview metrics (total tasks, canonical status counts, model counts, dependency summary, retained handoffs); categorical attributes model/lane/priority/estimate/assignee with empty values represented as an unset bucket; comments metrics (tasks with comments and total records); dependencies metrics (tasks with direct dependencies and independent tasks). For filtered handoffs, include global records plus task-scoped records for selected tasks and preserve an all-status total when different. Ensure deterministic ordering (status/priority/estimate canonical, free text lexical). Keep the report shape suitable for human and JSON renderers.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c78f23fd-e70d-4368-97e4-89c0e5deef35",
+      "author": "codex-wtp-loop",
+      "message": "Inspected repository guidance and downstream stats task contracts; implementing a renderer-neutral internal stats report with deterministic ordered buckets and filtered handoff accounting.",
+      "createdAt": "2026-08-21T11:36:55.375674038Z"
+    },
+    {
+      "id": "a2f335d2-6194-412c-ba01-2addf549777d",
+      "author": "codex-wtp-loop",
+      "message": "Implemented internal/stats aggregation model and focused tests: deterministic status/priority/estimate/free-text buckets, unset values, comments/dependencies, and filtered handoff totals. Verification: git diff --check, go test -race ./internal/stats, and go test ./... all pass.",
+      "createdAt": "2026-08-21T11:40:53.114870435Z"
+    }
+  ],
+  "createdAt": "2026-08-21T11:28:10.744587791Z",
+  "updatedAt": "2026-08-21T11:41:00.493626876Z",
+  "startedAt": "2026-08-21T11:35:40.445505527Z",
+  "completedAt": "2026-08-21T11:41:00.493626876Z"
+}

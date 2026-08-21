@@ -1,0 +1,37 @@
+{
+  "id": "c1e91168-db5f-497e-b4b8-c5b77e66f64b",
+  "shortId": "wtp-0d6e4079-0008",
+  "title": "Wire stats CLI parsing and output",
+  "description": "Build the wtp stats command on top of the aggregation report. Register it in the root dispatcher and support root --json. Accept exactly: wtp stats, wtp stats STATUS, wtp stats ATTRIBUTE, and wtp stats STATUS ATTRIBUTE; STATUS is todo/inProgress/paused/done and must precede ATTRIBUTE. Supported attributes are model, lane, priority, estimate, assignee, comments, dependencies. Reject reversed/unknown/extra arguments with clear usage. Bare and status-only calls render the full overview; attribute calls render only selected-task total plus the requested categorical breakdown or special metrics. Define stable, documented JSON fields for overview and focused reports, preserving empty strings in JSON buckets while text displays (unset). Keep behavior read-only.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "6c23b255-566f-40ea-93b0-96649e04d14a"
+  ],
+  "comments": [
+    {
+      "id": "0750c79b-4dae-4c42-9a3b-f9f2276168b4",
+      "author": "codex-wtp-loop",
+      "message": "Taking over CLI wiring: inspected repository guidance and existing stats aggregation; next I am implementing strict stats parsing/rendering and tests.",
+      "createdAt": "2026-08-21T11:41:58.062415201Z"
+    },
+    {
+      "id": "3b85e45e-cd7d-44a8-b976-250e7ed4ad7c",
+      "author": "codex-wtp-loop",
+      "message": "Implemented stats root dispatch, strict status/attribute parsing, overview and focused text/JSON renderers, stable focused report fields, empty-bucket handling, README/help documentation, and CLI regression tests. Verification: gofmt, git diff --check, go vet ./..., go test ./..., go test -race ./..., plus live stats smoke checks.",
+      "createdAt": "2026-08-21T11:48:43.679990707Z"
+    }
+  ],
+  "createdAt": "2026-08-21T11:28:25.338253899Z",
+  "updatedAt": "2026-08-21T11:48:43.714230631Z",
+  "startedAt": "2026-08-21T11:41:11.36286712Z",
+  "completedAt": "2026-08-21T11:48:43.714230631Z"
+}

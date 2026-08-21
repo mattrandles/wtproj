@@ -17,6 +17,7 @@ import (
 	"github.com/mattrandles/wtproj/internal/core"
 	"github.com/mattrandles/wtproj/internal/provider"
 	"github.com/mattrandles/wtproj/internal/runtimecontext"
+	"github.com/mattrandles/wtproj/internal/stats"
 	"github.com/mattrandles/wtproj/internal/updater"
 )
 
@@ -87,11 +88,198 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runHandoff(ctx, rest[1:])
 	case "graph":
 		return runGraph(ctx, rest[1:])
+	case "stats":
+		return runStats(ctx, rest[1:])
 	case "export":
 		return runExport(ctx, rest[1:])
 	default:
 		return fmt.Errorf("unknown command %q", rest[0])
 	}
+}
+
+const statsUsage = "usage: wtp stats [todo|inProgress|paused|done] [model|lane|priority|estimate|assignee|comments|dependencies]"
+
+// runStats accepts only positional status and attribute arguments. Keeping
+// this parser separate from flag.FlagSet makes reversed and extra arguments
+// unambiguous, while root --json remains the sole output switch.
+func runStats(ctx context, args []string) error {
+	status, attribute, focused, err := parseStatsArgs(args)
+	if err != nil {
+		return err
+	}
+
+	report, err := stats.Aggregate(ctx.provider, stats.Options{Status: status})
+	if err != nil {
+		return err
+	}
+	if focused {
+		return printStatsFocused(ctx, report.Focus(attribute))
+	}
+	return printStatsOverview(ctx, report)
+}
+
+func parseStatsArgs(args []string) (*core.Status, stats.Attribute, bool, error) {
+	if len(args) > 2 {
+		return nil, "", false, errors.New(statsUsage)
+	}
+	if len(args) == 0 {
+		return nil, "", false, nil
+	}
+
+	if status, err := core.ParseStatus(args[0]); err == nil {
+		if len(args) == 1 {
+			return &status, "", false, nil
+		}
+		attribute, ok := parseStatsAttribute(args[1])
+		if !ok {
+			return nil, "", false, fmt.Errorf("unknown stats attribute %q; %s", args[1], statsUsage)
+		}
+		return &status, attribute, true, nil
+	}
+
+	attribute, ok := parseStatsAttribute(args[0])
+	if !ok {
+		return nil, "", false, fmt.Errorf("stats argument %q must be a status or attribute; %s", args[0], statsUsage)
+	}
+	if len(args) == 2 {
+		return nil, "", false, fmt.Errorf("stats status must precede attribute %q; %s", attribute, statsUsage)
+	}
+	return nil, attribute, true, nil
+}
+
+func parseStatsAttribute(value string) (stats.Attribute, bool) {
+	attribute := stats.Attribute(value)
+	switch attribute {
+	case stats.AttributeModel, stats.AttributeLane, stats.AttributePriority,
+		stats.AttributeEstimate, stats.AttributeAssignee, stats.AttributeComments,
+		stats.AttributeDependencies:
+		return attribute, true
+	default:
+		return "", false
+	}
+}
+
+func printStatsOverview(ctx context, report stats.Report) error {
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, report)
+	}
+	if _, err := fmt.Fprintln(ctx.stdout, "stats"); err != nil {
+		return err
+	}
+	status := report.Status
+	if status == "" {
+		status = "all"
+	}
+	if err := printStatsLine(ctx.stdout, "status", status); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "totalTasks", report.TotalTasks); err != nil {
+		return err
+	}
+	if err := printStatsBuckets(ctx.stdout, "statusCounts", report.StatusCounts); err != nil {
+		return err
+	}
+	for _, item := range []struct {
+		name    string
+		buckets []stats.Bucket
+	}{
+		{name: "model", buckets: report.Attributes.Model},
+		{name: "lane", buckets: report.Attributes.Lane},
+		{name: "priority", buckets: report.Attributes.Priority},
+		{name: "estimate", buckets: report.Attributes.Estimate},
+		{name: "assignee", buckets: report.Attributes.Assignee},
+	} {
+		if err := printStatsBuckets(ctx.stdout, item.name, item.buckets); err != nil {
+			return err
+		}
+	}
+	if err := printStatsLine(ctx.stdout, "comments.tasksWithComments", report.Comments.TasksWithComments); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "comments.totalRecords", report.Comments.TotalRecords); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "dependencies.tasksWithDependencies", report.Dependencies.TasksWithDependencies); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "dependencies.independentTasks", report.Dependencies.IndependentTasks); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "dependencies.directDependencyTotal", report.Dependencies.DirectDependencyTotal); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "handoffs.total", report.Handoffs.Total); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "handoffs.allStatusTotal", report.Handoffs.AllStatusTotal); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "handoffs.global", report.Handoffs.Global); err != nil {
+		return err
+	}
+	return printStatsLine(ctx.stdout, "handoffs.taskScoped", report.Handoffs.TaskScoped)
+}
+
+func printStatsFocused(ctx context, report stats.FocusedReport) error {
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, report)
+	}
+	if _, err := fmt.Fprintln(ctx.stdout, "stats"); err != nil {
+		return err
+	}
+	status := report.Status
+	if status == "" {
+		status = "all"
+	}
+	if err := printStatsLine(ctx.stdout, "status", status); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "totalTasks", report.TotalTasks); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "attribute", report.Attribute); err != nil {
+		return err
+	}
+	if report.Buckets != nil {
+		return printStatsBuckets(ctx.stdout, "buckets", *report.Buckets)
+	}
+	if report.Comments != nil {
+		if err := printStatsLine(ctx.stdout, "comments.tasksWithComments", report.Comments.TasksWithComments); err != nil {
+			return err
+		}
+		return printStatsLine(ctx.stdout, "comments.totalRecords", report.Comments.TotalRecords)
+	}
+	if report.Dependencies != nil {
+		if err := printStatsLine(ctx.stdout, "dependencies.tasksWithDependencies", report.Dependencies.TasksWithDependencies); err != nil {
+			return err
+		}
+		if err := printStatsLine(ctx.stdout, "dependencies.independentTasks", report.Dependencies.IndependentTasks); err != nil {
+			return err
+		}
+		return printStatsLine(ctx.stdout, "dependencies.directDependencyTotal", report.Dependencies.DirectDependencyTotal)
+	}
+	return nil
+}
+
+func printStatsBuckets(w io.Writer, name string, buckets []stats.Bucket) error {
+	if _, err := fmt.Fprintf(w, "%s:\n", name); err != nil {
+		return err
+	}
+	for _, bucket := range buckets {
+		value := bucket.Value
+		if value == "" {
+			value = "(unset)"
+		}
+		if _, err := fmt.Fprintf(w, "  %s: %d\n", value, bucket.Count); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printStatsLine(w io.Writer, name string, value any) error {
+	_, err := fmt.Fprintf(w, "%s: %v\n", name, value)
+	return err
 }
 
 func providerForInvocation(invocationDir string) (provider.Provider, error) {
@@ -1016,6 +1204,10 @@ Commands:
 	wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]
 	wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]
 	wtp graph [--status todo|inProgress|paused|done|all]
+	wtp stats
+	wtp stats [todo|inProgress|paused|done]
+	wtp stats [model|lane|priority|estimate|assignee|comments|dependencies]
+	wtp stats [todo|inProgress|paused|done] [model|lane|priority|estimate|assignee|comments|dependencies]
 	wtp export --out .wtp-export
 	wtp version
 	wtp update
@@ -1039,6 +1231,12 @@ Configuration is read from .wtp.json at the current Git worktree root (or the in
 The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
 Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
 graph prints dependency trees for matching tasks; it defaults to todo and accepts done, paused, inProgress, todo, or all.
+stats supports exactly four forms: wtp stats and wtp stats STATUS print an overview; wtp stats ATTRIBUTE and wtp stats STATUS ATTRIBUTE print a focused report. STATUS is todo, inProgress, paused, or done. ATTRIBUTE is model, lane, priority, estimate, assignee, comments, or dependencies; a status must precede an attribute. Overview JSON has totalTasks, statusCounts, attributes, comments, dependencies, and handoffs, plus status when filtered. statusCounts always includes all four statuses. Focused JSON has totalTasks, attribute, and exactly one of buckets, comments, or dependencies, plus status when filtered. Categorical buckets use value and count; model, lane, and assignee are lexical, while priority and estimate use their canonical order. Empty categorical values are value "" in JSON and (unset) in text.
+The comments metrics count selected tasks with at least one comment and all comment records. The dependency metrics count selected tasks with direct dependencies, independent selected tasks, and the total number of direct dependency entries; dependencies are not deduplicated or expanded transitively. Overview handoffs include every global retained handoff and every task-scoped handoff; a status-filtered report keeps global handoffs and task-scoped handoffs for selected tasks, while allStatusTotal remains the count before filtering. Focused reports do not include handoff metrics.
+Examples:
+  wtp stats
+  wtp stats model
+  wtp stats done model
 export writes an exact canonical snapshot to a dedicated directory, including the retained handoffs.json collection; unmanaged entries and paths overlapping active .wtp storage are rejected.
 version reports the binary's version, commit, and build date; use wtp --json version for machine-readable output.
 update installs a newer checksum-verified GitHub release over the running executable; use wtp --json update for machine-readable output.

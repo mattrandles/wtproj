@@ -17,6 +17,7 @@ import (
 	"github.com/mattrandles/wtproj/internal/provider"
 	"github.com/mattrandles/wtproj/internal/provider/flatfile"
 	"github.com/mattrandles/wtproj/internal/runtimecontext"
+	"github.com/mattrandles/wtproj/internal/stats"
 	"github.com/mattrandles/wtproj/internal/updater"
 )
 
@@ -1352,6 +1353,369 @@ func TestRunGraphRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
+func TestParseStatsArgsAcceptsOnlyDocumentedForms(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		status    *core.Status
+		attribute string
+		focused   bool
+		wantErr   string
+	}{
+		{name: "overview", args: nil},
+		{name: "status", args: []string{"done"}, status: statusPointer(core.StatusDone)},
+		{name: "attribute", args: []string{"model"}, attribute: "model", focused: true},
+		{name: "status and attribute", args: []string{"paused", "dependencies"}, status: statusPointer(core.StatusPaused), attribute: "dependencies", focused: true},
+		{name: "reversed", args: []string{"model", "done"}, wantErr: "must precede"},
+		{name: "invalid status", args: []string{"blocked"}, wantErr: "must be a status or attribute"},
+		{name: "unknown attribute", args: []string{"done", "bogus"}, wantErr: "unknown stats attribute"},
+		{name: "extra", args: []string{"done", "model", "extra"}, wantErr: statsUsage},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			status, attribute, focused, err := parseStatsArgs(test.args)
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("parseStatsArgs() error = %v, want containing %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseStatsArgs() error = %v", err)
+			}
+			if !reflect.DeepEqual(status, test.status) || string(attribute) != test.attribute || focused != test.focused {
+				t.Fatalf("parseStatsArgs() = (%v, %q, %t), want (%v, %q, %t)", status, attribute, focused, test.status, test.attribute, test.focused)
+			}
+		})
+	}
+}
+
+func TestRunStatsSupportsEveryValidInvocationForm(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		json       bool
+		wantStatus *core.Status
+		focused    bool
+	}{
+		{name: "overview", args: nil},
+		{name: "status-only", args: []string{"done"}, json: true, wantStatus: statusPointer(core.StatusDone)},
+		{name: "attribute-only", args: []string{"lane"}, focused: true},
+		{name: "status-and-attribute", args: []string{"paused", "comments"}, json: true, wantStatus: statusPointer(core.StatusPaused), focused: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{{Task: core.Task{ID: "task", Status: core.StatusTodo, Lane: "cli"}}}}}
+			var stdout, stderr bytes.Buffer
+			ctx := context{provider: p, stdout: &stdout, stderr: &stderr, jsonOut: test.json}
+			if err := runStats(ctx, test.args); err != nil {
+				t.Fatalf("runStats(%v) error = %v", test.args, err)
+			}
+			if test.wantStatus == nil {
+				if p.lastFilter.Status != nil {
+					t.Fatalf("stats filter = %#v, want no status filter", p.lastFilter)
+				}
+			} else if p.lastFilter.Status == nil || *p.lastFilter.Status != *test.wantStatus {
+				t.Fatalf("stats filter = %#v, want status %q", p.lastFilter, *test.wantStatus)
+			}
+			if test.focused && !strings.Contains(stdout.String(), `"attribute"`) && !strings.Contains(stdout.String(), "attribute:") {
+				t.Fatalf("focused stats output = %q", stdout.String())
+			}
+		})
+	}
+}
+
+func TestRunStatsRejectsInvalidArgumentsBeforeProvider(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "invalid status", args: []string{"blocked"}, want: "must be a status or attribute"},
+		{name: "unknown attribute", args: []string{"todo", "bogus"}, want: "unknown stats attribute"},
+		{name: "reversed selector", args: []string{"model", "todo"}, want: "must precede"},
+		{name: "excess arguments", args: []string{"todo", "model", "extra"}, want: statsUsage},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := &statsTestProvider{}
+			var stdout, stderr bytes.Buffer
+			err := runStats(context{provider: p, stdout: &stdout, stderr: &stderr}, test.args)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("runStats(%v) error = %v, want containing %q", test.args, err, test.want)
+			}
+			if p.listCalls != 0 {
+				t.Fatalf("ListTasks calls = %d, want 0 for invalid arguments", p.listCalls)
+			}
+		})
+	}
+}
+
+func TestRunStatsEmptyStoreHumanAndJSON(t *testing.T) {
+	wantStatusCounts := []stats.Bucket{
+		{Value: "todo", Count: 0},
+		{Value: "inProgress", Count: 0},
+		{Value: "paused", Count: 0},
+		{Value: "done", Count: 0},
+	}
+	want := stats.Report{
+		StatusCounts: wantStatusCounts,
+		Attributes: stats.Attributes{
+			Model: []stats.Bucket{}, Lane: []stats.Bucket{}, Priority: []stats.Bucket{},
+			Estimate: []stats.Bucket{}, Assignee: []stats.Bucket{},
+		},
+	}
+
+	t.Run("human", func(t *testing.T) {
+		var stdout bytes.Buffer
+		if err := runStats(context{provider: &statsTestProvider{}, stdout: &stdout, stderr: &bytes.Buffer{}}, nil); err != nil {
+			t.Fatalf("runStats() error = %v", err)
+		}
+		wantText := `stats
+status: all
+totalTasks: 0
+statusCounts:
+  todo: 0
+  inProgress: 0
+  paused: 0
+  done: 0
+model:
+lane:
+priority:
+estimate:
+assignee:
+comments.tasksWithComments: 0
+comments.totalRecords: 0
+dependencies.tasksWithDependencies: 0
+dependencies.independentTasks: 0
+dependencies.directDependencyTotal: 0
+handoffs.total: 0
+handoffs.allStatusTotal: 0
+handoffs.global: 0
+handoffs.taskScoped: 0
+`
+		if got := stdout.String(); got != wantText {
+			t.Fatalf("empty human stats = %q, want %q", got, wantText)
+		}
+	})
+
+	t.Run("json", func(t *testing.T) {
+		var stdout bytes.Buffer
+		if err := runStats(context{provider: &statsTestProvider{}, stdout: &stdout, stderr: &bytes.Buffer{}, jsonOut: true}, nil); err != nil {
+			t.Fatalf("runStats(JSON) error = %v", err)
+		}
+		var got stats.Report
+		if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+			t.Fatalf("decode empty stats JSON: %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("empty stats JSON = %#v, want %#v", got, want)
+		}
+		if strings.Contains(stdout.String(), `"status"`) {
+			t.Fatalf("unfiltered empty stats JSON contains status: %s", stdout.String())
+		}
+	})
+}
+
+func TestRunStatsMixedStoreHumanAndJSON(t *testing.T) {
+	p := mixedStatsProvider()
+	var stdout bytes.Buffer
+	if err := runStats(context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}}, nil); err != nil {
+		t.Fatalf("runStats() error = %v", err)
+	}
+	textOutput := stdout.String()
+	for _, needle := range []string{
+		"status: all", "totalTasks: 4", "todo: 1", "inProgress: 1", "paused: 1", "done: 1",
+		"  (unset): 1\n  alpha: 1\n  beta: 1\n  zeta: 1",           // model, lexical with unset first
+		"priority:\n  low: 1\n  medium: 1\n  high: 1\n  urgent: 1", // canonical order
+		"estimate:\n  (unset): 1\n  xs: 1\n  m: 1\n  xl: 1",        // canonical order
+		"comments.tasksWithComments: 2", "comments.totalRecords: 3",
+		"dependencies.tasksWithDependencies: 2", "dependencies.independentTasks: 2", "dependencies.directDependencyTotal: 3",
+		"handoffs.total: 7", "handoffs.allStatusTotal: 7", "handoffs.global: 2", "handoffs.taskScoped: 5",
+	} {
+		if !strings.Contains(textOutput, needle) {
+			t.Fatalf("mixed human stats missing %q in %q", needle, textOutput)
+		}
+	}
+
+	stdout.Reset()
+	if err := runStats(context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}, jsonOut: true}, nil); err != nil {
+		t.Fatalf("runStats(JSON) error = %v", err)
+	}
+	var got stats.Report
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode mixed stats JSON: %v", err)
+	}
+	want := stats.Report{
+		TotalTasks:   4,
+		StatusCounts: []stats.Bucket{{Value: "todo", Count: 1}, {Value: "inProgress", Count: 1}, {Value: "paused", Count: 1}, {Value: "done", Count: 1}},
+		Attributes: stats.Attributes{
+			Model:    []stats.Bucket{{Value: "", Count: 1}, {Value: "alpha", Count: 1}, {Value: "beta", Count: 1}, {Value: "zeta", Count: 1}},
+			Lane:     []stats.Bucket{{Value: "", Count: 1}, {Value: "alpha", Count: 1}, {Value: "beta", Count: 1}, {Value: "zeta", Count: 1}},
+			Priority: []stats.Bucket{{Value: "low", Count: 1}, {Value: "medium", Count: 1}, {Value: "high", Count: 1}, {Value: "urgent", Count: 1}},
+			Estimate: []stats.Bucket{{Value: "", Count: 1}, {Value: "xs", Count: 1}, {Value: "m", Count: 1}, {Value: "xl", Count: 1}},
+			Assignee: []stats.Bucket{{Value: "", Count: 1}, {Value: "Amy", Count: 1}, {Value: "Bob", Count: 1}, {Value: "Zed", Count: 1}},
+		},
+		Comments:     stats.CommentMetrics{TasksWithComments: 2, TotalRecords: 3},
+		Dependencies: stats.DependencyMetrics{TasksWithDependencies: 2, IndependentTasks: 2, DirectDependencyTotal: 3},
+		Handoffs:     stats.HandoffMetrics{Total: 7, AllStatusTotal: 7, Global: 2, TaskScoped: 5},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mixed stats JSON = %#v, want %#v", got, want)
+	}
+	if !p.lastHandoffFilter.AllScopes {
+		t.Fatalf("stats handoff filter = %#v, want all scopes", p.lastHandoffFilter)
+	}
+}
+
+func TestRunStatsFilteredScopesKeepFourStatusCountsAndRelevantHandoffs(t *testing.T) {
+	statuses := []core.Status{core.StatusTodo, core.StatusInProgress, core.StatusPaused, core.StatusDone}
+	wantTasks := map[core.Status]int{core.StatusTodo: 1, core.StatusInProgress: 1, core.StatusPaused: 1, core.StatusDone: 1}
+	for _, status := range statuses {
+		t.Run(string(status), func(t *testing.T) {
+			p := mixedStatsProvider()
+			var stdout bytes.Buffer
+			if err := runStats(context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}, jsonOut: true}, []string{string(status)}); err != nil {
+				t.Fatalf("runStats(%q) error = %v", status, err)
+			}
+			var got stats.Report
+			if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+				t.Fatalf("decode filtered stats JSON: %v", err)
+			}
+			if got.Status != string(status) || got.TotalTasks != wantTasks[status] {
+				t.Fatalf("filtered report = %#v, want status %q and one task", got, status)
+			}
+			for _, bucket := range got.StatusCounts {
+				want := 0
+				if bucket.Value == string(status) {
+					want = 1
+				}
+				if bucket.Count != want {
+					t.Fatalf("status bucket %q = %d, want %d", bucket.Value, bucket.Count, want)
+				}
+			}
+			if got.Handoffs != (stats.HandoffMetrics{Total: 3, AllStatusTotal: 7, Global: 2, TaskScoped: 1}) {
+				t.Fatalf("filtered handoffs = %#v, want selected task plus two global records versus seven total", got.Handoffs)
+			}
+		})
+	}
+}
+
+func TestRunStatsFocusedAttributesRenderOnlyRequestedMetric(t *testing.T) {
+	tests := []struct {
+		name      string
+		attribute string
+		wantJSON  string
+		wantText  string
+	}{
+		{name: "model", attribute: "model", wantJSON: "buckets", wantText: "buckets:"},
+		{name: "lane", attribute: "lane", wantJSON: "buckets", wantText: "buckets:"},
+		{name: "priority", attribute: "priority", wantJSON: "buckets", wantText: "buckets:"},
+		{name: "estimate", attribute: "estimate", wantJSON: "buckets", wantText: "buckets:"},
+		{name: "assignee", attribute: "assignee", wantJSON: "buckets", wantText: "buckets:"},
+		{name: "comments", attribute: "comments", wantJSON: "comments", wantText: "comments.tasksWithComments:"},
+		{name: "dependencies", attribute: "dependencies", wantJSON: "dependencies", wantText: "dependencies.directDependencyTotal:"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := mixedStatsProvider()
+			var stdout bytes.Buffer
+			if err := runStats(context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}, jsonOut: true}, []string{test.attribute}); err != nil {
+				t.Fatalf("runStats(%q JSON) error = %v", test.attribute, err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(stdout.Bytes(), &fields); err != nil {
+				t.Fatalf("decode focused JSON: %v", err)
+			}
+			if _, ok := fields[test.wantJSON]; !ok {
+				t.Fatalf("focused JSON missing %q: %s", test.wantJSON, stdout.String())
+			}
+			for _, field := range []string{"statusCounts", "attributes", "handoffs"} {
+				if _, ok := fields[field]; ok {
+					t.Fatalf("focused JSON unexpectedly contains %q: %s", field, stdout.String())
+				}
+			}
+
+			stdout.Reset()
+			if err := runStats(context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}}, []string{test.attribute}); err != nil {
+				t.Fatalf("runStats(%q) error = %v", test.attribute, err)
+			}
+			if !strings.Contains(stdout.String(), test.wantText) {
+				t.Fatalf("focused human output missing %q: %s", test.wantText, stdout.String())
+			}
+			if strings.Contains(stdout.String(), "statusCounts:") || strings.Contains(stdout.String(), "handoffs:") {
+				t.Fatalf("focused human output contains overview metrics: %s", stdout.String())
+			}
+		})
+	}
+}
+
+func mixedStatsProvider() *statsTestProvider {
+	return &statsTestProvider{
+		graphTestProvider: graphTestProvider{tasks: []core.TaskView{
+			{Task: core.Task{ID: "task-todo", Status: core.StatusTodo, Model: "", Lane: "alpha", Priority: core.PriorityLow, Estimate: core.EstimateXS, Assignee: "", Comments: []core.Comment{}, Dependencies: []string{}}},
+			{Task: core.Task{ID: "task-progress", Status: core.StatusInProgress, Model: "beta", Lane: "beta", Priority: core.PriorityHigh, Estimate: core.EstimateM, Assignee: "Bob", Comments: []core.Comment{}, Dependencies: []string{"dependency-3"}}},
+			{Task: core.Task{ID: "task-paused", Status: core.StatusPaused, Model: "alpha", Lane: "", Priority: core.PriorityMedium, Estimate: "", Assignee: "Amy", Comments: []core.Comment{{}}, Dependencies: []string{}}},
+			{Task: core.Task{ID: "task-done", Status: core.StatusDone, Model: "zeta", Lane: "zeta", Priority: core.PriorityUrgent, Estimate: core.EstimateXL, Assignee: "Zed", Comments: []core.Comment{{}, {}}, Dependencies: []string{"dependency-1", "dependency-2"}}},
+		}},
+		handoffs: []core.Handoff{
+			{ID: "global-1", Message: "global one"},
+			{ID: "global-2", Message: "global two"},
+			{ID: "task-todo-handoff", TaskID: "task-todo", Message: "todo"},
+			{ID: "task-progress-handoff", TaskID: "task-progress", Message: "progress"},
+			{ID: "task-paused-handoff", TaskID: "task-paused", Message: "paused"},
+			{ID: "task-done-handoff", TaskID: "task-done", Message: "done"},
+			{ID: "foreign-handoff", TaskID: "foreign-task", Message: "foreign"},
+		},
+	}
+}
+
+func TestRunStatsFocusedJSONPreservesUnsetBucketAndFiltersStatus(t *testing.T) {
+	p := &statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{
+		{Task: core.Task{ID: "done", Status: core.StatusDone, Model: "", Comments: []core.Comment{{}}, Dependencies: []string{"dependency"}}},
+		{Task: core.Task{ID: "todo", Status: core.StatusTodo, Model: "gpt-5", Dependencies: []string{}}},
+	}}}
+	var stdout bytes.Buffer
+	ctx := context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}, jsonOut: true}
+	if err := runStats(ctx, []string{"done", "model"}); err != nil {
+		t.Fatalf("runStats() error = %v", err)
+	}
+	for _, needle := range []string{`"status": "done"`, `"totalTasks": 1`, `"attribute": "model"`, `"buckets": [`, `"value": ""`, `"count": 1`} {
+		if !strings.Contains(stdout.String(), needle) {
+			t.Fatalf("stats JSON missing %q in %q", needle, stdout.String())
+		}
+	}
+	if strings.Contains(stdout.String(), "statusCounts") || strings.Contains(stdout.String(), "comments") {
+		t.Fatalf("focused stats JSON included overview fields: %q", stdout.String())
+	}
+	if p.lastFilter.Status == nil || *p.lastFilter.Status != core.StatusDone {
+		t.Fatalf("stats task filter = %#v, want done", p.lastFilter)
+	}
+}
+
+func TestRunStatsTextDisplaysUnsetAndSpecialMetrics(t *testing.T) {
+	p := &statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{{Task: core.Task{ID: "task", Status: core.StatusTodo, Model: "", Comments: []core.Comment{{}}, Dependencies: []string{"dependency"}}}}}}
+	var stdout bytes.Buffer
+	ctx := context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}}
+	if err := runStats(ctx, []string{"model"}); err != nil {
+		t.Fatalf("runStats(model) error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "(unset): 1") {
+		t.Fatalf("text stats did not display unset bucket: %q", stdout.String())
+	}
+	stdout.Reset()
+	if err := runStats(ctx, []string{"dependencies"}); err != nil {
+		t.Fatalf("runStats(dependencies) error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "dependencies.directDependencyTotal: 1") || strings.Contains(stdout.String(), "buckets:") {
+		t.Fatalf("focused dependency output = %q", stdout.String())
+	}
+}
+
+func statusPointer(status core.Status) *core.Status {
+	return &status
+}
+
 func TestHelpMentionsTaskMetadataOptions(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := help(&stdout); err != nil {
@@ -1809,6 +2173,32 @@ type graphTestProvider struct {
 	tasks      []core.TaskView
 	lastFilter provider.TaskFilter
 	listCalls  int
+}
+
+type statsTestProvider struct {
+	graphTestProvider
+	handoffs          []core.Handoff
+	lastHandoffFilter provider.HandoffFilter
+}
+
+func (p *statsTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
+	p.lastFilter = filter
+	p.listCalls++
+	if filter.Status == nil {
+		return p.tasks, nil
+	}
+	filtered := make([]core.TaskView, 0, len(p.tasks))
+	for _, task := range p.tasks {
+		if task.Status == *filter.Status {
+			filtered = append(filtered, task)
+		}
+	}
+	return filtered, nil
+}
+
+func (p *statsTestProvider) ListHandoffs(filter provider.HandoffFilter) (provider.HandoffListResult, error) {
+	p.lastHandoffFilter = filter
+	return provider.HandoffListResult{Handoffs: p.handoffs}, nil
 }
 
 func (p *updateTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {

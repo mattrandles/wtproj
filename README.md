@@ -201,6 +201,7 @@ before the command, for example `wtp --json task list`.
 | `wtp handoff get` | `--task`, `--all-scopes`, `--limit`, `--all` |
 | `wtp handoff purge` | exactly one of `--id`, `--global`, `--task`, `--all-scopes`; optional `--before` or `--older-than` |
 | `wtp graph` | `--status` |
+| `wtp stats` | optional `STATUS` followed by optional `ATTRIBUTE` |
 | `wtp export` | `--out` |
 
 `--priority` accepts `low`, `medium`, `high`, or `urgent`; `--estimate`
@@ -210,6 +211,62 @@ accepts `xs`, `s`, `m`, `l`, or `xl`. `--status` accepts `todo`,
 `--worktree-dir` require absolute paths. During `task update` or `task edit`,
 an empty `--model=`, `--git-repo=`, `--git-branch=`, `--worktree-name=`, or
 `--worktree-dir=` clears the corresponding field.
+
+`wtp stats` supports exactly four invocation forms:
+
+```text
+wtp stats
+wtp stats STATUS
+wtp stats ATTRIBUTE
+wtp stats STATUS ATTRIBUTE
+```
+
+`STATUS` is `todo`, `inProgress`, `paused`, or `done`. `ATTRIBUTE` is one of
+`model`, `lane`, `priority`, `estimate`, `assignee`, `comments`, or
+`dependencies`; a status must precede an attribute. The first two forms return
+the overview, across all statuses or the selected status. The last two return
+only the selected breakdown or metric and `totalTasks`.
+
+With `--json`, an overview contains `totalTasks`, `statusCounts`, `attributes`,
+`comments`, `dependencies`, and `handoffs`, plus `status` when a status filter
+is supplied. `statusCounts` always contains `todo`, `inProgress`, `paused`, and
+`done`, including zero-count buckets. A focused report contains `totalTasks`,
+`attribute`, and exactly one of `buckets`, `comments`, or `dependencies`, plus
+`status` when filtered. Focused reports do not include overview fields or
+handoff metrics.
+
+Categorical bucket objects always contain `value` and `count`. Empty model,
+lane, priority, estimate, or assignee values are represented by `"value": ""`
+in JSON and displayed as `(unset)` in human output. Model, lane, and assignee
+values are sorted lexically; priority and estimate values use their canonical
+orders.
+
+The comments metrics are the number of selected tasks with at least one comment
+and the total number of comment records. The dependency metrics are the number
+of selected tasks with direct dependencies, the number of independent selected
+tasks, and the total number of direct dependency entries. They count the task
+records' direct entries; they do not deduplicate or expand dependencies
+transitively.
+
+Overview handoffs count retained records relevant to the selected task set.
+Unfiltered reports include every global and task-scoped handoff. A
+status-filtered report includes every global handoff and only task-scoped
+handoffs belonging to tasks in that status. `handoffs.allStatusTotal` remains
+the pre-filter total; `total`, `global`, and `taskScoped` describe the selected
+set. Unrelated task-scoped records are not folded into the filtered totals.
+
+Examples:
+
+```sh
+# Overview for all tasks.
+wtp stats
+
+# Model breakdown across all tasks.
+wtp stats model
+
+# Model breakdown for done tasks.
+wtp stats done model
+```
 
 ### Retained handoffs
 

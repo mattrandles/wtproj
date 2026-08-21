@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-21
+
+### Added
+
+- Added the `wtp stats` command with deterministic overview and focused
+  reports, status filtering, JSON output, and retained-handoff metrics.
+
 ## [0.3.0] - 2026-08-09
 
 ### Added
