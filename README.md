@@ -84,6 +84,15 @@ wtp version
 Open a new terminal after changing a persistent `PATH`. A global install or
 update needs permission to write both the executable and its directory.
 
+### Agent skills
+
+This repository includes skills for using `wtp` with coding agents. Install
+them with:
+
+```sh
+npx skills add mattrandles/wtproj
+```
+
 ## Updating
 
 Run `wtp update` to install a newer stable GitHub Release over the executable
