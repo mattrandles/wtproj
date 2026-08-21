@@ -6,6 +6,24 @@ It stores tasks as readable files in the repository, so there is no hosted servi
 
 ![wtp demo](demo.gif)
 
+## Agent skills
+
+We recommend installing the repository's coding-agent skills before setting up
+`wtp`:
+
+```sh
+npx skills add mattrandles/wtproj
+```
+
+The included `setup-wtp` skill can install or update the latest production
+release and help choose and configure task storage. For example, give an agent
+this prompt:
+
+> Install the WTP skills from `mattrandles/wtproj`, then use `$setup-wtp` to
+> install or update WTP from the latest GitHub Release and configure it for this
+> repository. Ask me where task data should live and whether I need custom task
+> states.
+
 ## Install
 
 [GitHub Releases](https://github.com/mattrandles/wtproj/releases) are the sole
@@ -83,15 +101,6 @@ wtp version
 
 Open a new terminal after changing a persistent `PATH`. A global install or
 update needs permission to write both the executable and its directory.
-
-### Agent skills
-
-This repository includes skills for using `wtp` with coding agents. Install
-them with:
-
-```sh
-npx skills add mattrandles/wtproj
-```
 
 ## Updating
 
