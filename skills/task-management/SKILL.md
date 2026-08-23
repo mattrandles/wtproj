@@ -9,6 +9,19 @@ Use `wtp` as the source of truth for project work. Run it from the intended
 repository, branch, and worktree so it uses the correct configuration, task
 scope, and provider.
 
+## Set up the trusted CLI when needed
+
+If `wtp` is unavailable or its provenance cannot be established, install the
+official `setup-wtp` skill from `mattrandles/wtproj`:
+
+```sh
+npx skills add mattrandles/wtproj --skill setup-wtp
+```
+
+Then invoke `$setup-wtp`; it installs released WTP binaries only from this
+repository's GitHub Releases and verifies the published SHA-256 checksum. Do
+not perform installation or updates through this task-management skill.
+
 ## 1. Inspect project health
 
 Inspect the project before planning or claiming work:

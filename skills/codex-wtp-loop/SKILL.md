@@ -46,11 +46,12 @@ For `subagent`, keep work in the dispatcher's exact `project_root`; subagents
 share its filesystem. Do not discover or create a saved project merely to run
 a subagent.
 
-Require Full access/no sandbox before claiming with either backend. Confirm the
-runtime equivalent of `permission_profile: disabled`, or
-`sandbox_mode: danger-full-access` with `approval_policy: never`. Project
-threads inherit the saved project's permissions; subagents inherit the current
-runtime. Do not invent permission arguments for either launch tool.
+Keep every worker's sandbox and approval posture aligned with the dispatcher's
+current posture. Subagents inherit the current runtime; project threads inherit
+the selected saved project's settings. Before claiming, verify that the chosen
+backend preserves an equivalent posture. If it cannot be verified or preserved,
+stop without claiming. Never request, weaken, or invent permission settings for
+a worker launch.
 
 ## Resolve model recommendations
 
@@ -328,7 +329,7 @@ Before every primary-worker launch, confirm:
 3. The resolved model and effort are supported by the selected backend.
 4. Thread mode targets the exact saved project locally; subagent mode uses
    `fork_turns: "none"`.
-5. Full access/no sandbox was confirmed before the claim.
+5. The worker will preserve the dispatcher's sandbox and approval posture.
 6. Task and global handoffs were retained according to their distinct scopes.
 7. The primary worker's identity and backend-specific monitor state will be
    retained for follow-up and manual continuation.
