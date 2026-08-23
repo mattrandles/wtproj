@@ -1255,6 +1255,47 @@ func TestAddCommentPersists(t *testing.T) {
 	}
 }
 
+func TestAddCommentKeepsTimestampsMonotonicAcrossClockRollback(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root, nil)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	created := mustTime(t, "2026-03-24T14:10:04Z")
+	future := mustTime(t, "2099-03-24T14:10:04Z")
+	task := core.Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "Future comment",
+		Status:       core.StatusTodo,
+		Dependencies: []string{},
+		Comments: []core.Comment{{
+			ID:        "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
+			Author:    "Tony",
+			Message:   "Written before the clock changed",
+			CreatedAt: future,
+		}},
+		CreatedAt: created,
+		UpdatedAt: future,
+	}
+	writeTaskFile(t, root, task)
+
+	updated, err := p.AddComment(task.ShortID, "Tony", "Written after the clock changed")
+	if err != nil {
+		t.Fatalf("AddComment() error = %v", err)
+	}
+	if len(updated.Comments) != 2 {
+		t.Fatalf("comment count = %d, want 2", len(updated.Comments))
+	}
+	latest := updated.Comments[1].CreatedAt
+	if !latest.After(future) {
+		t.Fatalf("new comment createdAt = %v, want after previous timestamp %v", latest, future)
+	}
+	if !updated.UpdatedAt.Equal(latest) {
+		t.Fatalf("updatedAt = %v, want new comment timestamp %v", updated.UpdatedAt, latest)
+	}
+}
+
 func TestUpdateTaskPersistsDependenciesAndMetadata(t *testing.T) {
 	p := newProvider(t)
 
@@ -2458,7 +2499,7 @@ func TestLoadTasksRejectsCanonicalCorruption(t *testing.T) {
 		{name: "invalid task UUID", mutate: func(task *core.Task) { task.ID = "task-1" }, want: "canonical lowercase UUID"},
 		{name: "invalid short ID", mutate: func(task *core.Task) { task.ShortID = "wtp-1" }, want: "must match wtp-NNNN"},
 		{name: "invalid comment", mutate: func(task *core.Task) { task.Comments[0].Message = "" }, want: "comment 0 message is required"},
-		{name: "updated before created", mutate: func(task *core.Task) { task.UpdatedAt = created.Add(-time.Second) }, want: "updatedAt cannot be before createdAt"},
+		{name: "comment before created", mutate: func(task *core.Task) { task.Comments[0].CreatedAt = created.Add(-time.Second) }, want: "between task createdAt and updatedAt"},
 		{name: "status timestamp mismatch", mutate: func(task *core.Task) { task.Status = core.StatusDone }, want: "done task requires startedAt and completedAt"},
 	}
 
@@ -2487,6 +2528,78 @@ func TestLoadTasksRejectsCanonicalCorruption(t *testing.T) {
 				t.Fatalf("ListTasks() error = %v, want containing %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestNewRepairsUpdatedAtBehindCommentAndRecordsAuditComment(t *testing.T) {
+	root := t.TempDir()
+	if _, err := flatfile.New(root, nil); err != nil {
+		t.Fatalf("flatfile.New() setup error = %v", err)
+	}
+	created := mustTime(t, "2026-03-24T14:10:04Z")
+	commentTime := created.Add(time.Minute)
+	task := core.Task{
+		ID:           "25c3806a-bd1b-424d-889b-29e5b06679b8",
+		ShortID:      "wtp-0001",
+		Title:        "Manually edited task",
+		Status:       core.StatusTodo,
+		Dependencies: []string{},
+		Comments: []core.Comment{{
+			ID:        "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
+			Author:    "Tony",
+			Message:   "Manually added without updating the task",
+			CreatedAt: commentTime,
+		}},
+		CreatedAt: created,
+		UpdatedAt: created,
+	}
+	writeTaskFile(t, root, task)
+
+	p, err := flatfile.New(root, nil)
+	if err != nil {
+		t.Fatalf("flatfile.New() repair error = %v", err)
+	}
+	got, err := p.GetTask(task.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if len(got.Comments) != 2 {
+		t.Fatalf("comments = %#v, want original and repair audit", got.Comments)
+	}
+	if got.Comments[0].Message != task.Comments[0].Message {
+		t.Fatalf("original comment changed: got %#v, want %#v", got.Comments[0], task.Comments[0])
+	}
+	repair := got.Comments[1]
+	if repair.Author != "wtp" || !strings.Contains(repair.Message, "automatically repaired task metadata") {
+		t.Fatalf("repair audit comment = %#v", repair)
+	}
+	if !got.UpdatedAt.Equal(repair.CreatedAt) || !got.UpdatedAt.After(commentTime) {
+		t.Fatalf("repaired timestamps: updatedAt=%v repair=%v original comment=%v", got.UpdatedAt, repair.CreatedAt, commentTime)
+	}
+	if err := got.Task.Validate(); err != nil {
+		t.Fatalf("repaired task is invalid: %v", err)
+	}
+}
+
+func TestListTasksRepairsUpdatedAtBeforeCreatedAt(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root, nil)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	task := canonicalDiskTask(t, "25c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0001")
+	task.UpdatedAt = task.CreatedAt.Add(-time.Second)
+	writeTaskFile(t, root, task)
+
+	tasks, err := p.ListTasks(provider.TaskFilter{})
+	if err != nil {
+		t.Fatalf("ListTasks() repair error = %v", err)
+	}
+	if len(tasks) != 1 || len(tasks[0].Comments) != 1 || tasks[0].Comments[0].Author != "wtp" {
+		t.Fatalf("repaired tasks = %#v", tasks)
+	}
+	if !tasks[0].UpdatedAt.After(tasks[0].CreatedAt) {
+		t.Fatalf("updatedAt = %v, want after createdAt %v", tasks[0].UpdatedAt, tasks[0].CreatedAt)
 	}
 }
 

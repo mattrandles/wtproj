@@ -155,6 +155,9 @@ Synchronize their start and enforce deadlines.
 - Concurrent reads, status transitions, and exports while writers are active.
   Readers may observe an old or new atomic state, never corrupt JSON, duplicate
   logical tasks, or a mixed partial snapshot.
+- A layered acyclic graph with converging dependency paths must expand every
+  logical task once, use explicit references for repeated paths, and produce a
+  number of graph records proportional to tasks plus direct dependency edges.
 - Repeat the contention matrix at least 20 times in the pre-release gate and
   at least 100 times in a scheduled soak job. Also run `go test -race ./...`.
 

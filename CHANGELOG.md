@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-23
+
+### Fixed
+
+- Bounded `wtp graph` memory and output growth for converging dependency paths
+  by expanding each task once and emitting explicit references for repeats.
+- Added unit and native prerelease regression coverage for layered shared
+  dependency graphs that previously caused exponential allocation.
+
 ## [0.3.2] - 2026-08-21
 
 ### Added

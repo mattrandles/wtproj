@@ -43,7 +43,7 @@ Then verify coverage and behavior:
 
 - Every required scenario ID is present on each native shard for every
   iteration: lifecycle, stats-and-custom-statuses,
-  dependencies-and-ownership, handoffs-and-export,
+  bounded-shared-dependency-graph, dependencies-and-ownership, handoffs-and-export,
   git-and-storage-topology, configuration-failures,
   nested-invocation-and-hermeticity, contention-creates, contention-next,
   contention-handoffs, contention-readers-and-writers, and failure-recovery.
@@ -55,6 +55,9 @@ Then verify coverage and behavior:
   persistent bytes. There are no unexplained skips, retries, timeouts,
   deadline terminations, orphaned descendants, or leftover update staging
   files.
+- The bounded shared-dependency scenario expands every logical task exactly
+  once, emits explicit references for converging paths, and keeps graph records
+  proportional to tasks plus direct dependency edges.
 - The updater matrix contains all required case IDs, including equal/older
   no-op, malformed or mismatched checksums, missing/duplicate assets,
   failed/truncated/timeout downloads, unsafe URL and redirect, symlink launch,

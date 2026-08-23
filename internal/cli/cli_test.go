@@ -5,6 +5,7 @@ import (
 	stdcontext "context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1343,6 +1344,68 @@ func TestRunGraphSupportsAllStatusInJSON(t *testing.T) {
 		if !strings.Contains(got, needle) {
 			t.Fatalf("json graph output missing %q in %q", needle, got)
 		}
+	}
+}
+
+func TestRunGraphBoundsSharedDependencyExpansion(t *testing.T) {
+	const finalLayer = 12
+	tasks := make([]core.TaskView, 0, (finalLayer+1)*2)
+	previousIDs := []string(nil)
+	for layer := 0; layer <= finalLayer; layer++ {
+		createdAt := time.Date(2026, time.August, 23, 10, layer, 0, 0, time.UTC).Format(time.RFC3339)
+		currentIDs := []string{fmt.Sprintf("layer-%02d-a", layer), fmt.Sprintf("layer-%02d-b", layer)}
+		for index, id := range currentIDs {
+			shortID := fmt.Sprintf("wtp-%04d", layer*2+index+1)
+			tasks = append(tasks, graphTaskView(id, shortID, id, core.StatusTodo, append([]string(nil), previousIDs...), createdAt))
+		}
+		previousIDs = currentIDs
+	}
+
+	provider := graphTestProvider{tasks: tasks}
+	var jsonOutput bytes.Buffer
+	if err := runGraph(context{provider: provider, stdout: &jsonOutput, stderr: &bytes.Buffer{}, jsonOut: true}, []string{"--status", "all"}); err != nil {
+		t.Fatalf("runGraph(shared JSON) error = %v", err)
+	}
+	var graph []graphNode
+	if err := json.Unmarshal(jsonOutput.Bytes(), &graph); err != nil {
+		t.Fatalf("decode shared graph JSON: %v\n%s", err, jsonOutput.String())
+	}
+
+	fullTasks, references, records := 0, 0, 0
+	seen := map[string]bool{}
+	var visit func([]graphNode)
+	visit = func(nodes []graphNode) {
+		for _, node := range nodes {
+			records++
+			switch {
+			case node.Task != nil:
+				fullTasks++
+				if seen[node.Task.ID] {
+					t.Errorf("task %s was expanded more than once", node.Task.ID)
+				}
+				seen[node.Task.ID] = true
+			case node.Ref != "":
+				references++
+				if !seen[node.Ref] {
+					t.Errorf("reference %s appeared before its full task", node.Ref)
+				}
+			default:
+				t.Error("graph node has neither task nor reference")
+			}
+			visit(node.Dependencies)
+		}
+	}
+	visit(graph)
+	if fullTasks != 26 || references != 24 || records != 50 {
+		t.Fatalf("shared graph counts = full %d refs %d records %d, want 26/24/50", fullTasks, references, records)
+	}
+
+	var textOutput bytes.Buffer
+	if err := runGraph(context{provider: provider, stdout: &textOutput, stderr: &bytes.Buffer{}}, []string{"--status", "all"}); err != nil {
+		t.Fatalf("runGraph(shared text) error = %v", err)
+	}
+	if got := strings.Count(textOutput.String(), "(already shown)"); got != references {
+		t.Fatalf("text shared-reference markers = %d, want %d", got, references)
 	}
 }
 

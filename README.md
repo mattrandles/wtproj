@@ -261,6 +261,9 @@ before the command, for example `wtp --json task list`.
 `--priority` accepts `low`, `medium`, `high`, or `urgent`; `--estimate`
 accepts `xs`, `s`, `m`, `l`, or `xl`. `--status` accepts any configured status,
 including project-defined statuses; `graph --status` also accepts `all`.
+Graph output expands each matching task at most once. When dependency paths
+converge, human output marks later occurrences as `(already shown)` and JSON
+emits `{"ref":"<canonical task UUID>"}` in place of another nested task copy.
 `--depends-on` takes comma-separated task IDs. `--git-repo` and
 `--worktree-dir` require absolute paths. During `task update` or `task edit`,
 an empty `--model=`, `--git-repo=`, `--git-branch=`, `--worktree-name=`, or
@@ -451,6 +454,11 @@ For older automation, pass exactly one legacy action flag: `--get-next-task`,
 ## Storage and compatibility
 
 The implemented, supported backend is local flat-file storage.
+When loading a task, WTP automatically repairs a missing or too-early
+`updatedAt` only when advancing it makes the task otherwise valid. The atomic
+repair preserves existing task content and appends a `wtp` audit comment;
+unrelated corruption is still rejected. Normal WTP mutations also keep
+`updatedAt` monotonic if the system wall clock moves backward.
 Inside Git, `wtp` reads `.wtp.json` only from the root of the current worktree,
 including when invoked from a nested directory or linked worktree. Outside Git,
 it reads `.wtp.json` only from the invocation directory. With no configuration,

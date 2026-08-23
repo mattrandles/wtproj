@@ -253,6 +253,7 @@ func Run(options Options) (Report, error) {
 	}{
 		{"lifecycle", scenarioLifecycle},
 		{"stats-and-custom-statuses", scenarioStatsAndCustomStatuses},
+		{"bounded-shared-dependency-graph", scenarioBoundedSharedDependencyGraph},
 		{"dependencies-and-ownership", scenarioDependenciesAndOwnership},
 		{"handoffs-and-export", scenarioHandoffsAndExport},
 		{"git-and-storage-topology", scenarioGitAndStorageTopology},
@@ -729,6 +730,97 @@ func equalBuckets(got, want []stats.Bucket) bool {
 		}
 	}
 	return true
+}
+
+type graphEvidenceNode struct {
+	Task         *core.TaskView      `json:"task,omitempty"`
+	Ref          string              `json:"ref,omitempty"`
+	Dependencies []graphEvidenceNode `json:"dependencies,omitempty"`
+}
+
+func scenarioBoundedSharedDependencyGraph(r *scenarioRunner) error {
+	project, err := r.newGitProject("bounded shared dependency graph project")
+	if err != nil {
+		return err
+	}
+	r.setCWD(project)
+
+	const finalLayer = 12
+	expectedIDs := make(map[string]struct{}, (finalLayer+1)*2)
+	previous := []core.TaskView(nil)
+	for layer := 0; layer <= finalLayer; layer++ {
+		current := make([]core.TaskView, 0, 2)
+		for _, suffix := range []string{"a", "b"} {
+			args := []string{"task", "create", "--title", fmt.Sprintf("shared graph layer %02d %s", layer, suffix)}
+			if len(previous) != 0 {
+				args = append(args, "--depends-on", previous[0].ShortID+","+previous[1].ShortID)
+			}
+			var task core.TaskView
+			if err = r.json(&task, args...); err != nil {
+				return err
+			}
+			expectedIDs[task.ID] = struct{}{}
+			current = append(current, task)
+		}
+		previous = current
+	}
+
+	var graph []graphEvidenceNode
+	if err = r.json(&graph, "graph", "--status", "all"); err != nil {
+		return err
+	}
+	seen := make(map[string]struct{}, len(expectedIDs))
+	fullTasks, references, records := 0, 0, 0
+	var visit func([]graphEvidenceNode) error
+	visit = func(nodes []graphEvidenceNode) error {
+		for _, node := range nodes {
+			records++
+			switch {
+			case node.Task != nil && node.Ref == "":
+				if _, expected := expectedIDs[node.Task.ID]; !expected {
+					return fmt.Errorf("graph expanded unexpected task %s", node.Task.ID)
+				}
+				if _, duplicate := seen[node.Task.ID]; duplicate {
+					return fmt.Errorf("graph expanded shared task %s more than once", node.Task.ID)
+				}
+				seen[node.Task.ID] = struct{}{}
+				fullTasks++
+			case node.Task == nil && node.Ref != "":
+				if _, alreadyExpanded := seen[node.Ref]; !alreadyExpanded {
+					return fmt.Errorf("graph reference %s appeared before its expanded task", node.Ref)
+				}
+				if len(node.Dependencies) != 0 {
+					return fmt.Errorf("graph reference %s recursively expanded dependencies", node.Ref)
+				}
+				references++
+			default:
+				return errors.New("graph node must contain exactly one of task or ref")
+			}
+			if err := visit(node.Dependencies); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err = visit(graph); err != nil {
+		return err
+	}
+	if fullTasks != 26 || len(seen) != len(expectedIDs) || references != 24 || records != 50 {
+		return fmt.Errorf("bounded shared graph counts = full %d unique %d refs %d records %d, want 26/26/24/50", fullTasks, len(seen), references, records)
+	}
+
+	textGraph, err := r.command("graph", "--status", "all")
+	if err != nil {
+		return err
+	}
+	if markers := strings.Count(textGraph.stdout, "(already shown)"); markers != references {
+		return fmt.Errorf("shared graph text reference markers = %d, want %d", markers, references)
+	}
+	if err = validateStore(filepath.Join(project, ".wtp")); err != nil {
+		return err
+	}
+	r.assert("shared dependency graph expands each task once and emits bounded explicit references")
+	return nil
 }
 
 func scenarioDependenciesAndOwnership(r *scenarioRunner) error {
@@ -1363,7 +1455,7 @@ func validateReport(report Report) error {
 		return fmt.Errorf("race result %q is not explicit", report.Race.Status)
 	}
 	required := []string{
-		"lifecycle", "stats-and-custom-statuses", "dependencies-and-ownership", "handoffs-and-export",
+		"lifecycle", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
 		"git-and-storage-topology", "configuration-failures",
 		"nested-invocation-and-hermeticity", "contention-creates", "contention-next",
 		"contention-handoffs", "contention-readers-and-writers", "failure-recovery",

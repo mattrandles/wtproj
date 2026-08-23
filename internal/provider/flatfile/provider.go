@@ -1,6 +1,8 @@
 package flatfile
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -346,7 +348,7 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 			task.Dependencies = resolvedDependencies
 		}
 
-		now := time.Now().UTC()
+		now := nextTaskMutationTime(task)
 		if input.Status.Set {
 			if input.Status.Value == core.StatusInProgress {
 				if err := p.validateStartable(task, tasks); err != nil {
@@ -400,7 +402,7 @@ func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, acto
 			}
 			handoffs = taskHandoffs(storedHandoffs, task.ID)
 		}
-		now := time.Now().UTC()
+		now := nextTaskMutationTime(task)
 		task.UpdatedAt = now
 		if strings.TrimSpace(actor) != "" {
 			task.Assignee = strings.TrimSpace(actor)
@@ -442,7 +444,7 @@ func (p *Provider) AddComment(idOrShortID, actor, message string) (core.TaskView
 		if err != nil {
 			return err
 		}
-		now := time.Now().UTC()
+		now := nextTaskMutationTime(task)
 		task.Comments = append(task.Comments, core.Comment{
 			ID:        commentID,
 			Author:    strings.TrimSpace(actor),
@@ -519,7 +521,7 @@ func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
 		}
 		handoffs = taskHandoffs(storedHandoffs, next.ID)
 
-		now := time.Now().UTC()
+		now := nextTaskMutationTime(next)
 		next.UpdatedAt = now
 		if agent != "" {
 			next.Assignee = agent
@@ -674,6 +676,8 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 	pathsByID := make(map[string]string)
 	idsByShortID := make(map[string]string)
 	var residuePaths []string
+	var repairs []taskRepair
+	repairClock := time.Now().UTC()
 	for _, status := range p.statuses() {
 		dir := p.statusDir(status)
 		entries, err := os.ReadDir(dir)
@@ -692,8 +696,12 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 			if task.Status != status {
 				return nil, fmt.Errorf("task file %s status %s does not match directory %s", path, task.Status, status)
 			}
-			if err := task.ValidateWithCatalog(p.catalog); err != nil {
+			task, repaired, err := p.validateOrRepairTask(task, repairClock)
+			if err != nil {
 				return nil, fmt.Errorf("invalid task file %s: %w", path, err)
+			}
+			if repaired {
+				repairs = append(repairs, taskRepair{path: path, task: task})
 			}
 			if !isTaskFilename(entry.Name(), task) {
 				return nil, invalidTaskFilenameError(path, task)
@@ -732,16 +740,6 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 			residuePaths = append(residuePaths, olderPath)
 		}
 	}
-	// A process can be terminated after publishing the new status file but
-	// before removing the old one. The newer file is the complete winning
-	// state; remove only the older copy after the whole store has validated so
-	// read commands converge the on-disk store without risking partial repair.
-	for _, path := range residuePaths {
-		// Cleanup is best effort. The newer copy is already a complete valid
-		// state, and retaining a valid older residue is safer than turning a
-		// successful read into data loss when deletion is temporarily denied.
-		_ = p.removeFile(path)
-	}
 	tasks := make([]core.Task, 0, len(tasksByID))
 	for _, task := range tasksByID {
 		tasks = append(tasks, task)
@@ -749,7 +747,115 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 	if err := core.ValidateDependenciesWithCatalog(p.catalog, "", nil, tasks); err != nil {
 		return nil, fmt.Errorf("invalid dependency graph: %w", err)
 	}
+	residueSet := make(map[string]struct{}, len(residuePaths))
+	for _, path := range residuePaths {
+		residueSet[path] = struct{}{}
+	}
+	for _, repair := range repairs {
+		if _, discarded := residueSet[repair.path]; discarded {
+			continue
+		}
+		if err := p.writeJSONAtomic(repair.path, repair.task); err != nil {
+			return nil, fmt.Errorf("repair task file %s: %w", repair.path, err)
+		}
+	}
+	// A process can be terminated after publishing the new status file but
+	// before removing the old one. The newer file is the complete winning
+	// state; remove only the older copy after the whole store has validated and
+	// any repair has been published atomically.
+	for _, path := range residuePaths {
+		// Cleanup is best effort. The newer copy is already a complete valid
+		// state, and retaining a valid older residue is safer than turning a
+		// successful read into data loss when deletion is temporarily denied.
+		_ = p.removeFile(path)
+	}
 	return tasks, nil
+}
+
+type taskRepair struct {
+	path string
+	task core.Task
+}
+
+const automaticRepairMessage = "WTP automatically repaired task metadata: updatedAt was advanced to cover task creation, comments, and lifecycle timestamps."
+
+// validateOrRepairTask repairs only an updatedAt value that is absent or
+// earlier than an otherwise valid timestamp owned by the task. All other
+// corruption remains a hard validation error.
+func (p *Provider) validateOrRepairTask(task core.Task, repairClock time.Time) (core.Task, bool, error) {
+	validationErr := task.ValidateWithCatalog(p.catalog)
+	if validationErr == nil {
+		return task, false, nil
+	}
+
+	latest := latestTaskTimestamp(task)
+	if task.CreatedAt.IsZero() || (!task.UpdatedAt.IsZero() && !task.UpdatedAt.Before(latest)) {
+		return task, false, validationErr
+	}
+	repairedAt := repairClock.UTC()
+	if !repairedAt.After(latest) {
+		repairedAt = latest.Add(time.Nanosecond).UTC()
+	}
+	repaired := task
+	repaired.UpdatedAt = repairedAt
+	repaired.Comments = append(repaired.Comments, core.Comment{
+		ID:        automaticRepairCommentID(task, repairedAt),
+		Author:    "wtp",
+		Message:   automaticRepairMessage,
+		CreatedAt: repairedAt,
+	})
+	if err := repaired.ValidateWithCatalog(p.catalog); err != nil {
+		return task, false, validationErr
+	}
+	return repaired, true, nil
+}
+
+// latestTaskTimestamp returns the greatest timestamp that updatedAt must
+// cover. Including the previous updatedAt also makes normal mutations
+// monotonic when the wall clock moves backward.
+func latestTaskTimestamp(task core.Task) time.Time {
+	latest := task.CreatedAt
+	if task.UpdatedAt.After(latest) {
+		latest = task.UpdatedAt
+	}
+	for _, comment := range task.Comments {
+		if comment.CreatedAt.After(latest) {
+			latest = comment.CreatedAt
+		}
+	}
+	if task.StartedAt != nil && task.StartedAt.After(latest) {
+		latest = *task.StartedAt
+	}
+	if task.CompletedAt != nil && task.CompletedAt.After(latest) {
+		latest = *task.CompletedAt
+	}
+	return latest
+}
+
+func nextTaskMutationTime(task core.Task) time.Time {
+	now := time.Now().UTC()
+	latest := latestTaskTimestamp(task)
+	if now.After(latest) {
+		return now
+	}
+	return latest.Add(time.Nanosecond).UTC()
+}
+
+// automaticRepairCommentID is stable for identical copies encountered in one
+// repair pass, so recovery does not turn duplicate legacy/canonical files into
+// conflicting task contents.
+func automaticRepairCommentID(task core.Task, repairedAt time.Time) string {
+	seed := task.ID + "\x00" + task.UpdatedAt.Format(time.RFC3339Nano) + "\x00" + repairedAt.Format(time.RFC3339Nano)
+	for salt := 0; ; salt++ {
+		digest := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%d", seed, salt)))
+		digest[6] = (digest[6] & 0x0f) | 0x50
+		digest[8] = (digest[8] & 0x3f) | 0x80
+		encoded := hex.EncodeToString(digest[:16])
+		candidate := encoded[0:8] + "-" + encoded[8:12] + "-" + encoded[12:16] + "-" + encoded[16:20] + "-" + encoded[20:32]
+		if !slices.ContainsFunc(task.Comments, func(comment core.Comment) bool { return comment.ID == candidate }) {
+			return candidate
+		}
+	}
 }
 
 func (p *Provider) replaceTask(task core.Task) error {
@@ -872,7 +978,9 @@ func (p *Provider) migrateTaskFilenames() error {
 		task         core.Task
 	}
 	var migrations []migration
+	var repairs []taskRepair
 	tasksByPath := make(map[string]core.Task)
+	repairClock := time.Now().UTC()
 
 	for _, status := range p.statuses() {
 		dir := p.statusDir(status)
@@ -892,8 +1000,12 @@ func (p *Provider) migrateTaskFilenames() error {
 			if task.Status != status {
 				return fmt.Errorf("task file %s status %s does not match directory %s", currentPath, task.Status, status)
 			}
-			if err := task.ValidateWithCatalog(p.catalog); err != nil {
+			task, repaired, err := p.validateOrRepairTask(task, repairClock)
+			if err != nil {
 				return fmt.Errorf("invalid task file %s: %w", currentPath, err)
+			}
+			if repaired {
+				repairs = append(repairs, taskRepair{path: currentPath, task: task})
 			}
 			tasksByPath[currentPath] = task
 			expectedPath := p.taskPath(status, task.ShortID)
@@ -918,6 +1030,18 @@ func (p *Provider) migrateTaskFilenames() error {
 		plannedTargets[item.expectedPath] = item
 	}
 
+	migrationSources := make(map[string]struct{}, len(migrations))
+	for _, item := range migrations {
+		migrationSources[item.currentPath] = struct{}{}
+	}
+	for _, repair := range repairs {
+		if _, migrating := migrationSources[repair.path]; migrating {
+			continue
+		}
+		if err := p.writeJSONAtomic(repair.path, repair.task); err != nil {
+			return fmt.Errorf("repair task file %s: %w", repair.path, err)
+		}
+	}
 	for _, item := range migrations {
 		if _, exists := tasksByPath[item.expectedPath]; !exists {
 			if err := p.writeJSONAtomic(item.expectedPath, item.task); err != nil {

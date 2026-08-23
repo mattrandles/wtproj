@@ -376,8 +376,10 @@ func runSelfUpdate(ctx context, args []string, runner updateRunner) error {
 }
 
 type graphNode struct {
-	Task         core.TaskView `json:"task"`
-	Dependencies []graphNode   `json:"dependencies,omitempty"`
+	Task          *core.TaskView `json:"task,omitempty"`
+	Ref           string         `json:"ref,omitempty"`
+	Dependencies  []graphNode    `json:"dependencies,omitempty"`
+	referenceTask *core.TaskView
 }
 
 func runTask(ctx context, args []string) error {
@@ -987,10 +989,11 @@ func parseGraphStatus(value string, catalogs ...core.StatusCatalog) (*core.Statu
 }
 
 func buildGraph(tasks []core.TaskView, statusFilter *core.Status) []graphNode {
-	byID := make(map[string]core.TaskView, len(tasks))
-	selected := make([]core.TaskView, 0, len(tasks))
+	byID := make(map[string]*core.TaskView, len(tasks))
+	selected := make([]*core.TaskView, 0, len(tasks))
 	selectedSet := make(map[string]struct{}, len(tasks))
-	for _, task := range tasks {
+	for index := range tasks {
+		task := &tasks[index]
 		byID[task.ID] = task
 		if statusFilter != nil && task.Status != *statusFilter {
 			continue
@@ -1008,7 +1011,7 @@ func buildGraph(tasks []core.TaskView, statusFilter *core.Status) []graphNode {
 		}
 	}
 
-	roots := make([]core.TaskView, 0, len(selected))
+	roots := make([]*core.TaskView, 0, len(selected))
 	for _, task := range selected {
 		if _, ok := dependedOn[task.ID]; ok {
 			continue
@@ -1020,13 +1023,19 @@ func buildGraph(tasks []core.TaskView, statusFilter *core.Status) []graphNode {
 	}
 
 	graph := make([]graphNode, 0, len(roots))
+	expanded := make(map[string]struct{}, len(selected))
 	for _, root := range roots {
-		graph = append(graph, buildGraphNode(root, byID, selectedSet))
+		graph = append(graph, buildGraphNode(root, byID, selectedSet, expanded))
 	}
 	return graph
 }
 
-func buildGraphNode(task core.TaskView, byID map[string]core.TaskView, selectedSet map[string]struct{}) graphNode {
+func buildGraphNode(task *core.TaskView, byID map[string]*core.TaskView, selectedSet, expanded map[string]struct{}) graphNode {
+	if _, alreadyExpanded := expanded[task.ID]; alreadyExpanded {
+		return graphNode{Ref: task.ID, referenceTask: task}
+	}
+	expanded[task.ID] = struct{}{}
+
 	dependencyIDs := make([]string, 0, len(task.Dependencies))
 	for _, dependencyID := range task.Dependencies {
 		if _, ok := selectedSet[dependencyID]; !ok {
@@ -1044,7 +1053,7 @@ func buildGraphNode(task core.TaskView, byID map[string]core.TaskView, selectedS
 	})
 	node := graphNode{Task: task}
 	for _, dependencyID := range dependencyIDs {
-		node.Dependencies = append(node.Dependencies, buildGraphNode(byID[dependencyID], byID, selectedSet))
+		node.Dependencies = append(node.Dependencies, buildGraphNode(byID[dependencyID], byID, selectedSet, expanded))
 	}
 	return node
 }
@@ -1063,7 +1072,19 @@ func printGraph(w io.Writer, nodes []graphNode) error {
 }
 
 func printGraphNode(w io.Writer, node graphNode, prefix string, isLast bool, root bool) error {
-	line := fmt.Sprintf("%s [%s] %s", node.Task.ShortID, node.Task.Status, node.Task.Title)
+	task := node.Task
+	reference := false
+	if node.Ref != "" {
+		task = node.referenceTask
+		reference = true
+	}
+	if task == nil {
+		return fmt.Errorf("graph node %q has no task metadata", node.Ref)
+	}
+	line := fmt.Sprintf("%s [%s] %s", task.ShortID, task.Status, task.Title)
+	if reference {
+		line += " (already shown)"
+	}
 	if root {
 		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
@@ -1274,7 +1295,8 @@ On task create, omitted Git/worktree fields default independently from the curre
 Configuration is read from .wtp.json at the current Git worktree root (or the invocation directory outside Git); wtpDir selects storage and is relative to that file when not absolute.
 The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
 Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
-	graph prints dependency trees for matching tasks; it defaults to todo and accepts every configured status or all.
+graph prints dependency trees for matching tasks; it defaults to todo and accepts every configured status or all.
+Shared dependencies are expanded once: text marks later occurrences as (already shown), while JSON emits {"ref":"<task UUID>"}.
 	stats supports exactly four forms: wtp stats and wtp stats STATUS print an overview; wtp stats ATTRIBUTE and wtp stats STATUS ATTRIBUTE print a focused report. STATUS is any configured status. ATTRIBUTE is model, lane, priority, estimate, assignee, comments, or dependencies; a status must precede an attribute. Overview JSON has totalTasks, statusCounts, attributes, comments, dependencies, and handoffs, plus status when filtered. statusCounts includes every configured status in catalog order, including zero buckets. Focused JSON has totalTasks, attribute, and exactly one of buckets, comments, or dependencies, plus status when filtered. Categorical buckets use value and count; model, lane, and assignee are lexical, while priority and estimate use their canonical order. Empty categorical values are value "" in JSON and (unset) in text.
 The comments metrics count selected tasks with at least one comment and all comment records. The dependency metrics count selected tasks with direct dependencies, independent selected tasks, and the total number of direct dependency entries; dependencies are not deduplicated or expanded transitively. Overview handoffs include every global retained handoff and every task-scoped handoff; a status-filtered report keeps global handoffs and task-scoped handoffs for selected tasks, while allStatusTotal remains the count before filtering. Focused reports do not include handoff metrics.
 Configurable statuses:
@@ -1574,6 +1596,8 @@ Behavioral rules:
 	- A task cannot start or be claimed until all dependencies are done.
 	- Status determines the directory where the task file is stored.
 	- createdAt must not be after updatedAt; comments and lifecycle timestamps must fall within that range.
+	- Flat-file loading automatically repairs only a missing or too-early updatedAt when advancing it makes
+	  the task otherwise valid. The repair is atomic and appends a wtp audit comment; other corruption is rejected.
 	- todo has no lifecycle timestamps; blocked also has no lifecycle timestamps;
 	  inProgress, paused, and waiting require startedAt but no completedAt; done and failed require both, with
 	  completedAt not before startedAt.
@@ -1598,6 +1622,7 @@ Legacy task compatibility:
 Interoperability guidance:
 	- Programs that write wtp flat files should preserve unknown future fields when possible.
 	- Writers must update updatedAt whenever a task changes.
+	- WTP mutations keep updatedAt monotonic even if the system wall clock moves backward.
 	- Writers must keep the task file in the directory that matches status.
 	- Writers must use the exact shortId filename in the matching status directory;
 	  do not add a branch subdirectory or include .json in the shortId field.
