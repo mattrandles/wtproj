@@ -102,6 +102,13 @@ and JSON behavior where they are public contracts.
 - Empty named-branch repository: help/schema/version have no storage side
   effect; create tasks with every scheduling and worktree field; show, list,
   edit/update, comment, graph, ready, start, pause, next, done, and export.
+- Statistics and configurable statuses: configure waiting, blocked, and failed
+  project statuses; exercise their timestamp, transition, filtering, and
+  scheduling semantics through the candidate binary. Verify overview and
+  focused `stats` output in JSON and human formats, including deterministic
+  zero-count status buckets, comments, dependencies, and global/task-scoped
+  handoff metrics. Removing an in-use status must fail without changing task
+  storage.
 - Dependency graph: create a fan-out/fan-in graph, prove blocked tasks cannot
   start, complete prerequisites, and verify deterministic ready ordering.
 - Agent ownership: matching, unassigned, and foreign-assigned tasks; prove a

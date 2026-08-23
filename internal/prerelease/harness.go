@@ -25,6 +25,7 @@ import (
 
 	"github.com/mattrandles/wtproj/internal/config"
 	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/stats"
 )
 
 const ReportVersion = "wtp-prerelease/v1"
@@ -251,6 +252,7 @@ func Run(options Options) (Report, error) {
 		fn   func(*scenarioRunner) error
 	}{
 		{"lifecycle", scenarioLifecycle},
+		{"stats-and-custom-statuses", scenarioStatsAndCustomStatuses},
 		{"dependencies-and-ownership", scenarioDependenciesAndOwnership},
 		{"handoffs-and-export", scenarioHandoffsAndExport},
 		{"git-and-storage-topology", scenarioGitAndStorageTopology},
@@ -570,6 +572,163 @@ func scenarioLifecycle(r *scenarioRunner) error {
 	}
 	r.assert("lifecycle persisted store and canonical export validate")
 	return nil
+}
+
+func scenarioStatsAndCustomStatuses(r *scenarioRunner) error {
+	project, err := r.newGitProject("stats and custom statuses project")
+	if err != nil {
+		return err
+	}
+	configuration := `{"additionalStatuses":[{"name":"waitingForReview","category":"waiting"},{"name":"vendorBlocked","category":"blocked"},{"name":"verificationFailed","category":"failed"}]}`
+	if err = writeConfig(project, configuration); err != nil {
+		return err
+	}
+	r.setCWD(project)
+
+	var waiting, blocked, failed, todo core.TaskView
+	if err = r.json(&waiting, "task", "create", "--title", "Review π", "--status", "waitingForReview", "--priority", "urgent", "--estimate", "xl", "--lane", "qa", "--model", "gpt-5.6", "--agent", "Reviewer"); err != nil {
+		return err
+	}
+	if waiting.Status != "waitingForReview" || waiting.StartedAt == nil || waiting.CompletedAt != nil {
+		return fmt.Errorf("custom waiting lifecycle mismatch: %#v", waiting.Task)
+	}
+	if err = r.json(&waiting, "task", "set-status", waiting.ShortID, "inProgress", "--agent", "Reviewer"); err != nil {
+		return err
+	}
+	if err = r.json(&waiting, "task", "set-status", waiting.ShortID, "waitingForReview", "--agent", "Reviewer"); err != nil {
+		return err
+	}
+	if err = r.json(&waiting, "task", "comment", waiting.ShortID, "--agent", "Reviewer", "--message", "ready for review"); err != nil {
+		return err
+	}
+	if err = r.json(&blocked, "task", "create", "--title", "Vendor dependency", "--status", "vendorBlocked", "--depends-on", waiting.ShortID); err != nil {
+		return err
+	}
+	if blocked.StartedAt != nil || blocked.CompletedAt != nil {
+		return fmt.Errorf("custom blocked lifecycle mismatch: %#v", blocked.Task)
+	}
+	if err = r.json(&failed, "task", "create", "--title", "Failed verification", "--status", "verificationFailed"); err != nil {
+		return err
+	}
+	if failed.StartedAt == nil || failed.CompletedAt == nil {
+		return fmt.Errorf("custom failed lifecycle mismatch: %#v", failed.Task)
+	}
+	if err = r.json(&todo, "task", "create", "--title", "Ordinary todo"); err != nil {
+		return err
+	}
+	if err = r.expectFailureContaining("invalid status", "task", "set-status", todo.ShortID, "notConfigured"); err != nil {
+		return err
+	}
+
+	var handoff map[string]any
+	if err = r.json(&handoff, "handoff", "write", "--agent", "Release", "--message", "global context"); err != nil {
+		return err
+	}
+	if err = r.json(&handoff, "handoff", "write", "--agent", "Reviewer", "--message", "review context", "--task", waiting.ShortID); err != nil {
+		return err
+	}
+	if err = r.json(&handoff, "handoff", "write", "--agent", "Vendor", "--message", "vendor context", "--task", blocked.ShortID); err != nil {
+		return err
+	}
+
+	var overview stats.Report
+	if err = r.json(&overview, "stats"); err != nil {
+		return err
+	}
+	wantCounts := []stats.Bucket{
+		{Value: "todo", Count: 1}, {Value: "inProgress", Count: 0},
+		{Value: "paused", Count: 0}, {Value: "done", Count: 0},
+		{Value: "waitingForReview", Count: 1}, {Value: "vendorBlocked", Count: 1},
+		{Value: "verificationFailed", Count: 1},
+	}
+	if overview.TotalTasks != 4 || !equalBuckets(overview.StatusCounts, wantCounts) {
+		return fmt.Errorf("stats overview task/status counts mismatch: %#v", overview)
+	}
+	if overview.Comments.TasksWithComments != 1 || overview.Comments.TotalRecords != 1 || overview.Dependencies.TasksWithDependencies != 1 || overview.Dependencies.DirectDependencyTotal != 1 {
+		return fmt.Errorf("stats overview comment/dependency metrics mismatch: %#v", overview)
+	}
+	if overview.Handoffs != (stats.HandoffMetrics{Total: 3, AllStatusTotal: 3, Global: 1, TaskScoped: 2}) {
+		return fmt.Errorf("stats overview handoff metrics mismatch: %#v", overview.Handoffs)
+	}
+
+	var focused stats.FocusedReport
+	if err = r.json(&focused, "stats", "waitingForReview", "model"); err != nil {
+		return err
+	}
+	if focused.Status != "waitingForReview" || focused.TotalTasks != 1 || focused.Attribute != stats.AttributeModel || focused.Buckets == nil || !equalBuckets(*focused.Buckets, []stats.Bucket{{Value: "gpt-5.6", Count: 1}}) {
+		return fmt.Errorf("focused custom-status stats mismatch: %#v", focused)
+	}
+	var filtered stats.Report
+	if err = r.json(&filtered, "stats", "waitingForReview"); err != nil {
+		return err
+	}
+	if filtered.Handoffs != (stats.HandoffMetrics{Total: 2, AllStatusTotal: 3, Global: 1, TaskScoped: 1}) {
+		return fmt.Errorf("filtered stats handoff metrics mismatch: %#v", filtered.Handoffs)
+	}
+	text, err := r.command("stats", "waitingForReview", "model")
+	if err != nil {
+		return err
+	}
+	for _, want := range []string{"status: waitingForReview", "totalTasks: 1", "gpt-5.6: 1"} {
+		if !strings.Contains(text.stdout, want) {
+			return fmt.Errorf("human stats output missing %q: %q", want, text.stdout)
+		}
+	}
+	var listed []core.TaskView
+	if err = r.json(&listed, "task", "list", "--status", "waitingForReview"); err != nil {
+		return err
+	}
+	if len(listed) != 1 || listed[0].ID != waiting.ID {
+		return fmt.Errorf("custom status list filter mismatch: %#v", listed)
+	}
+	var ready []core.TaskView
+	if err = r.json(&ready, "task", "ready", "--limit", "10"); err != nil {
+		return err
+	}
+	if len(ready) != 1 || ready[0].ID != todo.ID {
+		return fmt.Errorf("custom statuses affected claim eligibility: %#v", ready)
+	}
+
+	store := filepath.Join(project, ".wtp")
+	before, err := manifest(store)
+	if err != nil {
+		return err
+	}
+	if err = writeConfig(project, `{}`); err != nil {
+		return err
+	}
+	if err = r.expectFailureContaining("absent from active configuration", "task", "list"); err != nil {
+		return err
+	}
+	after, err := manifest(store)
+	if err != nil {
+		return err
+	}
+	unchanged := manifestJSON(before) == manifestJSON(after)
+	r.report.Preservation = append(r.report.Preservation, PreservationEvidence{Label: "removed-custom-status", Before: before, After: after, Unchanged: unchanged, Expected: "rejected custom status removal preserves storage"})
+	if !unchanged {
+		return errors.New("removing an in-use custom status changed persistent task bytes")
+	}
+	if err = writeConfig(project, configuration); err != nil {
+		return err
+	}
+	if err = validateStore(store); err != nil {
+		return err
+	}
+	r.assert("stats overview/focus and custom status lifecycle/filter/scheduling contracts")
+	return nil
+}
+
+func equalBuckets(got, want []stats.Bucket) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for index := range got {
+		if got[index] != want[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func scenarioDependenciesAndOwnership(r *scenarioRunner) error {
@@ -1204,7 +1363,7 @@ func validateReport(report Report) error {
 		return fmt.Errorf("race result %q is not explicit", report.Race.Status)
 	}
 	required := []string{
-		"lifecycle", "dependencies-and-ownership", "handoffs-and-export",
+		"lifecycle", "stats-and-custom-statuses", "dependencies-and-ownership", "handoffs-and-export",
 		"git-and-storage-topology", "configuration-failures",
 		"nested-invocation-and-hermeticity", "contention-creates", "contention-next",
 		"contention-handoffs", "contention-readers-and-writers", "failure-recovery",

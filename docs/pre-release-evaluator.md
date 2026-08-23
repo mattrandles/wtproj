@@ -42,7 +42,8 @@ First verify the evidence identity:
 Then verify coverage and behavior:
 
 - Every required scenario ID is present on each native shard for every
-  iteration: lifecycle, dependencies-and-ownership, handoffs-and-export,
+  iteration: lifecycle, stats-and-custom-statuses,
+  dependencies-and-ownership, handoffs-and-export,
   git-and-storage-topology, configuration-failures,
   nested-invocation-and-hermeticity, contention-creates, contention-next,
   contention-handoffs, contention-readers-and-writers, and failure-recovery.
