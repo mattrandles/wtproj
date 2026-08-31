@@ -24,6 +24,25 @@ this prompt:
 > repository. Ask me where task data should live and whether I need custom task
 > states.
 
+Use [`wtp-codex-planning`](skills/wtp-codex-planning/SKILL.md) to research a
+request, agree on a target model distribution, and review an editable numbered
+task proposal. It creates WTP tasks only after explicit approval and hands
+off their IDs and dependencies without starting implementation or a dispatcher:
+
+> Use `$wtp-codex-planning` to plan this change. Ask for my model percentage
+> split, show the tasks, and let me amend, cancel, or approve task creation.
+
+The skill includes a read-only Python 3 proposal validator/preview; it never
+executes WTP. Its tests run directly with
+`python3 -B skills/wtp-codex-planning/scripts/test_proposal.py` and through
+`go test ./internal/cli -run WTPPlanning` when Python 3 is installed.
+Use [`task-management`](skills/task-management/SKILL.md) for routine updates,
+[`setup-wtp`](skills/setup-wtp/SKILL.md) for installation/storage, and
+[`codex-wtp-loop`](skills/codex-wtp-loop/SKILL.md) for a separately authorized
+execution run. Skills are discovered from `skills/*/SKILL.md`; the planning
+skill also provides Codex UI metadata in `agents/openai.yaml`. Existing skills
+and Codex's built-in plan mode are unchanged.
+
 ## Install
 
 [GitHub Releases](https://github.com/mattrandles/wtproj/releases) are the sole
@@ -148,6 +167,365 @@ under a repository-local lock, preventing two local agents from claiming the
 same work. Use `task ready` to preview eligible tasks. `wtp help` lists every
 command; `wtp schema` documents the task-file and interoperability contract.
 
+### Reusable advisory tasks
+
+Reusable definitions are named, store-global instructions that can be attached
+to ordinary backlog tasks. They are advisory context: they do not create queue
+items, have a status or completion state, affect ordering, readiness,
+claimability, dependency resolution, or statistics, execute commands, enforce
+completion, or infer the last task in a group. A worker or other automation
+must explicitly interpret and carry out the instructions.
+
+Manage definitions with the CRUD commands below. Names are trimmed and unique
+case-insensitively; selectors accept a canonical UUID or an exact
+case-insensitive name (an exact UUID match wins). `list` is sorted by lowercase
+name and then UUID.
+
+```sh
+wtp reusable create --name "Tests" --title "Run focused tests" \
+  --instructions "Run the focused test suite and record the result."
+wtp reusable list
+wtp reusable show Tests
+wtp reusable update Tests --title "Run focused and full tests"
+wtp reusable delete Tests
+```
+
+Create requires `--name`, `--title`, and `--instructions`. Update accepts any
+non-empty subset of those fields, preserves omitted fields, keeps the UUID and
+`createdAt`, and advances `updatedAt` only for an actual normalized change. A
+rename changes only the catalog definition: task references keep their UUIDs,
+so later detailed views resolve the new name/title/instructions. Delete is
+atomic, needs no confirmation, removes the definition, and detaches its UUID
+from every task in every status and branch scope, including done tasks. Other
+assignments retain their order; affected task timestamps advance without
+comments or lifecycle changes. A definition has no automatic execution hook.
+
+Assign definitions to a task with repeatable flags on create, update, or edit:
+
+```sh
+wtp task create --title "Release search" \
+  --reusable Tests --reusable "Code review" --reusable "Version update"
+wtp task update <task-id> --reusable Tests --reusable "Code review"
+# One empty occurrence is the explicit clear form.
+wtp task update <task-id> --reusable=
+```
+
+The provider resolves each name/UUID under the store lock and stores only the
+ordered canonical definition UUIDs. On update, supplied occurrences replace
+the complete assignment list; they do not append. Duplicate definitions are
+rejected, and an empty occurrence cannot be mixed with non-empty occurrences
+or repeated. Renaming a definition therefore does not require task rewrites.
+Assignments are live references: detailed task views resolve the current
+catalog in the exact stored assignment order. A missing or malformed catalog
+is treated as empty or invalid respectively; an assigned UUID that is not in
+the catalog is an error, never a silently shortened view.
+
+The durable catalog is `.wtp/reusable.json` with version-1 shape
+`{"version":1,"definitions":[...]}`. It is shared by every branch, worktree,
+and project that points at the same `wtpDir`, and should be committed or
+included in backups together with the task files. `wtp export` is a consistent
+backup-friendly snapshot of tasks, handoffs, and this catalog; it always writes
+`reusable.json`, including an empty definitions array. A missing catalog is
+backward-compatible empty storage and read-only commands do not create it.
+
+`.wtp/meta/reusable-update.json` is a transient version-1 delete recovery
+journal. It records prepared/committed before-and-after snapshots for the
+catalog and affected task files. Store open recovers a prepared journal by
+rolling back or a committed journal by rolling forward, under the global lock,
+and removes the journal only after all endpoints are restored. If recovery
+fails, the journal is retained and the error identifies it for diagnosis;
+preserve it and make a copy of the store before manual recovery. In a tracked
+store, ignore this journal alongside `.wtp/meta/wtp.lock` and
+`.wtp/meta/batch-update.json`; do not ignore `.wtp/reusable.json` or task
+directories. The catalog and task endpoints are one shared-store transaction,
+so a successful delete is all-or-nothing across statuses and branch scopes.
+
+Human `task show`, `task start`, and `task next` output includes a detailed
+`reusableTasks:` section with each assigned name, title, and indented
+multiline instructions. JSON returns the normal task view; its additive
+`reusableTaskIds` field is the stored ordered UUID list and `reusableTasks` is
+the resolved live definition array in that same order. Compact `task list` and
+`graph` output do not gain reusable columns. Claims remain task views: a claim
+may also include the existing task-scoped `handoffs` array, while global
+handoffs are not attached.
+
+The corresponding shapes are additive to the ordinary task output. Human
+detail is structured like this (instructions are indented below their item):
+
+```text
+wtp-0d6e4079-0004 (25c3806a-bd1b-424d-889b-29e5b06679b8)
+title: Commit release
+status: inProgress
+claimable: yes
+reusableTasks:
+- name: Tests
+  title: Run tests
+  instructions:
+    Run focused and full tests.
+- name: Code review
+  title: Review code
+  instructions:
+    Review the implementation and tests.
+```
+
+JSON remains one `TaskView`, not a reusable-specific wrapper:
+
+```json
+{
+  "id": "25c3806a-bd1b-424d-889b-29e5b06679b8",
+  "shortId": "wtp-0d6e4079-0004",
+  "reusableTaskIds": ["7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"],
+  "reusableTasks": [{
+    "id": "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
+    "name": "Tests",
+    "title": "Run tests",
+    "instructions": "Run focused and full tests."
+  }],
+  "readiness": {"claimable": true},
+  "handoffs": [{"id": "8b1f1f55-6d6a-4f5a-9ca1-2e91e3a72d40"}]
+}
+```
+
+The `handoffs` member is present only when the claim has retained task-scoped
+handoffs to attach; it is not a reusable field. `task show` may show live
+reusable context without attaching handoffs.
+
+For a complete ordered setup, define four advisory items, build a grouped
+dependency chain, and attach them to the deliberately selected final task.
+The final ID is selected explicitly from the create response; WTP does not
+infer a group end or automatically attach anything:
+
+```sh
+tests_id=$(wtp --json reusable create --name Tests \
+  --title "Run tests" --instructions "Run focused and full tests." | jq -r .id)
+review_id=$(wtp --json reusable create --name "Code review" \
+  --title "Review code" --instructions "Review the implementation and tests." | jq -r .id)
+version_id=$(wtp --json reusable create --name "Version update" \
+  --title "Update version" --instructions "Update version metadata and notes." | jq -r .id)
+commit_id=$(wtp --json reusable create --name Commit \
+  --title "Commit changes" --instructions "Commit the verified release changes." | jq -r .id)
+
+group=(--project Apollo --feature-id FEAT-7)
+tests_task=$(wtp --json task create --title "Run tests" "${group[@]}" | jq -r .shortId)
+review_task=$(wtp --json task create --title "Code review" "${group[@]}" \
+  --depends-on "$tests_task" | jq -r .shortId)
+version_task=$(wtp --json task create --title "Version update" "${group[@]}" \
+  --depends-on "$review_task" | jq -r .shortId)
+last_task_id=$(wtp --json task create --title "Commit release" "${group[@]}" \
+  --depends-on "$version_task" | jq -r .shortId)
+
+# Explicitly attach to the selected last task, in this order.
+wtp task update "$last_task_id" \
+  --reusable "$tests_id" --reusable "$review_id" \
+  --reusable "$version_id" --reusable "$commit_id"
+wtp task show "$last_task_id"
+```
+
+The group flags are ordinary metadata and selectors, not a reusable-task
+scope. An agent can claim the chain normally after dependencies resolve; the
+reusable items neither execute before the claim nor make the final task
+claimable early.
+
+### Versioned planning workflow
+
+Planning records are a separate, versioned workflow for ideas and research
+that are not yet executable tasks. They use the fixed statuses `toplan`,
+`researched`, `planned`, and `rejected`; status names are exact and
+case-sensitive. The allowed direct transitions are:
+
+```text
+toplan     -> researched | rejected
+researched -> toplan | planned | rejected
+planned    -> researched | rejected
+rejected   -> toplan
+```
+
+Same-state moves and every other direct move are rejected. `rejected` is the
+revisable replacement for deletion: there is no planning delete command. A
+rejected item can return to `toplan`, while its UUID, short ID, metadata,
+dependencies, comments, and history remain available. Planning records always
+have `startedAt: null` and `completedAt: null`; planning never synthesizes
+execution timestamps or comments. `createdAt` and `updatedAt` are UTC, and
+real edits/status moves advance `updatedAt` monotonically while no-op metadata
+updates preserve it.
+
+Planning stores the complete task metadata payload: `id`, `shortId`, `title`,
+`description`, `priority`, `estimate`, `lane`, `model`, `issueId`, `project`,
+`milestone`, `version`, `featureId`, `feature`, `gitRepo`, `gitBranch`,
+`worktreeName`, `worktreeDir`, planning `status`, `assignee`, `dependencies`,
+`comments`, `createdAt`, `updatedAt`, `startedAt`, `completedAt`, and ordered
+`reusableTaskIds`. `featureId` is the stable machine-facing feature key;
+`feature` is its human-readable display name. They are independent: renaming a
+feature changes `feature`, not `featureId`, and neither field substitutes for
+the other. Legacy records may omit optional fields and remain valid.
+
+Planning is flat-file only. Its nested layout is:
+
+```text
+.wtp/
+  todo/ inProgress/ paused/ done/       # executable task records
+  planning/
+    toplan/<shortId>.json
+    researched/<shortId>.json
+    planned/<shortId>.json
+    rejected/<shortId>.json
+  reusable.json
+  handoffs.json
+  meta/
+    index.json, index-<branchId>.json, wtp.lock
+    batch-update.json, reusable-update.json, planning-promote.json # transient
+```
+
+The `planning/` root is a namespace, not an execution status directory.
+Planning status directories are initialized as part of the store; direct
+records in `planning/`, unknown planning status directories, nested record
+directories, and a configured execution status named `planning` are errors.
+Canonical live filenames use the record short ID (a valid legacy canonical
+UUID filename may be migrated in place). Planning list/show/promotion see all
+branch scopes. There is one UUID and short-ID namespace and one dependency
+graph across executable and planning records, so IDs, dependencies, cycles,
+and missing references are validated globally under the shared store lock.
+Planning does not get a separate allocator or index. Named-branch IDs and
+legacy IDs retain the normal branch/shared-store rules; creating planning work
+uses the same store-global allocator and never renumbers existing IDs.
+The only supported backend is flat-file storage.
+
+Normal execution operations remain planning-blind: `task list/show/ready/next`,
+`task start`, `graph`, `stats`, and `batch export/import` return or mutate
+executable records only. In particular, normal `stats`, `batch`, `graph`,
+`ready`, and `next` exclude planning records. Execution graph output does not
+add planning nodes; readiness may describe a planning dependency as a blocker.
+Planning list/show/report/promotion are the only planning queries and operate
+across branch scopes. Reusable definitions remain advisory and are not
+executed or completion-enforced for planning items.
+
+#### Planning commands and flags
+
+Use `wtp --json planning ...` for the typed JSON result. The exact command
+surface is:
+
+```text
+wtp planning create --title TITLE [--status toplan|researched|planned|rejected]
+  [--description TEXT] [--priority low|medium|high|urgent]
+  [--estimate xs|s|m|l|xl] [--lane LANE] [--model MODEL]
+  [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE]
+  [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE]
+  [--git-repo ABSOLUTE-PATH] [--git-branch BRANCH]
+  [--worktree-name NAME] [--worktree-dir ABSOLUTE-PATH]
+  [--depends-on ID[,ID...]] [--reusable NAME_OR_ID] [--agent AGENT]
+wtp planning list [--status STATUS] [--issue-id ISSUE-ID] [--project PROJECT]
+  [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID]
+  [--feature FEATURE]
+wtp planning show PLANNING-ID
+wtp planning update PLANNING-ID [same metadata flags as create except --status]
+wtp planning set-status PLANNING-ID STATUS
+wtp planning report [same --status and six grouping selectors as list]
+wtp planning promote [--dry-run] [at least one of the six grouping selectors]
+```
+
+`--title` is required on create. Create accepts all task-create metadata
+flags; update accepts every mutable metadata flag except `--status` and
+requires at least one supplied field. `--depends-on` and `--reusable` are the
+only repeatable flags. Dependencies accept comma-separated UUID/full short-ID
+values and are stored as sorted canonical UUIDs; reusable selectors are
+ordered canonical UUID references and are not comma-split. On update, omitted
+fields preserve their values, explicit empty optional values clear one field,
+and a single empty `--depends-on=` or `--reusable=` clears that complete list.
+Empty values cannot be mixed with non-empty occurrences; duplicate references
+are rejected. `--agent` is available only on create/update and there is no
+planning `--assignee` alias. `show` and `set-status` accept exactly one full
+UUID or complete short ID; they do not accept filters or agent flags.
+
+`list` and `report` accept one optional `--status` and any combination of
+`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, and
+`--feature`. Every supplied selector is trimmed and matched as a
+case-insensitive exact string, and all supplied selectors must match (AND).
+Omitted selectors are unrestricted; unset fields never match a non-empty
+selector. There is no wildcard, substring, semantic-version, or feature-key /
+display-name fallback matching. Stored casing remains unchanged. Results are
+ordered by `createdAt` ascending, then short ID.
+
+Reports filter before aggregation and expose a fixed hierarchy:
+`projects[] -> versions[] -> milestones[]`. The root, each project, version,
+and milestone has `totalItems` and four `statusCounts` buckets in
+`toplan,researched,planned,rejected` order, including zeros. Nodes contain
+only observed values, preserve case, sort unset first then Go lexical order,
+and render unset as `(unset)` in human output. Milestones are leaves. Empty
+reports contain zero counts and `projects: []`.
+
+Promotion selects only `planned` records matching every supplied grouping
+selector, and requires at least one selector; it has no status, ID, agent, or
+implicit-all form. `--dry-run` returns the exact ordered planning items and
+does not initialize, repair, timestamp, allocate, or write durable storage.
+Without it, promotion returns the resulting executable task views. Both JSON
+forms are exactly `{"dryRun":bool,"count":N,"items":[...]}`. The selected set
+must be dependency-closed: while walking dependencies through both planning
+and executable vertices, every encountered planning dependency must also be a
+selected, planned item. Missing planning dependencies reject the entire group
+with a short-ID/status chain; dependencies on executable tasks need not match
+the filter and are unchanged. Promotion never auto-adds an item, claims work,
+creates handoffs, executes reusable instructions, or allocates an ID. It
+preserves all metadata and uses one common strictly advanced `updatedAt` for
+the promoted group.
+
+Promotion is atomic and uses `.wtp/meta/planning-promote.json`, whose strict
+version-1 prepared/committed journal contains exact before snapshots under
+`planning/planned/` and after snapshots under `todo/`. The global lock first
+recovers and preflights all pending journals, then uses this fixed recovery
+order: `batch-update.json` -> `reusable-update.json` -> `planning-promote.json`.
+Prepared promotion journals roll back to planning; committed journals roll
+forward to executable tasks. A failed recovery retains its journal for
+diagnosis. The commit marker is the durability boundary; sources are not
+deleted before it, and promotion is not complete until destination publication
+and source cleanup converge.
+
+Canonical `wtp export` (and the legacy `--export-tasks` alias) captures one
+locked snapshot with executable UUID-named records, `planning/<planning-UUID>.json`
+records in one flat managed planning directory, `handoffs.json`, and
+`reusable.json`. It does not export planning status subdirectories, indexes,
+locks, journals, views, or batch wrappers. Normal batch export/import remains
+planning-blind and has no planning export mode.
+
+#### Complete planning example
+
+This example creates one project/version/milestone, moves two dependent items
+from `toplan` through research to `planned`, previews the dependency-closed
+group, then promotes it. The IDs are captured from each create response; WTP
+never infers a final task or group end.
+
+```sh
+project=Apollo
+version=v2.0
+milestone=Search-MVP
+
+foundation_id=$(wtp --json planning create --title "Choose search index" \
+  --project "$project" --version "$version" --milestone "$milestone" \
+  --feature-id SEARCH-1 --feature "Search" | jq -r .shortId)
+api_id=$(wtp --json planning create --title "Design search API" \
+  --project "$project" --version "$version" --milestone "$milestone" \
+  --feature-id SEARCH-1 --feature "Search" --depends-on "$foundation_id" \
+  | jq -r .shortId)
+
+wtp planning set-status "$foundation_id" researched
+wtp planning set-status "$foundation_id" planned
+wtp planning set-status "$api_id" researched
+wtp planning set-status "$api_id" planned
+wtp planning report --project "$project" --version "$version" \
+  --milestone "$milestone"
+
+wtp --json planning promote --project "$project" --version "$version" \
+  --milestone "$milestone" --dry-run
+wtp planning promote --project "$project" --version "$version" \
+  --milestone "$milestone"
+wtp task show "$foundation_id"
+wtp task show "$api_id"
+```
+
+If research rejects an item, use `wtp planning set-status ID rejected`; to
+revise it later, use `wtp planning set-status ID toplan`. There is no planning
+delete operation. A promotion preview must be rerun before publication because
+it is a snapshot, not a reservation.
+
 ### Focused batch edits
 
 Use the batch commands when several existing tasks need the same focused edit.
@@ -187,14 +565,17 @@ are present they must identify the same task. Each row must contain at least
 one mutable patch field. The editable fields are `title`, `description`,
 `status`, `priority`, `estimate`, `lane`, `model`, `issueId`, `project`,
 `milestone`, `version`, `featureId`, `feature`, `gitRepo`, `gitBranch`,
-`worktreeName`, `worktreeDir`, `assignee`, and `dependencies`. Title and status
+`worktreeName`, `worktreeDir`, `assignee`, `dependencies`, and
+`reusableTasks`. Title and status
 must be non-empty when supplied; priority is `low|medium|high|urgent`, estimate
 is `xs|s|m|l|xl`, configured statuses are accepted, paths `gitRepo` and
 `worktreeDir` must be absolute, and dependencies must resolve without cycles.
 
 JSON is version 1 and has this shape; omitted patch fields preserve their
-stored values, while `null` clears an optional field (`dependencies: null`
-clears all dependencies):
+stored values. For `reusableTasks`, omission preserves assignments, an array
+replaces the complete ordered assignment list (`[]` clears it), and `null`
+also clears it. For other optional fields, `null` clears the field
+(`dependencies: null` clears all dependencies):
 
 ```json
 {
@@ -208,7 +589,8 @@ clears all dependencies):
       "priority": "high",
       "featureId": "FEAT-7",
       "feature": "Batch editing",
-      "dependencies": ["wtp-0002"]
+      "dependencies": ["wtp-0002"],
+      "reusableTasks": ["7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"]
     }
   ]
 }
@@ -216,12 +598,14 @@ clears all dependencies):
 
 CSV uses the header `id,shortId,updatedAt,title,description,status,priority,
 estimate,lane,model,issueId,project,milestone,version,featureId,feature,
-gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear`. A
+gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,reusableTasks,_clear`. A
 blank editable cell preserves the stored value. Put
 comma-separated optional field names in `_clear` to clear them explicitly;
 supported names are `description`, `priority`, `estimate`, `lane`, `model`,
 `issueId`, `project`, `milestone`, `version`, `featureId`, `feature`, `gitRepo`,
-`gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, and `dependencies`.
+`gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, `dependencies`, and
+`reusableTasks`. Reusable task cells contain ordered canonical definition UUIDs;
+blank preserves assignments and `_clear` explicitly clears them.
 Required identifiers, `updatedAt`, `title`, and `status` may not be cleared.
 CSV is UTF-8 and accepts an optional BOM.
 
@@ -235,8 +619,70 @@ version-controlled store, ignore this journal alongside `.wtp/meta/wtp.lock`.
 
 Batch files are editable interoperability documents, not canonical snapshots.
 The root `wtp export --out DIRECTORY` (and legacy `--export-tasks=DIRECTORY`)
-still writes one canonical UUID-named task JSON file plus `handoffs.json` and
-does not write a batch `version` wrapper or short-ID filename set.
+writes one canonical UUID-named task JSON file per executable task plus
+`planning/<canonical-UUID>.json` files for planning records, `handoffs.json`,
+and `reusable.json`. The managed `planning/` directory is present even when
+empty; it contains no planning-status subdirectories. Export does not write a
+batch `version` wrapper or short-ID filename set. `reusable.json` is always a
+valid version-1 catalog, including `{"version":1,"definitions":[]}` when the
+store has no reusable definitions.
+
+### Grouping metadata and targeted selection
+
+Tasks may carry six independent, optional grouping fields: `issueId`,
+`project`, `milestone`, `version`, `featureId`, and `feature`. The first four
+identify the surrounding work; `featureId` is the stable, machine-facing key
+for a feature, while `feature` is its human-readable display name. Keep the
+stable `featureId` when a feature is renamed and update `feature` for the new
+label. WTP never substitutes a feature key for a display name, or vice versa.
+
+Create or edit them with `--issue-id`, `--project`, `--milestone`, `--version`,
+`--feature-id`, and `--feature`. Create values must not be blank after
+trimming. Update/edit preserves an omitted field; an explicit empty assignment
+such as `--feature-id=` clears only that field. Legacy task files that omit
+these properties remain valid and read as unset values. Canonical export keeps
+the fields and does not rename or infer them.
+
+The same six selectors are available on `task list`, `task ready`, `task next`,
+`graph`, `batch export`, and `stats`. Selectors are trimmed and compared as
+case-insensitive exact strings. Supplying more than one selector applies AND
+semantics; omitted selectors do not restrict the result. There is no wildcard,
+substring, semantic-version, or feature-name/key fallback matching. A task
+without a selected field does not match that constrained selector. Selector
+flags must appear before positional `stats` selectors.
+
+A targeted agent loop should establish one optional grouping scope, use it for
+scoped model stats, and reuse it for every automatic `task ready`/`task next`
+claim. Do not inspect one group and then claim from an unrestricted queue.
+
+```sh
+# Show and atomically claim only ready Apollo/Search work.
+wtp task list --project Apollo --feature-id FEAT-7
+wtp task ready --project Apollo --feature-id FEAT-7 --agent Tony
+wtp task next --project Apollo --feature-id FEAT-7 --agent Tony
+
+# Scope every stats form, including model counts and rolling series.
+wtp --json stats --project Apollo --feature-id FEAT-7 model
+wtp --json stats --project Apollo --feature-id FEAT-7 created 7d-0d
+```
+
+The `stats` scope is applied before aggregation. It therefore limits overview
+attributes, focused attributes such as `model` or `featureId`, comments and
+dependency metrics, and `created`/`progressed` series. A status selector still
+comes before a focused attribute (`wtp --json stats --project Apollo done
+model`); the status-first compatibility rule is unchanged. Grouped overview
+handoff metrics include global records and task-scoped records belonging to
+the selected group, with an additional status filter narrowing only the
+status-selected task-scoped records.
+
+Batch export accepts `--status` together with any combination of the six
+grouping selectors. Repeatable `--task` exact selection is mutually exclusive
+with status and grouping selectors; omitting all selectors exports every task.
+The selectors affect only which rows are exported, not the patch semantics:
+JSON omission preserves a field and `null` clears an optional grouping field;
+CSV blank cells preserve a field and `_clear` lists fields to clear. The
+required `updatedAt` token, row validation, dependency checks, and single
+all-or-nothing publication still apply to grouping edits.
 
 ### Configurable statuses
 
@@ -328,8 +774,8 @@ before the command, for example `wtp --json task list`.
 | `wtp schema` | none |
 | `wtp version` | `--json` |
 | `wtp update` | `--json` |
-| `wtp task create` | `--title` (required), `--status`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent` |
-| `wtp task update <task-id>` | `--status`, `--title`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent`; supply at least one |
+| `wtp task create` | `--title` (required), `--status`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, repeatable `--reusable NAME_OR_ID`, `--agent` |
+| `wtp task update <task-id>` | `--status`, `--title`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, repeatable `--reusable NAME_OR_ID`, `--agent`; supply at least one |
 | `wtp task edit <task-id>` | same options as `task update` |
 | `wtp task list` | `--status`, grouping selectors (`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`), `--agent` |
 | `wtp task show <task-id>` | `--agent` |
@@ -341,6 +787,11 @@ before the command, for example `wtp --json task list`.
 | `wtp task comment <task-id>` | `--message` (required), `--agent` |
 | `wtp task ready` | grouping selectors (`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`), `--agent`, `--limit` |
 | `wtp task next` | grouping selectors (`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`), `--agent` |
+| `wtp reusable create` | `--name`, `--title`, and `--instructions` (all required) |
+| `wtp reusable list` | none |
+| `wtp reusable show NAME_OR_ID` | case-insensitive name or UUID selector |
+| `wtp reusable update NAME_OR_ID` | optional `--name`, `--title`, `--instructions`; at least one required |
+| `wtp reusable delete NAME_OR_ID` | case-insensitive name or UUID selector; detaches from every task without confirmation |
 | `wtp handoff write` | `--message` (required), `--agent`, `--task`, `--replace` |
 | `wtp handoff get` | `--task`, `--all-scopes`, `--limit`, `--all` |
 | `wtp handoff purge` | exactly one of `--id`, `--global`, `--task`, `--all-scopes`; optional `--before` or `--older-than` |
@@ -384,7 +835,8 @@ For both formats, `id` and/or `shortId` identifies each row and `updatedAt` is
 required as the exact optimistic-concurrency token. The mutable fields are
 `title`, `description`, `status`, `priority`, `estimate`, `lane`, `model`,
 `issueId`, `project`, `milestone`, `version`, `featureId`, `feature`, `gitRepo`,
-`gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, and `dependencies`; each
+`gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, `dependencies`, and
+`reusableTasks`; each
 row needs at least one of them. JSON omits fields to
 preserve them and uses `null` to clear nullable fields. CSV blank cells
 preserve values and `_clear` explicitly clears only optional fields. Title and
@@ -395,7 +847,27 @@ identifiers, malformed input, stale `updatedAt`, unknown fields/headers, and
 any other invalid row reject the entire import without publishing any row.
 The flat-file provider uses `.wtp/meta/batch-update.json` as a transient,
 version-1 prepared/committed recovery journal; it recovers that journal on
-store open and retains it when recovery fails.
+store open and retains it when recovery fails. Reusable-definition deletion
+uses the separate `.wtp/meta/reusable-update.json` journal with the same
+prepared/committed endpoint rule. Store initialization and task/catalog loads
+recover journals under `.wtp/meta/wtp.lock`, finish batch recovery before
+reusable recovery, and retain both journals rather than allowing overlapping
+task targets to overwrite one another.
+
+Reusable definitions are selected by UUID or case-insensitive exact name.
+`reusable update` trims supplied text, rejects explicit empty values, preserves
+omitted fields, and returns the updated definition; a normalized no-op preserves
+its timestamp. `reusable delete` removes the definition and detaches its UUID
+from tasks in every status and branch scope, including completed tasks. JSON
+output is `{"deleted":<definition>,"detachedTaskCount":N}`; human output names
+the deleted definition and reports the exact detached-task count.
+
+Tasks accept repeatable `--reusable NAME_OR_ID` on create and update/edit. The
+provider resolves each selector under its store lock and persists only ordered
+canonical UUIDs; task views additionally expose live `reusableTasks` in that
+same order. Update occurrences replace the complete assignment list. A single
+`--reusable=` clears all assignments; empty and non-empty occurrences cannot be
+mixed, and duplicate assignments are rejected.
 
 `wtp stats` accepts singular positional selectors. Use at most one configured
 `STATUS` and one `ATTRIBUTE`; when both are present, `STATUS` comes first. The
@@ -599,9 +1071,13 @@ Malformed or invalid handoff JSON is rejected.
 
 `wtp export --out <directory>` writes the exact retained collection to
 `<directory>/handoffs.json`, including `{"handoffs": []}` for an empty store,
-alongside the canonical task snapshots. The legacy
-`--export-tasks=<directory>` action remains an alias for `export` and also
-writes `handoffs.json`. The legacy task actions (`--get-next-task`,
+and the complete version-1 reusable catalog to `<directory>/reusable.json`,
+including an empty `definitions` array, alongside the canonical task
+snapshots. Tasks, handoffs, and the catalog are captured under one store lock,
+so exported reusable-task references resolve to the catalog in the same
+snapshot. The legacy `--export-tasks=<directory>` action remains an alias for
+`export` and writes both managed collections. The legacy task actions
+(`--get-next-task`,
 `--get-tasks`, `--get-task`, `--set-task-in-progress`, `--set-task-paused`,
 `--set-task-done`, `--add-comment`, and `--create-task`) remain supported;
 handoff commands are additive and do not replace those task commands.
@@ -619,7 +1095,8 @@ For older automation, pass exactly one legacy action flag: `--get-next-task`,
 `--export-tasks=<directory>`. The legacy forms accept their matching options:
 `--agent`, `--task-id`, `--comment`, `--title`, `--description`, `--priority`,
 `--estimate`, `--lane`, `--model`, `--git-repo`, `--git-branch`,
-`--worktree-name`, `--worktree-dir`, `--dependencies`, and `--status`.
+`--worktree-name`, `--worktree-dir`, `--dependencies`, `--reusable`, and
+`--status`.
 
 ## Storage and compatibility
 

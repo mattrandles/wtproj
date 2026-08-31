@@ -1,0 +1,40 @@
+{
+  "id": "ed63fb78-5821-4c1f-9fee-4b445a2a7a14",
+  "shortId": "wtp-0d6e4079-0088",
+  "title": "Teach WTP skills the planning lifecycle",
+  "description": "Update skills/task-management/SKILL.md, skills/codex-wtp-loop/SKILL.md, and skills/setup-wtp/SKILL.md to match the completed planning feature. Task management must inspect planning reports, create and research future work, use stable grouping fields, preview promotions, and promote only dependency-closed planned groups. The Codex execution loop must remain planning-blind and never claim or auto-promote planning work. Setup guidance must include the planning directory in migration/backup/export checks and planning-promote.json in transient journal recovery guidance. Preserve existing safety and reusable-task semantics, add no new skill folders, validate every changed skill, and extend repository skill contract tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-skills",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "12a536b7-a2af-4aef-a84b-e7f99424722e",
+    "64f8ccfe-6401-4d17-b639-a713f779626b",
+    "7a0a9bd0-c1f2-4378-a6bf-6dcbceb575c7",
+    "7bca2b6d-b60e-48b7-b0bd-18c63048f839"
+  ],
+  "comments": [
+    {
+      "id": "1badd786-5a40-4abd-83a5-e6d18465cb5a",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the completed planning lifecycle contract, target skills, and existing skill-test coverage; beginning the documentation and contract-test update while preserving unrelated worktree changes.",
+      "createdAt": "2026-08-31T15:46:56.073669627Z"
+    },
+    {
+      "id": "6cdf61d5-e2e3-4f10-a45b-043c22f0ff74",
+      "author": "codex-wtp-loop",
+      "message": "Implemented the completed planning lifecycle in task-management, codex-wtp-loop, and setup-wtp. Added the planning skill contract test covering future-work research/reporting, stable grouping, dry-run and dependency-closed promotion, execution-loop planning blindness, and planning-tree/export/journal recovery guidance. Focused and full verification pass: go test ./internal/releaseasset, go test ./internal/planning ./internal/planningjson ./internal/core ./internal/provider ./internal/provider/flatfile, go test ./internal/cli, go test ./..., go vet ./..., and the planning proposal helper.",
+      "createdAt": "2026-08-31T15:51:58.968877627Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:18:13.020919668Z",
+  "updatedAt": "2026-08-31T15:52:04.147421869Z",
+  "startedAt": "2026-08-31T15:45:21.03265106Z",
+  "completedAt": "2026-08-31T15:52:04.147421869Z"
+}

@@ -1,0 +1,38 @@
+{
+  "id": "7a0a9bd0-c1f2-4378-a6bf-6dcbceb575c7",
+  "shortId": "wtp-0d6e4079-0080",
+  "title": "Expose planning report CLI and renderers",
+  "description": "Implement wtp planning report with optional --status and the six shared grouping flags. Human output renders a readable project/version/milestone tree with totals and aligned toplan/researched/planned/rejected counts, displaying empty grouping values as (unset). Root --json returns the typed nested report without chart or stats compatibility aliases. Validate arbitrary flag order, duplicates, empty selectors, unsupported statuses, zero-result reports, combined filters, lexical ordering, and stdout purity. Update immediate command registration/help stubs only; comprehensive documentation remains separate.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "planning-report",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "838ce89d-6ffd-4730-afb1-e26867bdbb28",
+    "a7844d98-63d9-4d20-a8a4-ebfe77eba2df"
+  ],
+  "comments": [
+    {
+      "id": "54764d26-833a-496f-b786-315156e0501e",
+      "author": "codex-wtp-loop",
+      "message": "Starting CLI exposure and renderer work on the already-implemented planning report aggregation. I will preserve unrelated dirty changes, cover parser/rendering/filter/error/stdout contracts, then run focused and full verification before completion.",
+      "createdAt": "2026-08-31T14:27:17.159181589Z"
+    },
+    {
+      "id": "f486f358-5a81-40e5-aebc-6b646bfc29a6",
+      "author": "codex-wtp-loop",
+      "message": "Implementation complete: registered planning report, added optional planning status and all six shared grouping selectors with duplicate/empty/unsupported validation, emitted typed nested planning.Report JSON, and added deterministic human project/version/milestone rendering with aligned toplan/researched/planned/rejected columns and (unset) values. Focused/full tests, race tests, vet, formatting, diff check, help, and zero-result CLI exercise passed.",
+      "createdAt": "2026-08-31T14:34:04.769217078Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:17:30.116372005Z",
+  "updatedAt": "2026-08-31T14:34:04.818726702Z",
+  "startedAt": "2026-08-31T14:26:17.300566509Z",
+  "completedAt": "2026-08-31T14:34:04.818726702Z"
+}

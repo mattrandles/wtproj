@@ -231,6 +231,128 @@ func TestBatchCLIProcessCSVFormatsAndStdin(t *testing.T) {
 	}
 }
 
+func TestBatchCLIProcessReusableAssignmentsAcrossJSONCSVAndCatalogChanges(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "reusable batch repository")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	checks := runCLIJSONReusableDefinition(t, root, "--json", "reusable", "create", "--name", "Checks", "--title", "Run checks", "--instructions", "run focused checks")
+	review := runCLIJSONReusableDefinition(t, root, "--json", "reusable", "create", "--name", "Review", "--title", "Review work", "--instructions", "review the result")
+	transient := runCLIJSONReusableDefinition(t, root, "--json", "reusable", "create", "--name", "Transient", "--title", "Temporary", "--instructions", "temporary definition")
+
+	first := runCLIJSONTask(t, root, "--json", "task", "create", "--title", "First", "--reusable", review.Name, "--reusable", checks.ID)
+	second := runCLIJSONTask(t, root, "--json", "task", "create", "--title", "Second")
+
+	exportPath := filepath.Join(root, "reusable-export.json")
+	if output, err := runCLIProcess(root, "batch", "export", "--out", exportPath, "--task", first.ShortID, "--task", second.ID); err != nil {
+		t.Fatalf("batch export reusable tasks: %v\n%s", err, output)
+	}
+	var exported struct {
+		Tasks []struct {
+			ShortID       string   `json:"shortId"`
+			ReusableTasks []string `json:"reusableTasks"`
+		} `json:"tasks"`
+	}
+	exportedData, err := os.ReadFile(exportPath)
+	if err != nil {
+		t.Fatalf("ReadFile(reusable export) error = %v", err)
+	}
+	if err := json.Unmarshal(exportedData, &exported); err != nil {
+		t.Fatalf("decode reusable export: %v", err)
+	}
+	if len(exported.Tasks) != 2 || exported.Tasks[0].ShortID != first.ShortID || !slices.Equal(exported.Tasks[0].ReusableTasks, []string{review.ID, checks.ID}) || exported.Tasks[1].ReusableTasks != nil {
+		t.Fatalf("reusable export rows = %#v", exported.Tasks)
+	}
+
+	// Names are resolved against the catalog at import time, while exported
+	// UUIDs remain stable across a definition rename.
+	renamed := runCLIJSONReusableDefinition(t, root, "--json", "reusable", "update", checks.ID, "--name", "Checks renamed")
+	first = runCLIJSONTask(t, root, "--json", "task", "show", first.ID)
+	second = runCLIJSONTask(t, root, "--json", "task", "show", second.ID)
+	jsonPath := filepath.Join(root, "reusable-edit.json")
+	writeBatchDocument(t, jsonPath,
+		batchRow(first, map[string]any{"title": "First JSON edit", "reusableTasks": []string{renamed.Name, review.ID}}),
+		batchRow(second, map[string]any{"title": "Second JSON edit", "reusableTasks": []string{review.Name}}),
+	)
+	jsonResult := runBatchImportJSON(t, root, jsonPath)
+	if got, want := batchResultIDs(jsonResult.Updated), []string{first.ID, second.ID}; !slices.Equal(got, want) {
+		t.Fatalf("JSON reusable updates = %v, want %v", got, want)
+	}
+	if !slices.Equal(jsonResult.Updated[0].ReusableTaskIDs, []string{checks.ID, review.ID}) || jsonResult.Updated[0].ReusableTasks[0].Name != renamed.Name {
+		t.Fatalf("JSON reusable response = %#v", jsonResult.Updated[0])
+	}
+
+	// Omitting reusableTasks preserves assignments. CSV then replaces them with
+	// canonical UUIDs, and its explicit clear form reports a human result.
+	first = runCLIJSONTask(t, root, "--json", "task", "show", first.ID)
+	preservePath := filepath.Join(root, "reusable-preserve.json")
+	writeBatchDocument(t, preservePath, batchRow(first, map[string]any{"description": "preserved assignments"}))
+	preserve := runBatchImportJSON(t, root, preservePath)
+	if len(preserve.Updated) != 1 || !slices.Equal(preserve.Updated[0].ReusableTaskIDs, []string{checks.ID, review.ID}) {
+		t.Fatalf("omitted reusableTasks did not preserve assignments: %#v", preserve)
+	}
+
+	csvPath := filepath.Join(root, "reusable.csv")
+	if output, err := runCLIProcess(root, "batch", "export", "--out", csvPath, "--format", "csv", "--task", first.ID); err != nil {
+		t.Fatalf("CSV reusable export: %v\n%s", err, output)
+	}
+	records := readCSVRecords(t, mustReadBatchFile(t, csvPath))
+	positions := make(map[string]int, len(records[0]))
+	for index, name := range records[0] {
+		positions[name] = index
+	}
+	records[1][positions["reusableTasks"]] = review.ID
+	records[1][positions["title"]] = "First CSV edit"
+	if err := os.WriteFile(csvPath, encodeCSVRecords(t, records), 0o644); err != nil {
+		t.Fatalf("WriteFile(CSV replacement) error = %v", err)
+	}
+	csvResult := runBatchImportJSONWithArgs(t, root, csvPath, "--format", "csv")
+	if len(csvResult.Updated) != 1 || !slices.Equal(csvResult.Updated[0].ReusableTaskIDs, []string{review.ID}) {
+		t.Fatalf("CSV reusable replacement = %#v", csvResult)
+	}
+
+	first = runCLIJSONTask(t, root, "--json", "task", "show", first.ID)
+	clearPath := filepath.Join(root, "reusable-clear.csv")
+	if output, err := runCLIProcess(root, "batch", "export", "--out", clearPath, "--format", "csv", "--task", first.ID); err != nil {
+		t.Fatalf("CSV reusable clear export: %v\n%s", err, output)
+	}
+	records = readCSVRecords(t, mustReadBatchFile(t, clearPath))
+	positions = make(map[string]int, len(records[0]))
+	for index, name := range records[0] {
+		positions[name] = index
+	}
+	records[1][positions["reusableTasks"]] = ""
+	records[1][positions["_clear"]] = "reusableTasks"
+	if err := os.WriteFile(clearPath, encodeCSVRecords(t, records), 0o644); err != nil {
+		t.Fatalf("WriteFile(CSV clear) error = %v", err)
+	}
+	output, err := runCLIProcess(root, "batch", "import", "--in", clearPath, "--format", "csv")
+	if err != nil || output != "updated: 1\nunchanged: 0\n" {
+		t.Fatalf("human CSV reusable clear = %q, error = %v", output, err)
+	}
+	cleared := runCLIJSONTask(t, root, "--json", "task", "show", first.ID)
+	if len(cleared.ReusableTaskIDs) != 0 || len(cleared.ReusableTasks) != 0 {
+		t.Fatalf("CSV reusable clear task = %#v", cleared)
+	}
+
+	// A definition deleted after export is not silently re-created or resolved
+	// from stale names/IDs. The whole batch stays unpublished.
+	second = runCLIJSONTask(t, root, "--json", "task", "show", second.ID)
+	deletePath := filepath.Join(root, "reusable-deleted-definition.json")
+	writeBatchDocument(t, deletePath, batchRow(second, map[string]any{"title": "must not publish", "reusableTasks": []string{transient.ID}}))
+	if output, err := runCLIProcess(root, "--json", "reusable", "delete", transient.ID); err != nil {
+		t.Fatalf("delete reusable definition: %v\n%s", err, output)
+	}
+	output, err = runCLIProcess(root, "batch", "import", "--in", deletePath)
+	if err == nil || !strings.Contains(output, "not found") {
+		t.Fatalf("deleted reusable import error = %v output = %q", err, output)
+	}
+	secondAfter := runCLIJSONTask(t, root, "--json", "task", "show", second.ID)
+	if secondAfter.Title != second.Title || !slices.Equal(secondAfter.ReusableTaskIDs, []string{review.ID}) {
+		t.Fatalf("deleted reusable import published task = %#v", secondAfter)
+	}
+}
+
 func TestBatchCLIProcessRejectsInvalidBatchesWithoutMutation(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "invalid batch repository")
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -277,6 +399,14 @@ func TestBatchCLIProcessPreservesCanonicalAndLegacyExportContracts(t *testing.T)
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	task := runCLIJSONTask(t, root, "--json", "task", "create", "--title", "Export contract task")
+	planningOutput, err := runCLIProcess(root, "--json", "planning", "create", "--title", "Export contract planning", "--status", "planned")
+	if err != nil {
+		t.Fatalf("planning create: %v\n%s", err, planningOutput)
+	}
+	var planning core.PlanningItemView
+	if err := json.Unmarshal([]byte(planningOutput), &planning); err != nil {
+		t.Fatalf("decode planning create: %v\n%s", err, planningOutput)
+	}
 	runCLIJSONHandoff(t, root, "--json", "handoff", "write", "--agent", "Test", "--message", "retained export context")
 
 	canonicalDir := filepath.Join(root, "canonical export")
@@ -287,7 +417,7 @@ func TestBatchCLIProcessPreservesCanonicalAndLegacyExportContracts(t *testing.T)
 	if output, err := runCLIProcess(root, "--export-tasks="+legacyDir); err != nil {
 		t.Fatalf("legacy export alias: %v\n%s", err, output)
 	}
-	wantEntries := []string{task.ID + ".json", "handoffs.json"}
+	wantEntries := []string{task.ID + ".json", "handoffs.json", "planning", "reusable.json"}
 	for _, directory := range []string{canonicalDir, legacyDir} {
 		entries, err := os.ReadDir(directory)
 		if err != nil {
@@ -297,7 +427,7 @@ func TestBatchCLIProcessPreservesCanonicalAndLegacyExportContracts(t *testing.T)
 			t.Fatalf("%s entries = %v, want %v", directory, got, wantEntries)
 		}
 	}
-	for _, name := range wantEntries {
+	for _, name := range []string{task.ID + ".json", "handoffs.json", "reusable.json"} {
 		canonical, err := os.ReadFile(filepath.Join(canonicalDir, name))
 		if err != nil {
 			t.Fatalf("ReadFile(canonical %s): %v", name, err)
@@ -309,6 +439,17 @@ func TestBatchCLIProcessPreservesCanonicalAndLegacyExportContracts(t *testing.T)
 		if !bytes.Equal(canonical, legacy) {
 			t.Fatalf("export contract changed for %s:\ncanonical %q\nlegacy %q", name, canonical, legacy)
 		}
+	}
+	canonicalPlanning, err := os.ReadFile(filepath.Join(canonicalDir, "planning", planning.ID+".json"))
+	if err != nil {
+		t.Fatalf("ReadFile(canonical planning): %v", err)
+	}
+	legacyPlanning, err := os.ReadFile(filepath.Join(legacyDir, "planning", planning.ID+".json"))
+	if err != nil {
+		t.Fatalf("ReadFile(legacy planning): %v", err)
+	}
+	if !bytes.Equal(canonicalPlanning, legacyPlanning) {
+		t.Fatalf("export contract changed for planning record:\ncanonical %q\nlegacy %q", canonicalPlanning, legacyPlanning)
 	}
 }
 
@@ -342,6 +483,38 @@ func writeBatchDocument(t *testing.T, path string, rows ...map[string]any) {
 	if err := os.WriteFile(path, batchDocument(rows...), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s): %v", path, err)
 	}
+}
+
+func runCLIJSONReusableDefinition(t *testing.T, root string, args ...string) core.ReusableTaskDefinition {
+	t.Helper()
+	output, err := runCLIProcess(root, args...)
+	if err != nil {
+		t.Fatalf("wtp %s: %v\n%s", strings.Join(args, " "), err, output)
+	}
+	var definition core.ReusableTaskDefinition
+	if err := json.Unmarshal([]byte(output), &definition); err != nil {
+		t.Fatalf("decode reusable output %q: %v", output, err)
+	}
+	return definition
+}
+
+func mustReadBatchFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", path, err)
+	}
+	return data
+}
+
+func encodeCSVRecords(t *testing.T, records [][]string) []byte {
+	t.Helper()
+	var output bytes.Buffer
+	writer := csv.NewWriter(&output)
+	if err := writer.WriteAll(records); err != nil {
+		t.Fatalf("encode CSV records: %v", err)
+	}
+	return output.Bytes()
 }
 
 func runBatchImportJSON(t *testing.T, root, path string) struct {

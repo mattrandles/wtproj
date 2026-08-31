@@ -1,0 +1,32 @@
+{
+  "id": "0a238a49-9373-43d7-bd18-6609386b7b2f",
+  "shortId": "wtp-0d6e4079-0058",
+  "title": "Add reusable assignment flags and task rendering",
+  "description": "Add repeatable --reusable NAME_OR_ID to modern task create and task update/edit, plus compatible legacy create parsing. Preserve flag occurrence order. On update, any --reusable occurrence replaces the entire list; a single --reusable= clears it; reject mixed empty/non-empty occurrences and duplicates. Thread parsed identifiers through provider inputs without locally resolving them. Extend detailed human task output and claim output with an ordered reusable items section containing each name, title, and instructions; keep compact task list and graph columns unchanged. Ensure JSON task views expose stored reusableTaskIds and resolved reusableTasks consistently. Add parser, legacy parity, human/JSON rendering, clear/reorder, show/start/next, multiline instruction, and usage-error tests.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "reusable-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "0268b202-70dc-4403-8da0-9848daa94244",
+    "fb47f310-2259-4823-b580-41be699f2f9e"
+  ],
+  "comments": [
+    {
+      "id": "ec1b249e-a715-46f2-938b-24cfe67a6447",
+      "author": "codex-wtp-loop",
+      "message": "Implemented repeatable ordered --reusable parsing for modern create/update/edit and legacy create rewrite. Update converts one --reusable= into a clear, rejects mixed/multiple-empty/raw duplicates before provider calls, and passes selectors unchanged for provider resolution. Detailed show/claim output now renders ordered reusableTasks with multiline-safe instructions; compact list/graph remain unchanged. Added parser, legacy parity, clear/order, show/start/next, JSON, multiline, and usage coverage; go test ./... and diff checks pass.",
+      "createdAt": "2026-08-31T11:09:03.41112031Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.992149739Z",
+  "updatedAt": "2026-08-31T11:09:19.545962827Z",
+  "startedAt": "2026-08-31T10:59:13.57008672Z",
+  "completedAt": "2026-08-31T11:09:19.545962827Z"
+}

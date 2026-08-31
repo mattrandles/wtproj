@@ -63,22 +63,41 @@ batch_import_json="$work_dir/batch_import.json"
 
   "$binary_path" --json task create \
     --title "Bootstrap provider" \
-    --description "Initial task for smoke testing" > "$task_a_json"
+    --description "Initial task for smoke testing" \
+    --issue-id ISSUE-42 \
+    --project Apollo \
+    --milestone MVP \
+    --version v1 \
+    --feature-id FEAT-7 \
+    --feature Search > "$task_a_json"
 
   task_a_short_id="$(extract_json_string shortId "$task_a_json")"
   [ -n "$task_a_short_id" ] || fail "could not extract task A shortId"
 
   [ -f ".wtp/todo/${task_a_short_id}.json" ] || fail "task A filename was not written with shortId"
 
+  "$binary_path" --json task edit "$task_a_short_id" --feature "Search Renamed" > "$task_a_json"
+  assert_contains '"featureId": "FEAT-7"' "$task_a_json"
+  assert_contains '"feature": "Search Renamed"' "$task_a_json"
+
   "$binary_path" --json task create \
     --title "Follow-up task" \
     --description "Depends on task A" \
-    --depends-on "$task_a_short_id" > "$task_b_json"
+    --depends-on "$task_a_short_id" \
+    --issue-id ISSUE-42 \
+    --project Apollo \
+    --milestone MVP \
+    --version v1 \
+    --feature-id FEAT-7 \
+    --feature "Search Renamed" > "$task_b_json"
 
   task_b_short_id="$(extract_json_string shortId "$task_b_json")"
   [ -n "$task_b_short_id" ] || fail "could not extract task B shortId"
 
   "$binary_path" task list > "$list_out"
+  assert_contains "$task_a_short_id" "$list_out"
+  assert_contains "$task_b_short_id" "$list_out"
+  "$binary_path" task list --issue-id issue-42 --project apollo --milestone mvp --version V1 --feature-id feat-7 --feature "search renamed" > "$list_out"
   assert_contains "$task_a_short_id" "$list_out"
   assert_contains "$task_b_short_id" "$list_out"
 
@@ -87,7 +106,7 @@ batch_import_json="$work_dir/batch_import.json"
   fi
   assert_contains "blocked by unresolved dependencies" "$err_out"
 
-  "$binary_path" --json task next --agent Alice > "$task_out"
+  "$binary_path" --json task next --agent Alice --issue-id issue-42 --project apollo --milestone mvp --version V1 --feature-id feat-7 --feature "search renamed" > "$task_out"
   assert_contains "\"shortId\": \"$task_a_short_id\"" "$task_out"
   assert_contains "\"status\": \"inProgress\"" "$task_out"
   assert_contains "\"assignee\": \"Alice\"" "$task_out"
@@ -95,7 +114,7 @@ batch_import_json="$work_dir/batch_import.json"
   "$binary_path" task comment "$task_a_short_id" --agent Alice --message "smoke progress" > /dev/null
   "$binary_path" task done "$task_a_short_id" --agent Alice > /dev/null
 
-  "$binary_path" --json --get-next-task --agent Bob > "$task_out"
+  "$binary_path" --json --get-next-task --agent Bob --issue-id issue-42 --project apollo --milestone mvp --version V1 --feature-id feat-7 --feature "search renamed" > "$task_out"
   assert_contains "\"shortId\": \"$task_b_short_id\"" "$task_out"
   assert_contains "\"status\": \"inProgress\"" "$task_out"
   assert_contains "\"assignee\": \"Bob\"" "$task_out"
@@ -107,7 +126,7 @@ batch_import_json="$work_dir/batch_import.json"
 
   "$binary_path" task done "$task_b_short_id" --agent Bob > /dev/null
 
-  "$binary_path" batch export --out "$batch_export_path" > "$batch_export_summary"
+  "$binary_path" batch export --out "$batch_export_path" --issue-id issue-42 --project apollo --milestone mvp --version V1 --feature-id feat-7 --feature "search renamed" > "$batch_export_summary"
   assert_contains 'taskCount: 2' "$batch_export_summary"
   "$binary_path" --json batch import --in "$batch_export_path" > "$batch_import_json"
   assert_contains '"updated": []' "$batch_import_json"

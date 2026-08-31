@@ -1,0 +1,37 @@
+{
+  "id": "a21f7bd7-599f-4c2e-ae67-60d01c551e8c",
+  "shortId": "wtp-0d6e4079-0052",
+  "title": "Recover reusable delete journals on store open",
+  "description": "Wire reusable-update journal recovery into flat-file store initialization and task/catalog loads under the global lock. A prepared journal must restore every before snapshot; a committed journal must finish every after snapshot. Recovery must be idempotent, validate the entire journal and all target content before replacement, retain the journal when recovery fails, and remove it only after successful convergence. Define safe interaction and ordering with the existing batch-update recovery path so the two journals cannot silently overwrite each other. Add focused internal and fault-injection tests for interruption at each recovery replacement, repeated opens, missing target files, status-directory moves, catalog-only and multi-task recovery, and retained diagnostics. Do not expose delete through the provider yet.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-recovery",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "96d655c6-09e9-4961-8e46-02e1d0bc563d"
+  ],
+  "comments": [
+    {
+      "id": "30d19076-eccd-46d7-80bb-25927fbb35cc",
+      "author": "codex-wtp-loop",
+      "message": "Started scoped implementation. Existing reusable-delete journal format/validation and write path are present; this task will wire recovery into locked store initialization/load paths, define ordering with batch-update recovery, add fault/reopen coverage, and leave provider delete exposure unchanged.",
+      "createdAt": "2026-08-31T10:08:10.793091778Z"
+    },
+    {
+      "id": "ffb0aa4b-32b2-4b8d-ac97-82cd56b216ca",
+      "author": "codex-wtp-loop",
+      "message": "Implemented locked startup/load recovery. New coordinator validates both pending journals, rejects overlapping batch/reusable task targets before mutation, recovers batch first, then restores prepared reusable before snapshots or committed after snapshots via exact-byte atomic replacement, and removes reusable journal only after convergence. Added repeated-open, catalog-only, multi-task/multi-status, custom status-directory, missing-target diagnostic, overlap-retention, and fault-injection coverage.",
+      "createdAt": "2026-08-31T10:15:09.918020398Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.827187805Z",
+  "updatedAt": "2026-08-31T10:16:43.853066973Z",
+  "startedAt": "2026-08-31T10:07:27.092866815Z",
+  "completedAt": "2026-08-31T10:16:43.853066973Z"
+}

@@ -1,0 +1,38 @@
+{
+  "id": "eba33198-9817-4c00-8c65-e21d3a8d72b7",
+  "shortId": "wtp-0d6e4079-0076",
+  "title": "Expose planning create CLI",
+  "description": "Register wtp planning create with the complete task metadata flag surface, including --status, six grouping flags, repeatable dependency/reusable inputs as established by the completed contracts, priority, estimate, lane, model, origin, and assignee. Default status to toplan; distinguish omitted values from explicit empties exactly as task create does; reject blank required/grouping values and execution statuses. Preserve Git/worktree origin discovery parity. Return the typed planning item with stable root --json output and a concise human identifier/title/status line. Add parser-order, legacy-global-flag isolation, Unicode, defaults, explicit overrides, invalid combinations, and output tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "17e7f2f8-93dc-4547-a75f-4ba0d07bdf6c",
+    "8efd694e-9415-4ddf-80fc-69fcdc152d9b"
+  ],
+  "comments": [
+    {
+      "id": "951af4f2-4316-4402-b728-36bc8360935c",
+      "author": "codex-wtp-loop",
+      "message": "Progress: verified the task is claimed inProgress and found an existing planning create implementation in the dirty worktree. Auditing parser ordering, omitted-vs-empty semantics, root output, origin discovery, and target-specific coverage before making scoped fixes.",
+      "createdAt": "2026-08-31T13:54:37.935253575Z"
+    },
+    {
+      "id": "6e19fda8-e09f-4f58-a042-406b152c3172",
+      "author": "codex-wtp-loop",
+      "message": "Completed and verified: planning create exposes status, all six grouping flags, repeatable --depends-on/--reusable, priority, estimate, lane, model, Git/worktree origin, and --agent assignee. Added singleton/blank/status validation, parser-order and legacy-global isolation, Unicode/default/override, typed root JSON, and concise human output coverage. Verification passed: focused planning-create tests, go test ./... -count=1, go test -race ./internal/cli ./internal/provider/flatfile, go vet ./..., and git diff --check. Unrelated dirty worktree changes preserved.",
+      "createdAt": "2026-08-31T14:02:17.949013794Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:17:29.991442848Z",
+  "updatedAt": "2026-08-31T14:02:17.997703228Z",
+  "startedAt": "2026-08-31T13:53:45.473338355Z",
+  "completedAt": "2026-08-31T14:02:17.997703228Z"
+}

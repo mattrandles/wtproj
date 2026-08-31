@@ -1,0 +1,37 @@
+{
+  "id": "5ef45b73-f794-4abd-8631-51e7fa1e2a58",
+  "shortId": "wtp-0d6e4079-0070",
+  "title": "Unify planning identity and dependency validation",
+  "description": "Use the existing global UUID and branch-aware short-ID indexes for planning creation so identifiers cannot collide across planning and executable namespaces. Build one locked validation snapshot for dependency resolution and cycle detection across both lifecycles while keeping provider query results partitioned. Allow dependencies in either direction; planning statuses never resolve execution readiness, so executable work remains blocked until the dependency is promoted and completed. Preserve current branch-scope allocation and automatic-selection rules. Add concurrent allocation, cross-namespace collision, cross-lifecycle dependency, cycle, missing reference, branch scope, and readiness tests.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "planning-storage",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "177a8b95-10f7-4147-8d27-64bda30a0a69"
+  ],
+  "comments": [
+    {
+      "id": "027f234b-5a3b-4f47-b318-adfbe611502a",
+      "author": "codex-wtp-loop",
+      "message": "Started implementation: tracing planning/executable identity allocation and dependency validation; will preserve existing lifecycle work and add focused concurrency, cross-lifecycle, branch-scope, and readiness coverage.",
+      "createdAt": "2026-08-31T12:54:40.38562813Z"
+    },
+    {
+      "id": "f5763938-d29a-4375-9c9f-fed3ff471e11",
+      "author": "codex-wtp-loop",
+      "message": "Implemented a single locked, lifecycle-partitioned validation snapshot. Executable create/update/batch/claim/read paths now validate the complete graph, allocate UUIDs and branch-aware short IDs across both namespaces, resolve cross-lifecycle dependencies, and block execution on planning dependencies. Added collision, dependency direction, cycle, missing-reference, branch-scope, and concurrent-allocation coverage. Verified go test ./internal/provider/flatfile ./internal/core, go test ./..., and git diff --check.",
+      "createdAt": "2026-08-31T13:01:36.594660338Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:52.239767073Z",
+  "updatedAt": "2026-08-31T13:01:36.642780098Z",
+  "startedAt": "2026-08-31T12:53:58.325470384Z",
+  "completedAt": "2026-08-31T13:01:36.642780098Z"
+}

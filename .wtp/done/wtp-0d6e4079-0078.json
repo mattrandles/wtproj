@@ -1,0 +1,38 @@
+{
+  "id": "69221fad-19b7-4b30-854b-b0e874f23bfe",
+  "shortId": "wtp-0d6e4079-0078",
+  "title": "Expose planning update and set-status CLI",
+  "description": "Implement wtp planning update ID and wtp planning set-status ID STATUS. Update exposes the full mutable metadata surface, supports explicit clearing and ordered dependency/reusable replacement, requires at least one supplied change, and intentionally has no --status flag. Set-status accepts exactly one fixed planning status and no assignee mutation. Both commands reject executable IDs, extra positionals, duplicates, blank values, and invalid transitions, and render the resulting planning view consistently in text and JSON. Add clear/reorder/no-op, adjacent backward transition, rejection/reopen, forbidden direct transition, and usage tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "48ed91ab-7fda-4410-acce-0ede1f7f1a25",
+    "8efd694e-9415-4ddf-80fc-69fcdc152d9b"
+  ],
+  "comments": [
+    {
+      "id": "5bddccbc-81b2-44b3-8c18-47ecd2a99efd",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the existing planning CLI/provider contracts and task-scoped worktree state; beginning implementation of update and set-status validation plus focused usage coverage.",
+      "createdAt": "2026-08-31T14:13:53.419271569Z"
+    },
+    {
+      "id": "81872909-dc08-47f3-9e09-dfcc05ad10f3",
+      "author": "codex-wtp-loop",
+      "message": "Implemented planning update and set-status CLI handlers with strict argument validation, complete mutable metadata mapping, explicit clears, ordered dependency/reusable replacement, fixed-status transitions, consistent text/JSON output, help usage, and focused CLI tests. Focused packages and full go test ./... pass; git diff --check is clean.",
+      "createdAt": "2026-08-31T14:20:01.487887889Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:17:30.053964363Z",
+  "updatedAt": "2026-08-31T14:20:05.39903756Z",
+  "startedAt": "2026-08-31T14:13:17.770032781Z",
+  "completedAt": "2026-08-31T14:20:05.39903756Z"
+}

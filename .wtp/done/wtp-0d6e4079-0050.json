@@ -1,0 +1,37 @@
+{
+  "id": "6b4c6d6e-37e6-4a7a-9df0-e539e14b2614",
+  "shortId": "wtp-0d6e4079-0050",
+  "title": "Implement reusable definition update and rename",
+  "description": "Add provider update behavior for reusable definitions after catalog create/read support exists. Accept partial name, title, and instructions changes with at least one field supplied; preserve ID and createdAt, advance updatedAt monotonically, and atomically replace the validated catalog. A rename must keep every task reference valid because tasks store UUIDs. Enforce case-insensitive name uniqueness while allowing casing-only edits to the same definition. Return unchanged results consistently when supplied values normalize to stored values. Add focused tests for rename stability, partial edits, casing-only updates, no-op handling, duplicate-name rejection, timestamp behavior, and injected atomic-write failure. Do not implement deletion or task detachment here.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "reusable-provider",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a"
+  ],
+  "comments": [
+    {
+      "id": "eab6f8a2-e5a0-4d6c-becf-00032d419c59",
+      "author": "codex-wtp-loop",
+      "message": "Scope confirmed: implement only ReusableTaskMutationProvider.UpdateReusableTask in the existing flat-file provider. Create/list/get already use the global lock, strict catalog validation, and atomic byte replacement; update will preserve UUID/CreatedAt, trim and validate supplied fields, permit same-definition casing edits, return the current definition for normalized no-ops without rewriting, and leave task UUID references untouched. I will add focused provider tests for partial/casing/no-op/duplicate/timestamp/atomic-failure behavior, with no deletion or detachment.",
+      "createdAt": "2026-08-31T09:52:17.699899714Z"
+    },
+    {
+      "id": "76f0d1cd-7996-4c51-b068-24b9c457508e",
+      "author": "codex-wtp-loop",
+      "message": "Implemented UpdateReusableTask in internal/provider/flatfile/reusable.go. It resolves by UUID then case-insensitive trimmed name under the global lock, applies partial trimmed name/title/instructions edits, rejects empty patches and invalid/duplicate resulting catalogs, preserves ID/CreatedAt, advances UpdatedAt with the existing monotonic catalog clock, and atomically publishes validated bytes. Normalized no-ops return the stored definition without rewriting; casing-only edits update the stored casing; UUID references remain resolvable after rename. Added focused tests covering rename/reference stability, partial and casing edits, no-op bytes/timestamps, duplicate and empty rejection, future-clock monotonicity, and injected replacement failure with unchanged bytes. No deletion or detachment was added.",
+      "createdAt": "2026-08-31T09:55:01.321693342Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.771785611Z",
+  "updatedAt": "2026-08-31T09:55:01.369897091Z",
+  "startedAt": "2026-08-31T09:50:42.842467805Z",
+  "completedAt": "2026-08-31T09:55:01.369897091Z"
+}

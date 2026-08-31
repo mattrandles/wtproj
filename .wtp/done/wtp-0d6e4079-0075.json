@@ -1,0 +1,38 @@
+{
+  "id": "c15b1343-e3ff-4d5a-9f28-cb50cb1cf875",
+  "shortId": "wtp-0d6e4079-0075",
+  "title": "Keep operational task workflows planning-blind",
+  "description": "Audit and harden every existing execution query after the unified loader is introduced. task list/show/ready/next/start, stats overview/focused/series, graph, handoffs, and batch export/import must return or mutate executable tasks only. Planning records may participate solely in global dependency validation and blocked-reason calculation; a blocker should identify its planning short ID, title, and status without making it claimable or graph-expanded. Add regression tests for matching IDs/status names, planning-only stores, cross-lifecycle blockers, stats totals, batch all/status selection, graph internal edges, and concurrent next claims.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-isolation",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "5ef45b73-f794-4abd-8631-51e7fa1e2a58",
+    "7aa1f414-5f65-4627-ac3c-eb9cdf75965b"
+  ],
+  "comments": [
+    {
+      "id": "bb85fa00-b240-46c1-b0c4-26dc7156dcdb",
+      "author": "codex-wtp-loop",
+      "message": "Auditing the unified-loader execution boundary now: tracing task queries, stats, graph, handoffs, and batch paths; I will add focused regressions and verify all affected packages before completion.",
+      "createdAt": "2026-08-31T13:38:35.024671772Z"
+    },
+    {
+      "id": "e7675054-0d8b-4b61-9cac-2af555f70e88",
+      "author": "codex-wtp-loop",
+      "message": "Implementation verified: execution queries now consume executable-only snapshots; planning records remain available only for cross-lifecycle validation and blocker text. Added regressions for planning-only stores, matching IDs/statuses, cross-lifecycle blockers, stats totals, batch selection/import isolation, graph edges, and concurrent next claims. Focused tests, race tests, full suite, vet, and diff-check all pass.",
+      "createdAt": "2026-08-31T13:52:29.414155647Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:17:29.960424363Z",
+  "updatedAt": "2026-08-31T13:52:37.940100133Z",
+  "startedAt": "2026-08-31T13:37:58.090883251Z",
+  "completedAt": "2026-08-31T13:52:37.940100133Z"
+}

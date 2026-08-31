@@ -1,0 +1,33 @@
+{
+  "id": "48ed91ab-7fda-4410-acce-0ede1f7f1a25",
+  "shortId": "wtp-0d6e4079-0073",
+  "title": "Implement planning updates and status changes",
+  "description": "Add provider update and set-status operations for planning items. Update supports the complete mutable task metadata surface except status; omission preserves, explicit empty values clear permitted optional fields, supplied dependency lists replace and validate against the unified graph, and reusable assignments preserve caller order after canonical resolution. Set-status applies only the fixed revisable transition table and never creates execution timestamps. Both paths must keep createdAt stable, advance updatedAt monotonically, write atomically, and reject executable-task identifiers. Add no-op, clear, reorder, terminal-looking rejected reopen, invalid direct transition, dependency cycle, stale clock, and injected replacement tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-provider",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "17e7f2f8-93dc-4547-a75f-4ba0d07bdf6c",
+    "7aa1f414-5f65-4627-ac3c-eb9cdf75965b",
+    "86eb10bd-0edb-49e6-b4f3-29d5f65a0dd1"
+  ],
+  "comments": [
+    {
+      "id": "699f14ad-3a4c-4f6f-8c11-287fa9be1723",
+      "author": "codex-wtp-loop",
+      "message": "Progress: traced planning contracts and flat-file transaction helpers; implementing provider update/set-status with locked union-graph validation, monotonic timestamps, no-op preservation, and atomic replacement coverage.",
+      "createdAt": "2026-08-31T13:25:12.537165866Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:52.333971837Z",
+  "updatedAt": "2026-08-31T13:29:46.090039705Z",
+  "startedAt": "2026-08-31T13:23:49.311249563Z",
+  "completedAt": "2026-08-31T13:29:46.090039705Z"
+}

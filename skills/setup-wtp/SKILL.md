@@ -237,17 +237,21 @@ Apply this sequence for any destination:
    creation, or worktree creation not already explicitly authorized.
 3. Require a new, empty destination. If it exists, inspect it and stop rather
    than combining files.
-4. Back up the complete source directory, including `meta`, handoffs, status
-   directories, and hidden files. Use a fresh backup path on another durable
-   location when practical.
+4. Back up the complete source directory, including `meta`, `handoffs.json`,
+   the durable `reusable.json` catalog, the complete `planning/` directory with
+   its `toplan/`, `researched/`, `planned/`, and `rejected/` status directories,
+   every executable status directory, and hidden files. Use a fresh backup path
+   on another durable location when practical.
 5. Prefer copying the complete store to the new destination, then switching
    `.wtp.json`. This leaves the original as a recoverable fallback. Move only
    when the user specifically requests it and a separate backup is verified.
 6. Write or merge `.wtp.json` only after the destination copy succeeds.
 7. From the intended project/worktree, run `wtp task list` and
-   `wtp --json stats`.
-   Compare counts, configured statuses, handoffs, and representative task
-   metadata with the source or backup.
+   `wtp --json stats`, then inspect `wtp planning report` for the planning
+   store.
+   Compare counts, configured statuses, handoffs, the `reusable.json` catalog
+   (including its definitions), the complete planning status counts/items, and
+   representative task metadata with the source or backup.
 8. On any failure, restore the previous `.wtp.json` selection and leave all
    stores intact. Keep the backup and original until the user accepts the
    migration.
@@ -256,6 +260,50 @@ Never merge independent stores by copying their task files together. Stable
 short IDs and allocation indexes are scoped to a store and may collide. To
 share one store across projects, start with one new store or choose one existing
 store as canonical; keep every other existing store separate.
+
+### Complete-store file, planning, and export checks
+
+Treat `.wtp/reusable.json` as durable store data. A complete migration or backup
+must preserve it alongside task directories, `.wtp/handoffs.json` when present,
+the complete `.wtp/planning/` tree (`toplan/`, `researched/`, `planned/`, and
+`rejected/`), and the rest of `.wtp/meta`; do not omit any of these because
+planning records and reusable definitions are shared by every project, branch,
+and worktree using the same `wtpDir`. A missing catalog is compatible empty
+storage, but do not create or replace it during discovery or migration without
+an explicit user decision.
+
+After the destination is selected and backed up, verify the canonical export
+contract from the intended project:
+
+```sh
+wtp export --out wtp-export-check
+test -f wtp-export-check/reusable.json
+test -d wtp-export-check/planning
+```
+
+Confirm that the export contains the complete version-1 `reusable.json`
+catalog, including `{"version":1,"definitions":[]}` when it is empty, and
+that its definitions match the source/backup. Confirm that the planning export
+contains flat `planning/<planning-UUID>.json` records for all planning statuses,
+not status subdirectories, and matches the complete source/backup planning
+tree. Also verify the executable task snapshots and retained handoffs. Treat
+export as a consistency check, not a replacement for the complete source
+backup.
+
+The transient journals are `.wtp/meta/batch-update.json`,
+`.wtp/meta/reusable-update.json`, and `.wtp/meta/planning-promote.json`.
+Keep all three with the other transient recovery data during migration and
+backup; do not copy them into the canonical export as durable catalog,
+planning, or task data. Recovery always processes them in that order:
+`batch-update.json`, then `reusable-update.json`, then `planning-promote.json`.
+Prepared journals roll back and committed journals roll forward; if any
+journal is present, stop normal setup and let WTP recover it under the store
+lock, or preserve the backup and follow the recovery guidance before
+continuing. In a tracked store, ignore all three alongside `wtp.lock`, while
+keeping `reusable.json`, the planning directory, and task directories tracked.
+The transient `.wtp/meta/reusable-update.json` remains the reusable-definition
+delete journal; ignore it alongside `wtp.lock` and `batch-update.json` (and
+`planning-promote.json`).
 
 ### Use an external or shared directory
 
@@ -287,14 +335,15 @@ create the linked worktree:
 grep -qxF '.wtp-task-history/' "$wtp_exclude_file" ||
   printf '%s\n' '.wtp-task-history/' >> "$wtp_exclude_file"
 git -C "$wtp_project_root" worktree add --orphan -b "$wtp_history_branch" "$wtp_history_worktree"
-printf '%s\n' '.wtp/meta/wtp.lock' '.wtp/meta/batch-update.json' > "$wtp_history_worktree/.gitignore"
+printf '%s\n' '.wtp/meta/wtp.lock' '.wtp/meta/batch-update.json' '.wtp/meta/reusable-update.json' '.wtp/meta/planning-promote.json' > "$wtp_history_worktree/.gitignore"
 ```
 
 If the branch already exists, do not recreate it; update/synchronize it safely
 and add a linked worktree only when it is not already checked out. Do not reuse
 a nonempty target path.
 
-For an existing store, back it up and copy the complete `.wtp` directory to
+For an existing store, back it up and copy the complete `.wtp` directory,
+including `planning/`, `reusable.json`, and any transient recovery journals, to
 `$wtp_history_worktree/.wtp` before changing config. Set the project root's
 `.wtp.json` to point to `.wtp-task-history/.wtp`, merging any existing config.
 Then verify from the project root and commit from the history worktree:
@@ -359,12 +408,13 @@ Run setup-focused checks from the intended project or linked worktree:
 wtp version
 wtp task list
 wtp --json stats
+wtp planning report
 ```
 
 Confirm the executable path/version, configuration root, resolved store path,
-status catalog, expected task counts, representative metadata, and whether the
-chosen files appear in Git status as intended. On Windows, also report any
-deferred updater error file beside `wtp.exe`.
+status catalog, expected executable and planning counts, representative
+metadata, and whether the chosen files appear in Git status as intended. On
+Windows, also report any deferred updater error file beside `wtp.exe`.
 
 Summarize what was installed or updated, which files and directories changed,
 where the active store and backup live, what is committed or ignored, which

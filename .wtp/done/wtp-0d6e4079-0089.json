@@ -1,0 +1,41 @@
+{
+  "id": "7f70dee0-8e42-43c6-a03b-d68e2c2d2a61",
+  "shortId": "wtp-0d6e4079-0089",
+  "title": "Verify and dogfood planning end to end",
+  "description": "Run final black-box, integration, concurrency, compatibility, recovery, and cross-platform verification after every planning task and document is complete. Cover create/list/show/update/set-status/report; all statuses and revisable transitions; six-field mixed-case AND filtering; global IDs and branch scopes; cross-lifecycle dependencies and blocked readiness; live reusable assignments; execution stats/batch/graph/claims isolation; dry-run byte identity; dependency-closed and rejected promotions; atomic rollback/roll-forward at every journal boundary; canonical exports; malformed legacy/planning data; shared stores; and Unix/Windows paths. Use a disposable store to plan one project/version/milestone, research and plan its items, reject/reopen one item, preview the group, promote it, then claim it as todo. Run gofmt, go test ./..., go vet ./..., documentation and skill validators, git diff --check, repository verification, and Unix/Windows smoke/prerelease coverage. Record commands, evidence, platform skips, and residual risk in the completion comment.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "planning-qa",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "12a536b7-a2af-4aef-a84b-e7f99424722e",
+    "64f8ccfe-6401-4d17-b639-a713f779626b",
+    "69221fad-19b7-4b30-854b-b0e874f23bfe",
+    "7a0a9bd0-c1f2-4378-a6bf-6dcbceb575c7",
+    "7bca2b6d-b60e-48b7-b0bd-18c63048f839",
+    "8efd694e-9415-4ddf-80fc-69fcdc152d9b",
+    "931247fb-6aa0-4a5f-bfb0-da82fbcdc3e2",
+    "a7844d98-63d9-4d20-a8a4-ebfe77eba2df",
+    "c15b1343-e3ff-4d5a-9f28-cb50cb1cf875",
+    "eba33198-9817-4c00-8c65-e21d3a8d72b7",
+    "ed63fb78-5821-4c1f-9fee-4b445a2a7a14"
+  ],
+  "comments": [
+    {
+      "id": "81e095a3-b96d-4918-81c5-88455fb0271c",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete. All requested planning lifecycle, status/revision, six-field mixed-case AND filtering, global/branch scope, cross-lifecycle dependency/readiness, reusable assignment, execution isolation, canonical export, malformed compatibility, shared-store, concurrency, recovery, Unix/Windows-path checks passed. Disposable flow evidence: /tmp/wtp-planning-dogfood.S2lyGj. Unix/PowerShell prerelease reports: /tmp/wtp-prerelease-planning-unix-20260831-final.json and /tmp/wtp-prerelease-planning-powershell-20260831-final.json; both 14/14 scenarios passed, same candidate SHA256 e676c5c170c176b9c2045b5655b226e77e5d437c4f5af04178509fcb520b00e4. Tagged fault suite, uncached go test/vet, proposal validator 16/16, gofmt, diff check, Unix/PowerShell commit gates and smoke, Windows amd64/arm64 and Darwin arm64 cross-compiles passed. QA fix limited to internal/prerelease/harness.go and internal/prerelease/contention.go so validators accept strict canonical planning/ exports. Only skips/residuals: privileged read-only fault simulation; native Windows/macOS execution unavailable; 3m quick bound too tight on this host, serial 6m passed. Detailed commands/evidence are in global handoff 922dd3ed-b3e7-45d8-91fd-e9b8274f581e.",
+      "createdAt": "2026-08-31T16:19:03.387775147Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:18:13.053650596Z",
+  "updatedAt": "2026-08-31T16:19:07.977718471Z",
+  "startedAt": "2026-08-31T15:52:30.561115789Z",
+  "completedAt": "2026-08-31T16:19:07.977718471Z"
+}

@@ -34,6 +34,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 			WorktreeDir:       core.OptionalString{Set: true, Value: "/workspace/worktree"},
 			Assignee:          core.OptionalString{Set: true, Value: "Ada"},
 			Dependencies:      core.OptionalStrings{Set: true, Value: []string{"wtp-0002", "00000000-0000-4000-8000-000000000003"}},
+			ReusableTasks:     core.OptionalStrings{Set: true, Value: []string{"Final review", "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"}},
 		},
 		{
 			ShortID:           "wtp-0002",
@@ -48,7 +49,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode() error = %v", err)
 	}
-	const expected = `{"version":1,"tasks":[{"id":"00000000-0000-4000-8000-000000000001","shortId":"wtp-0001","updatedAt":"2026-01-02T02:04:05.123456789Z","title":"Updated title","description":"Updated description","status":"inProgress","priority":"high","estimate":"m","lane":"batch-json","model":"gpt-5","issueId":"ISSUE-42","project":"Apollo","milestone":"MVP","version":"v1.0","featureId":"FEAT-7","feature":"Search","gitRepo":"/workspace/repo","gitBranch":"feature/json","worktreeName":"json-worktree","worktreeDir":"/workspace/worktree","assignee":"Ada","dependencies":["wtp-0002","00000000-0000-4000-8000-000000000003"]},{"shortId":"wtp-0002","updatedAt":"2026-01-02T03:04:05Z","description":"","priority":"","dependencies":null}]}`
+	const expected = `{"version":1,"tasks":[{"id":"00000000-0000-4000-8000-000000000001","shortId":"wtp-0001","updatedAt":"2026-01-02T02:04:05.123456789Z","title":"Updated title","description":"Updated description","status":"inProgress","priority":"high","estimate":"m","lane":"batch-json","model":"gpt-5","issueId":"ISSUE-42","project":"Apollo","milestone":"MVP","version":"v1.0","featureId":"FEAT-7","feature":"Search","gitRepo":"/workspace/repo","gitBranch":"feature/json","worktreeName":"json-worktree","worktreeDir":"/workspace/worktree","assignee":"Ada","dependencies":["wtp-0002","00000000-0000-4000-8000-000000000003"],"reusableTasks":["Final review","7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"]},{"shortId":"wtp-0002","updatedAt":"2026-01-02T03:04:05Z","description":"","priority":"","dependencies":null}]}`
 	if string(encoded) != expected {
 		t.Fatalf("Encode() = %s, want %s", encoded, expected)
 	}
@@ -88,6 +89,122 @@ func TestDecodeJSONNullClearsOnlyClearableFields(t *testing.T) {
 	if row.Title.Set || row.Status.Set {
 		t.Fatalf("required fields unexpectedly set = %#v", row)
 	}
+}
+
+func TestReusableTasksPatchSemantics(t *testing.T) {
+	const timestamp = `"2026-01-02T03:04:05Z"`
+	const firstID = "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"
+	tests := []struct {
+		name    string
+		field   string
+		set     bool
+		want    []string
+		wantNil bool
+	}{
+		{name: "omitted preserves", field: "", set: false, wantNil: true},
+		{name: "replace and reorder", field: `,"reusableTasks":["Verify","` + firstID + `"]`, set: true, want: []string{"Verify", firstID}},
+		{name: "empty array clears", field: `,"reusableTasks":[]`, set: true, want: []string{}},
+		{name: "null clears", field: `,"reusableTasks":null`, set: true, wantNil: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			data := []byte(`{"version":1,"tasks":[{"shortId":"wtp-0001","updatedAt":` + timestamp + `,"title":"Patch"` + test.field + `}]}`)
+			got, err := Decode(data)
+			if err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			assignment := got[0].ReusableTasks
+			if assignment.Set != test.set || assignment.Value == nil != test.wantNil || !equalStrings(assignment.Value, test.want) {
+				t.Fatalf("ReusableTasks = %#v, want set=%v nil=%v values=%v", assignment, test.set, test.wantNil, test.want)
+			}
+			encoded, err := Encode(got)
+			if err != nil {
+				t.Fatalf("Encode() error = %v", err)
+			}
+			if strings.Contains(test.field, `"reusableTasks"`) && !strings.Contains(string(encoded), test.field[1:]) {
+				t.Fatalf("Encode() = %s, want reusableTasks field %s", encoded, test.field)
+			}
+			if test.field == "" && strings.Contains(string(encoded), `"reusableTasks"`) {
+				t.Fatalf("Encode() unexpectedly included omitted reusableTasks: %s", encoded)
+			}
+		})
+	}
+
+}
+
+func TestReusableTasksDecodeDefersUnknownNamesAndRejectsInvalidElements(t *testing.T) {
+	valid := func(field string) string {
+		return `{"version":1,"tasks":[{"shortId":"wtp-0001","updatedAt":"2026-01-02T03:04:05Z","title":"Patch"` + field + `}]}`
+	}
+	unknown, err := Decode([]byte(valid(`,"reusableTasks":["not-in-the-catalog"]`)))
+	if err != nil {
+		t.Fatalf("Decode(unknown name) error = %v", err)
+	}
+	if !unknown[0].ReusableTasks.Set || !equalStrings(unknown[0].ReusableTasks.Value, []string{"not-in-the-catalog"}) {
+		t.Fatalf("unknown reusable name = %#v", unknown[0].ReusableTasks)
+	}
+
+	for _, test := range []struct {
+		name  string
+		field string
+		want  string
+	}{
+		{name: "scalar", field: `,"reusableTasks":"Tests"`, want: "reusableTasks must be an array"},
+		{name: "number element", field: `,"reusableTasks":["Tests",7]`, want: "reusableTasks[1] must be a non-empty string"},
+		{name: "null element", field: `,"reusableTasks":[null]`, want: "reusableTasks[0] must be a non-empty string"},
+		{name: "empty element", field: `,"reusableTasks":[" "]`, want: "reusableTasks[0] must be a non-empty string"},
+		{name: "duplicate property", field: `,"reusableTasks":["Tests"],"reusableTasks":["Verify"]`, want: "duplicate property"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := Decode([]byte(valid(test.field)))
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Decode() error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestReusableTasksEncodeRejectsEmptySelector(t *testing.T) {
+	_, err := Encode([]core.BatchTaskUpdateInput{{
+		ShortID:           "wtp-0001",
+		ExpectedUpdatedAt: time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
+		ReusableTasks:     core.OptionalStrings{Set: true, Value: []string{"Tests", " "}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "reusableTasks[1] must not be empty") {
+		t.Fatalf("Encode() error = %v", err)
+	}
+}
+
+func TestReusableTasksUTF8RoundTrip(t *testing.T) {
+	want := []core.BatchTaskUpdateInput{{
+		ShortID:           "wtp-0001",
+		ExpectedUpdatedAt: time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
+		Title:             core.OptionalString{Set: true, Value: "Patch ✓"},
+		ReusableTasks:     core.OptionalStrings{Set: true, Value: []string{"レビュー ✓", "café"}},
+	}}
+	encoded, err := Encode(want)
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	got, err := Decode(encoded)
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(got) != 1 || !equalStrings(got[0].ReusableTasks.Value, want[0].ReusableTasks.Value) || got[0].Title.Value != want[0].Title.Value {
+		t.Fatalf("UTF-8 round trip = %#v, want %#v", got, want)
+	}
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestDecodeRejectsInvalidBatches(t *testing.T) {
@@ -163,6 +280,14 @@ func equalBatchInput(left, right core.BatchTaskUpdateInput) bool {
 	}
 	for index := range left.Dependencies.Value {
 		if left.Dependencies.Value[index] != right.Dependencies.Value[index] {
+			return false
+		}
+	}
+	if left.ReusableTasks.Set != right.ReusableTasks.Set || len(left.ReusableTasks.Value) != len(right.ReusableTasks.Value) {
+		return false
+	}
+	for index := range left.ReusableTasks.Value {
+		if left.ReusableTasks.Value[index] != right.ReusableTasks.Value[index] {
 			return false
 		}
 	}

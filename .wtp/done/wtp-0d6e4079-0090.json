@@ -1,0 +1,59 @@
+{
+  "id": "4394390e-af46-42ba-bd2c-251b524815c8",
+  "shortId": "wtp-0d6e4079-0090",
+  "title": "Create WTP-aware Codex planning skill",
+  "description": "Create a new reusable wtp-codex-planning skill that gives Codex a planning workflow equivalent in quality and structure to its native planning skill, but ends with an explicit handoff into WTP tasks. First inspect the installed/native Codex planning skill and existing repository skills (especially task-management, setup-wtp, and codex-wtp-loop) so terminology, instructions, command syntax, safety rules, and style are compatible; do not copy unavailable/internal instructions verbatim.\n\nThe skill must direct the agent to research the workspace, ask only decision-critical clarification questions via ask_user_questions (using the current supported equivalent if the tool is renamed), and produce a complete implementation plan with scope, assumptions, dependencies, acceptance criteria, verification, and a sensible task breakdown. Before presenting the final WTP task proposal, it must ask the user for a target-model assignment distribution: which enabled models to use and percentages that sum to 100%, with a clear default or explicit correction loop for invalid/incomplete input. Explain that distribution is a target across the generated tasks, while individual assignments may deviate only when task complexity/risks are documented.\n\nAt plan completion, present an editable numbered proposal of WTP tasks rather than requiring the user to skip plan mode, disable it, and ask again. Each proposed task must have a concise title, self-contained implementation detail, acceptance/verification expectations, estimate, priority, lane/grouping metadata when supported, dependencies, and a model assignment derived from the requested distribution. Display a distribution summary/count and flag deviations.\n\nThe skill must offer a user-controlled decision point with three outcomes: amend the plan/tasks (collect changes and regenerate the proposal), refuse/cancel (create nothing), or task up/approve (create the WTP tasks). Never create or mutate WTP tasks until explicit approval. On approval, create tasks using canonical WTP commands/API, preserve dependency ordering/IDs, report the created task IDs and model distribution, and handle partial failure safely by reporting exactly what was created and what remains. Include guidance for dry-run/preview where available.\n\nKeep this as a skill addition, not a change to Codex built-in plan mode. Update any relevant skill documentation/registry/validators and add focused tests or contract checks that ensure required prompts, distribution validation, the amend/refuse/approve gate, no-write-before-approval, and generated task metadata are all covered. Validate the skill and run relevant repository checks.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "codex-planning-skill",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "5ecd1713-8137-439d-8df6-21c535877dec",
+      "author": "codex-wtp-loop",
+      "message": "Inspected exact task and WTP skills; existing changes are claim records only. No installed native planning skill found. Designing an approval-gated planning skill with read-only preview, model-distribution validation, canonical metadata/dependency handoff, and focused contract coverage.",
+      "createdAt": "2026-08-31T08:40:01.647882421Z"
+    },
+    {
+      "id": "32b2795e-cd7e-4ef1-81ab-939b42993c15",
+      "author": "codex-wtp-loop",
+      "message": "Worker was killed after more than five minutes without a new WTP update or filesystem progress. Reclaiming the exact task to continue the preserved planning-skill implementation.",
+      "createdAt": "2026-08-31T08:48:36.061257831Z"
+    },
+    {
+      "id": "124631d4-66ef-4c86-8dde-73e136804d48",
+      "author": "codex-wtp-loop",
+      "message": "Resumed only the explicitly reclaimed planning-skill task. Inspected preserved README and skill changes before editing: workflow, references, and proposal helper exist; promised tests and CLI skill registry integration are not yet present. Reviewing approval, model allocation, dependency metadata, and no-write preview contracts before completing coverage.",
+      "createdAt": "2026-08-31T08:50:36.491233727Z"
+    },
+    {
+      "id": "abe62627-9f6a-4b4e-92a9-4d3acdafe8b3",
+      "author": "codex-wtp-loop",
+      "message": "Completed 15 passing Python contract tests: corrected/invalid percentages, exact rounding, enabled model/effort pairs, zero-share rejection, approval digest and amendments, dependency ordering, metadata fallback, and audited no-write/no-process execution in every decision mode. Fixed decimal precision acceptance and included approved scope in generated task descriptions. No separate skill registry exists; README links and skill frontmatter/UI metadata are the discovery surfaces. Next: real CLI integration tests and repository commit gate.",
+      "createdAt": "2026-08-31T08:54:31.03376213Z"
+    },
+    {
+      "id": "294a9bd6-2803-4e30-a91a-51791ba811aa",
+      "author": "codex-wtp-loop",
+      "message": "Focused Go planning contracts pass, including the 15-test Python suite and real CLI creation/readback in an isolated Git store. Verified dependency UUIDs, topological ordering, all supported grouping/Git metadata, todo/unassigned state, literal shell content, and preservation after a failed later create. Skill quick_validate and git diff --check pass. Running the full repository commit gate now; no live proposal tasks or other workers were created.",
+      "createdAt": "2026-08-31T08:56:48.80312916Z"
+    },
+    {
+      "id": "a112d35c-ce53-4801-bb19-87ea81406868",
+      "author": "codex-wtp-loop",
+      "message": "Repository commit gate passed: go test ./..., go vet ./..., formatting, and e2e smoke. Final review added regression coverage for stable generated commands under JSON key reordering and strict decimal field types; all 16 Python tests and focused CLI tests pass. Re-running the complete Go suite uncached after those final helper refinements before completion. Partial-failure docs now distinguish known-missing rows from unattempted and uncertain outcomes.",
+      "createdAt": "2026-08-31T08:58:24.557857712Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:20:25.011528321Z",
+  "updatedAt": "2026-08-31T08:59:01.947874062Z",
+  "startedAt": "2026-08-31T08:38:37.391904003Z",
+  "completedAt": "2026-08-31T08:59:01.947874062Z"
+}

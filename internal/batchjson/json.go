@@ -115,28 +115,29 @@ type batchDTO struct {
 }
 
 type taskDTO struct {
-	ID           *string         `json:"id,omitempty"`
-	ShortID      *string         `json:"shortId,omitempty"`
-	UpdatedAt    string          `json:"updatedAt"`
-	Title        json.RawMessage `json:"title,omitempty"`
-	Description  json.RawMessage `json:"description,omitempty"`
-	Status       json.RawMessage `json:"status,omitempty"`
-	Priority     json.RawMessage `json:"priority,omitempty"`
-	Estimate     json.RawMessage `json:"estimate,omitempty"`
-	Lane         json.RawMessage `json:"lane,omitempty"`
-	Model        json.RawMessage `json:"model,omitempty"`
-	IssueID      json.RawMessage `json:"issueId,omitempty"`
-	Project      json.RawMessage `json:"project,omitempty"`
-	Milestone    json.RawMessage `json:"milestone,omitempty"`
-	Version      json.RawMessage `json:"version,omitempty"`
-	FeatureID    json.RawMessage `json:"featureId,omitempty"`
-	Feature      json.RawMessage `json:"feature,omitempty"`
-	GitRepo      json.RawMessage `json:"gitRepo,omitempty"`
-	GitBranch    json.RawMessage `json:"gitBranch,omitempty"`
-	WorktreeName json.RawMessage `json:"worktreeName,omitempty"`
-	WorktreeDir  json.RawMessage `json:"worktreeDir,omitempty"`
-	Assignee     json.RawMessage `json:"assignee,omitempty"`
-	Dependencies json.RawMessage `json:"dependencies,omitempty"`
+	ID            *string         `json:"id,omitempty"`
+	ShortID       *string         `json:"shortId,omitempty"`
+	UpdatedAt     string          `json:"updatedAt"`
+	Title         json.RawMessage `json:"title,omitempty"`
+	Description   json.RawMessage `json:"description,omitempty"`
+	Status        json.RawMessage `json:"status,omitempty"`
+	Priority      json.RawMessage `json:"priority,omitempty"`
+	Estimate      json.RawMessage `json:"estimate,omitempty"`
+	Lane          json.RawMessage `json:"lane,omitempty"`
+	Model         json.RawMessage `json:"model,omitempty"`
+	IssueID       json.RawMessage `json:"issueId,omitempty"`
+	Project       json.RawMessage `json:"project,omitempty"`
+	Milestone     json.RawMessage `json:"milestone,omitempty"`
+	Version       json.RawMessage `json:"version,omitempty"`
+	FeatureID     json.RawMessage `json:"featureId,omitempty"`
+	Feature       json.RawMessage `json:"feature,omitempty"`
+	GitRepo       json.RawMessage `json:"gitRepo,omitempty"`
+	GitBranch     json.RawMessage `json:"gitBranch,omitempty"`
+	WorktreeName  json.RawMessage `json:"worktreeName,omitempty"`
+	WorktreeDir   json.RawMessage `json:"worktreeDir,omitempty"`
+	Assignee      json.RawMessage `json:"assignee,omitempty"`
+	Dependencies  json.RawMessage `json:"dependencies,omitempty"`
+	ReusableTasks json.RawMessage `json:"reusableTasks,omitempty"`
 }
 
 func encodeTask(index int, input core.BatchTaskUpdateInput, seen map[string]int) (taskDTO, error) {
@@ -226,6 +227,18 @@ func encodeTask(index int, input core.BatchTaskUpdateInput, seen map[string]int)
 			row.Dependencies, _ = json.Marshal(input.Dependencies.Value)
 		}
 	}
+	if input.ReusableTasks.Set {
+		if input.ReusableTasks.Value == nil {
+			row.ReusableTasks = json.RawMessage("null")
+		} else {
+			for reusableIndex, selector := range input.ReusableTasks.Value {
+				if strings.TrimSpace(selector) == "" {
+					return taskDTO{}, rowError(index, fmt.Sprintf("reusableTasks[%d] must not be empty", reusableIndex))
+				}
+			}
+			row.ReusableTasks, _ = json.Marshal(input.ReusableTasks.Value)
+		}
+	}
 	if !hasPatch(input) {
 		return taskDTO{}, rowError(index, "row has no mutable patch fields")
 	}
@@ -240,7 +253,7 @@ func decodeTask(index int, raw json.RawMessage, seen map[string]int) (core.Batch
 	if err := requireOnly(object,
 		"id", "shortId", "updatedAt", "title", "description", "status", "priority", "estimate",
 		"lane", "model", "issueId", "project", "milestone", "version", "featureId", "feature",
-		"gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies",
+		"gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies", "reusableTasks",
 	); err != nil {
 		return core.BatchTaskUpdateInput{}, rowError(index, err.Error())
 	}
@@ -307,6 +320,24 @@ func decodeTask(index int, raw json.RawMessage, seen map[string]int) (core.Batch
 					return core.BatchTaskUpdateInput{}, rowError(index, fmt.Sprintf("dependencies[%d] must not be empty", dependencyIndex))
 				}
 			}
+		}
+	}
+	if rawReusableTasks, ok := object["reusableTasks"]; ok {
+		input.ReusableTasks.Set = true
+		if bytes.Equal(bytes.TrimSpace(rawReusableTasks), []byte("null")) {
+			input.ReusableTasks.Value = nil
+		} else {
+			var rawSelectors []json.RawMessage
+			if err := json.Unmarshal(rawReusableTasks, &rawSelectors); err != nil || rawSelectors == nil {
+				return core.BatchTaskUpdateInput{}, rowError(index, "reusableTasks must be an array of non-empty strings or null")
+			}
+			selectors := make([]string, len(rawSelectors))
+			for reusableIndex, rawSelector := range rawSelectors {
+				if err := json.Unmarshal(rawSelector, &selectors[reusableIndex]); err != nil || strings.TrimSpace(selectors[reusableIndex]) == "" {
+					return core.BatchTaskUpdateInput{}, rowError(index, fmt.Sprintf("reusableTasks[%d] must be a non-empty string", reusableIndex))
+				}
+			}
+			input.ReusableTasks.Value = selectors
 		}
 	}
 	if !hasPatch(input) {
@@ -513,7 +544,7 @@ func hasPatch(input core.BatchTaskUpdateInput) bool {
 	return input.Title.Set || input.Description.Set || input.Status.Set || input.Priority.Set || input.Estimate.Set ||
 		input.Lane.Set || input.Model.Set || input.IssueID.Set || input.Project.Set || input.Milestone.Set || input.Version.Set ||
 		input.FeatureID.Set || input.Feature.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
-		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set
+		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set || input.ReusableTasks.Set
 }
 
 func stringValue(value string) json.RawMessage {

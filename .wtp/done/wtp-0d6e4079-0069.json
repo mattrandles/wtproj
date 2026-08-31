@@ -1,0 +1,38 @@
+{
+  "id": "177a8b95-10f7-4147-8d27-64bda30a0a69",
+  "shortId": "wtp-0d6e4079-0069",
+  "title": "Initialize and validate nested planning storage",
+  "description": "Extend the flat-file provider to initialize .wtp/planning/toplan, researched, planned, and rejected alongside existing storage without disturbing legacy stores. Add a planning-only loader that validates directory/status agreement, accepted short-ID or legacy UUID filenames, duplicate IDs and short IDs, malformed JSON, and status-move residue rules. Teach unconfigured execution-status directory validation to recognize the planning namespace while still rejecting misplaced direct task files. Reads must not rewrite valid records beyond existing documented repairs. Add Unix and Windows path tests, empty/legacy store tests, wrong-directory fixtures, duplicates, and nested-directory collision coverage.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "planning-storage",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "86eb10bd-0edb-49e6-b4f3-29d5f65a0dd1",
+    "f7b4a511-07b3-4f5d-8822-f034dc840eb6"
+  ],
+  "comments": [
+    {
+      "id": "8c5c0b31-04e4-467d-825d-f7d5aafbbd14",
+      "author": "codex-wtp-loop",
+      "message": "Scoped implementation: adding planning layout initialization, a read-only planning loader with identity/status/residue validation, and namespace-aware execution directory validation. Preserving unrelated worktree changes.",
+      "createdAt": "2026-08-31T12:47:52.743736235Z"
+    },
+    {
+      "id": "a95820a0-9f8e-4c10-88d6-3b2cf513df18",
+      "author": "codex-wtp-loop",
+      "message": "Completed planning storage initialization and read-only validation: nested namespace layout, strict filename/status/duplicate/residue checks, unconfigured-directory handling, and Unix/Windows path coverage. Verified with go test ./internal/provider/flatfile, go test ./..., Windows cross-compile, and git diff --check.",
+      "createdAt": "2026-08-31T12:53:24.936871931Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:52.207472485Z",
+  "updatedAt": "2026-08-31T12:53:34.576187896Z",
+  "startedAt": "2026-08-31T12:46:09.72742358Z",
+  "completedAt": "2026-08-31T12:53:34.576187896Z"
+}

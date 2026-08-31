@@ -1,0 +1,37 @@
+{
+  "id": "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a",
+  "shortId": "wtp-0d6e4079-0049",
+  "title": "Add flat-file reusable catalog read and create APIs",
+  "description": "Integrate the reusable catalog codec with the flat-file provider and provider interface under the existing store-wide lock. Implement list, show, and create operations with lookup by stable UUID or case-insensitive exact name, deterministic list ordering, collision-safe UUID generation, monotonic timestamps, atomic file replacement, and no file creation for read-only empty-catalog calls. Validate the complete catalog before publication and keep branch scope irrelevant because definitions are global to one task store. Return typed results suitable for JSON and human CLI consumers. Add provider tests for empty stores, name/UUID lookup, concurrent create collisions, mixed-case uniqueness, read/write failures, and shared-store visibility. Do not implement update, delete, task assignments, or CLI commands in this task.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "reusable-provider",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "6408a48a-bc85-449b-a554-fbb17aab324c"
+  ],
+  "comments": [
+    {
+      "id": "2f60e209-36de-49ee-95ff-0ed25e761e40",
+      "author": "codex-wtp-loop",
+      "message": "Implemented flat-file reusable catalog list/show/create under the existing global lock. Reads use reusablejson missing-file-as-empty behavior without creating reusable.json; creates trim input, regenerate UUID collisions, use catalog-monotonic UTC timestamps, validate the complete catalog, and atomically replace codec bytes. Added focused provider coverage for selectors/order, mixed-case collisions, concurrent creators, shared branch-scoped stores, timestamp/UUID seams, and read/replace failures. Focused package tests pass; race/full verification is next.",
+      "createdAt": "2026-08-31T09:49:12.227506665Z"
+    },
+    {
+      "id": "187e4557-fea8-4b01-a69d-cd46265bd826",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete after final interface split: go test -race ./internal/provider/flatfile -run Reusable -count=1, go vet ./..., go test ./..., and git diff --check all pass. ReusableTaskProvider now exposes only implemented list/get/create operations; later update/delete remain in ReusableTaskMutationProvider, preserving the requested scope.",
+      "createdAt": "2026-08-31T09:50:22.813414625Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.744036339Z",
+  "updatedAt": "2026-08-31T09:50:22.838662872Z",
+  "startedAt": "2026-08-31T09:45:08.293550221Z",
+  "completedAt": "2026-08-31T09:50:22.838662872Z"
+}

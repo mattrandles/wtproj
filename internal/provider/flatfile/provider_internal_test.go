@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -13,7 +14,9 @@ import (
 	"time"
 
 	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/planningjson"
 	"github.com/mattrandles/wtproj/internal/provider"
+	"github.com/mattrandles/wtproj/internal/reusablejson"
 )
 
 func TestWriteJSONAtomicOverwritesExistingFile(t *testing.T) {
@@ -849,6 +852,9 @@ func TestExportCanonicalCreatesExactSnapshotInExistingDirectory(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(exportDir, handoffsFilename), []byte("old handoffs\n"), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(handoffs) error = %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(exportDir, reusableFilename), []byte("old reusable catalog\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(reusable) error = %v", err)
+	}
 
 	if err := p.ExportCanonical(exportDir); err != nil {
 		t.Fatalf("ExportCanonical() error = %v", err)
@@ -858,11 +864,12 @@ func TestExportCanonicalCreatesExactSnapshotInExistingDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.ReadDir() error = %v", err)
 	}
-	if got, want := entryNames(entries), []string{task.ID + ".json", handoffsFilename}; !slices.Equal(got, want) {
+	if got, want := entryNames(entries), []string{task.ID + ".json", handoffsFilename, planningDirectory, reusableFilename}; !slices.Equal(got, want) {
 		t.Fatalf("export entries = %v, want %v", got, want)
 	}
 	assertStoredTask(t, currentPath, task)
 	assertStoredHandoffs(t, filepath.Join(exportDir, handoffsFilename), []core.Handoff{})
+	assertStoredReusableCatalog(t, filepath.Join(exportDir, reusableFilename), core.EmptyReusableTaskCatalog())
 
 	if err := p.ExportCanonical(exportDir); err != nil {
 		t.Fatalf("repeat ExportCanonical() error = %v", err)
@@ -871,11 +878,56 @@ func TestExportCanonicalCreatesExactSnapshotInExistingDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.ReadDir() after repeat error = %v", err)
 	}
-	if got, want := entryNames(entries), []string{task.ID + ".json", handoffsFilename}; !slices.Equal(got, want) {
+	if got, want := entryNames(entries), []string{task.ID + ".json", handoffsFilename, planningDirectory, reusableFilename}; !slices.Equal(got, want) {
 		t.Fatalf("repeat export entries = %v, want %v", got, want)
 	}
 	assertStoredTask(t, currentPath, task)
 	assertStoredHandoffs(t, filepath.Join(exportDir, handoffsFilename), []core.Handoff{})
+	assertStoredReusableCatalog(t, filepath.Join(exportDir, reusableFilename), core.EmptyReusableTaskCatalog())
+}
+
+func TestExportCanonicalIncludesCurrentReusableCatalogAndAssignments(t *testing.T) {
+	p, task := newInternalProviderWithTask(t)
+	when := mustRFC3339Time(t, "2026-08-09T17:00:00Z")
+	definition := reusableDefinitionForTest("a5c3806a-bd1b-424d-889b-29e5b06679b8", "Review helper", when)
+	writeReusableCatalogForTest(t, p, core.ReusableTaskCatalog{
+		Version:     core.ReusableTaskCatalogVersion,
+		Definitions: []core.ReusableTaskDefinition{definition},
+	})
+	task.ReusableTaskIDs = []string{definition.ID}
+	if err := p.writeTask(task); err != nil {
+		t.Fatalf("writeTask(assigned) error = %v", err)
+	}
+	task.ReusableTaskIDs = []string{definition.ID}
+	if err := p.writeTask(task); err != nil {
+		t.Fatalf("writeTask(assigned) error = %v", err)
+	}
+
+	exportDir := t.TempDir()
+	if err := p.ExportCanonical(exportDir); err != nil {
+		t.Fatalf("ExportCanonical() error = %v", err)
+	}
+	assertStoredTask(t, filepath.Join(exportDir, task.ID+".json"), task)
+	assertStoredReusableCatalog(t, filepath.Join(exportDir, reusableFilename), core.ReusableTaskCatalog{
+		Version:     core.ReusableTaskCatalogVersion,
+		Definitions: []core.ReusableTaskDefinition{definition},
+	})
+
+	updated, err := p.UpdateReusableTask(definition.ID, core.UpdateReusableTaskInput{Name: core.OptionalString{Set: true, Value: "Renamed helper"}})
+	if err != nil {
+		t.Fatalf("UpdateReusableTask() error = %v", err)
+	}
+	if updated.ID != definition.ID || updated.Name != "Renamed helper" {
+		t.Fatalf("updated definition = %#v", updated)
+	}
+	if err := p.ExportCanonical(exportDir); err != nil {
+		t.Fatalf("ExportCanonical() after rename error = %v", err)
+	}
+	assertStoredTask(t, filepath.Join(exportDir, task.ID+".json"), task)
+	assertStoredReusableCatalog(t, filepath.Join(exportDir, reusableFilename), core.ReusableTaskCatalog{
+		Version:     core.ReusableTaskCatalogVersion,
+		Definitions: []core.ReusableTaskDefinition{updated},
+	})
 }
 
 func TestExportCanonicalIncludesRetainedHandoffs(t *testing.T) {
@@ -1029,6 +1081,38 @@ func TestExportCanonicalPublishFailurePreservesExistingFileAndStaleSnapshot(t *t
 	}
 }
 
+func TestExportCanonicalRemovalFailureLeavesStaleManagedFile(t *testing.T) {
+	p, task := newInternalProviderWithTask(t)
+	exportDir := t.TempDir()
+	stalePath := filepath.Join(exportDir, "ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a.json")
+	if err := os.WriteFile(stalePath, []byte("stale snapshot\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(stale) error = %v", err)
+	}
+	p.fs.remove = func(path string) error {
+		if path == stalePath {
+			return errors.New("injected export removal failure")
+		}
+		return os.Remove(path)
+	}
+
+	err := p.ExportCanonical(exportDir)
+	if err == nil || !strings.Contains(err.Error(), "injected export removal failure") {
+		t.Fatalf("ExportCanonical() error = %v, want injected removal failure", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(exportDir, task.ID+".json")); statErr != nil {
+		t.Fatalf("current snapshot missing after removal failure: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(exportDir, handoffsFilename)); statErr != nil {
+		t.Fatalf("handoff snapshot missing after removal failure: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(exportDir, reusableFilename)); statErr != nil {
+		t.Fatalf("reusable catalog missing after removal failure: %v", statErr)
+	}
+	if _, statErr := os.Stat(stalePath); statErr != nil {
+		t.Fatalf("stale snapshot disappeared after removal failure: %v", statErr)
+	}
+}
+
 func TestExportCanonicalValidatesHandoffsBeforeChangingSnapshot(t *testing.T) {
 	p, task := newInternalProviderWithTask(t)
 	exportDir := t.TempDir()
@@ -1071,6 +1155,266 @@ func TestExportCanonicalValidatesHandoffsBeforeChangingSnapshot(t *testing.T) {
 	if string(exportHandoffsAfter) != string(exportHandoffsBefore) {
 		t.Fatalf("export handoffs changed before handoff validation: got %q, want %q", exportHandoffsAfter, exportHandoffsBefore)
 	}
+}
+
+func TestExportCanonicalIncludesPlanningRecordsInUUIDNamedDirectory(t *testing.T) {
+	p, task := newInternalProviderWithTask(t)
+	definition := reusableDefinitionForTest("a5c3806a-bd1b-424d-889b-29e5b06679b8", "Planning review", mustRFC3339Time(t, "2026-08-09T17:00:00Z"))
+	writeReusableCatalogForTest(t, p, core.ReusableTaskCatalog{
+		Version:     core.ReusableTaskCatalogVersion,
+		Definitions: []core.ReusableTaskDefinition{definition},
+	})
+
+	items := []core.PlanningItem{
+		planningStorageTask(t, "15c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0002", core.PlanningStatusToplan),
+		planningStorageTask(t, "35c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0003", core.PlanningStatusResearched),
+		planningStorageTask(t, "45c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0004", core.PlanningStatusPlanned),
+		planningStorageTask(t, "55c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0005", core.PlanningStatusRejected),
+	}
+	items[2].ReusableTaskIDs = []string{definition.ID}
+	for _, item := range items {
+		writePlanningStorageItem(t, filepath.Join(p.planningStatusDir(item.Status), item.ShortID+".json"), item)
+	}
+
+	exportDir := filepath.Join(t.TempDir(), "canonical")
+	if err := p.ExportCanonical(exportDir); err != nil {
+		t.Fatalf("ExportCanonical() error = %v", err)
+	}
+
+	planningEntries, err := os.ReadDir(filepath.Join(exportDir, planningDirectory))
+	if err != nil {
+		t.Fatalf("ReadDir(planning) error = %v", err)
+	}
+	wantNames := []string{
+		items[0].ID + ".json",
+		items[1].ID + ".json",
+		items[2].ID + ".json",
+		items[3].ID + ".json",
+	}
+	slices.Sort(wantNames)
+	if got := entryNames(planningEntries); !slices.Equal(got, wantNames) {
+		t.Fatalf("planning export entries = %v, want %v", got, wantNames)
+	}
+	for _, item := range items {
+		got, err := os.ReadFile(filepath.Join(exportDir, planningDirectory, item.ID+".json"))
+		if err != nil {
+			t.Fatalf("ReadFile(planning %s) error = %v", item.ID, err)
+		}
+		want, err := planningjson.Encode(item)
+		if err != nil {
+			t.Fatalf("planningjson.Encode(%s) error = %v", item.ID, err)
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("planning export bytes for %s = %q, want %q", item.ID, got, want)
+		}
+	}
+	assertStoredTask(t, filepath.Join(exportDir, task.ID+".json"), task)
+	assertStoredReusableCatalog(t, filepath.Join(exportDir, reusableFilename), core.ReusableTaskCatalog{
+		Version:     core.ReusableTaskCatalogVersion,
+		Definitions: []core.ReusableTaskDefinition{definition},
+	})
+	planningBeforeRename, err := os.ReadFile(filepath.Join(exportDir, planningDirectory, items[2].ID+".json"))
+	if err != nil {
+		t.Fatalf("ReadFile(planning before rename) error = %v", err)
+	}
+	updated, err := p.UpdateReusableTask(definition.ID, core.UpdateReusableTaskInput{Name: core.OptionalString{Set: true, Value: "Renamed planning review"}})
+	if err != nil {
+		t.Fatalf("UpdateReusableTask() error = %v", err)
+	}
+	if err := p.ExportCanonical(exportDir); err != nil {
+		t.Fatalf("ExportCanonical() after reusable rename error = %v", err)
+	}
+	planningAfterRename, err := os.ReadFile(filepath.Join(exportDir, planningDirectory, items[2].ID+".json"))
+	if err != nil {
+		t.Fatalf("ReadFile(planning after rename) error = %v", err)
+	}
+	if !slices.Equal(planningAfterRename, planningBeforeRename) {
+		t.Fatalf("planning assignment bytes changed after reusable rename: before=%q after=%q", planningBeforeRename, planningAfterRename)
+	}
+	assertStoredReusableCatalog(t, filepath.Join(exportDir, reusableFilename), core.ReusableTaskCatalog{
+		Version:     core.ReusableTaskCatalogVersion,
+		Definitions: []core.ReusableTaskDefinition{updated},
+	})
+
+	before := snapshotDirectoryBytes(t, exportDir)
+	if err := p.ExportCanonical(exportDir); err != nil {
+		t.Fatalf("repeat ExportCanonical() error = %v", err)
+	}
+	if after := snapshotDirectoryBytes(t, exportDir); !reflect.DeepEqual(after, before) {
+		t.Fatalf("repeat planning export changed bytes:\nbefore=%v\nafter=%v", before, after)
+	}
+}
+
+func TestExportCanonicalCleansOnlyStalePlanningRecords(t *testing.T) {
+	p, _ := newInternalProviderWithTask(t)
+	item := planningStorageTask(t, "15c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0002", core.PlanningStatusPlanned)
+	writePlanningStorageItem(t, filepath.Join(p.planningStatusDir(item.Status), item.ShortID+".json"), item)
+
+	exportDir := t.TempDir()
+	planningExportDir := filepath.Join(exportDir, planningDirectory)
+	if err := os.MkdirAll(planningExportDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(planning export) error = %v", err)
+	}
+	stalePath := filepath.Join(planningExportDir, "ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a.json")
+	if err := os.WriteFile(stalePath, []byte("stale planning snapshot\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(stale planning) error = %v", err)
+	}
+	if err := p.ExportCanonical(exportDir); err != nil {
+		t.Fatalf("ExportCanonical() error = %v", err)
+	}
+	entries, err := os.ReadDir(planningExportDir)
+	if err != nil {
+		t.Fatalf("ReadDir(planning export) error = %v", err)
+	}
+	if got, want := entryNames(entries), []string{item.ID + ".json"}; !slices.Equal(got, want) {
+		t.Fatalf("planning export entries = %v, want %v", got, want)
+	}
+	if _, err := os.Stat(stalePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale planning export still exists: %v", err)
+	}
+}
+
+func TestExportCanonicalRejectsSharedExecutableAndPlanningIDs(t *testing.T) {
+	p, task := newInternalProviderWithTask(t)
+	item := planningStorageTask(t, task.ID, "wtp-0002", core.PlanningStatusToplan)
+	writePlanningStorageItem(t, filepath.Join(p.planningStatusDir(item.Status), item.ShortID+".json"), item)
+	exportDir := t.TempDir()
+	currentPath := filepath.Join(exportDir, task.ID+".json")
+	currentBefore := []byte("old task snapshot\n")
+	if err := os.WriteFile(currentPath, currentBefore, 0o644); err != nil {
+		t.Fatalf("WriteFile(current) error = %v", err)
+	}
+
+	err := p.ExportCanonical(exportDir)
+	if err == nil || !strings.Contains(err.Error(), "used by both executable and planning records") {
+		t.Fatalf("ExportCanonical() error = %v, want shared identity rejection", err)
+	}
+	currentAfter, err := os.ReadFile(currentPath)
+	if err != nil {
+		t.Fatalf("ReadFile(current after rejection) error = %v", err)
+	}
+	if !slices.Equal(currentAfter, currentBefore) {
+		t.Fatalf("current snapshot changed during shared identity rejection: got %q, want %q", currentAfter, currentBefore)
+	}
+}
+
+func TestExportCanonicalRejectsUnmanagedPlanningEntriesBeforeChangingSnapshot(t *testing.T) {
+	p, task := newInternalProviderWithTask(t)
+	exportDir := t.TempDir()
+	planningExportDir := filepath.Join(exportDir, planningDirectory)
+	if err := os.MkdirAll(planningExportDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(planning export) error = %v", err)
+	}
+	currentPath := filepath.Join(exportDir, task.ID+".json")
+	currentBefore := []byte("old task snapshot\n")
+	if err := os.WriteFile(currentPath, currentBefore, 0o644); err != nil {
+		t.Fatalf("WriteFile(current) error = %v", err)
+	}
+	for _, name := range []string{"notes.txt", ".keep"} {
+		if err := os.WriteFile(filepath.Join(planningExportDir, name), []byte("keep\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+
+	err := p.ExportCanonical(exportDir)
+	if err == nil || !strings.Contains(err.Error(), "planning export directory") || !strings.Contains(err.Error(), ".keep, notes.txt") {
+		t.Fatalf("ExportCanonical() error = %v, want deterministic unmanaged planning error", err)
+	}
+	currentAfter, err := os.ReadFile(currentPath)
+	if err != nil {
+		t.Fatalf("ReadFile(current after rejection) error = %v", err)
+	}
+	if !slices.Equal(currentAfter, currentBefore) {
+		t.Fatalf("current snapshot changed during rejected planning export: got %q, want %q", currentAfter, currentBefore)
+	}
+}
+
+func TestExportCanonicalPlanningPublicationFailurePreservesStaleRecord(t *testing.T) {
+	p, _ := newInternalProviderWithTask(t)
+	item := planningStorageTask(t, "15c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0002", core.PlanningStatusToplan)
+	writePlanningStorageItem(t, filepath.Join(p.planningStatusDir(item.Status), item.ShortID+".json"), item)
+	exportDir := t.TempDir()
+	planningExportDir := filepath.Join(exportDir, planningDirectory)
+	if err := os.MkdirAll(planningExportDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(planning export) error = %v", err)
+	}
+	stalePath := filepath.Join(planningExportDir, "ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a.json")
+	if err := os.WriteFile(stalePath, []byte("stale planning snapshot\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(stale planning) error = %v", err)
+	}
+	p.fs.replace = func(source, target string) error {
+		if target == filepath.Join(planningExportDir, item.ID+".json") {
+			return errors.New("injected planning export replace failure")
+		}
+		return replaceFile(source, target)
+	}
+
+	err := p.ExportCanonical(exportDir)
+	if err == nil || !strings.Contains(err.Error(), "injected planning export replace failure") {
+		t.Fatalf("ExportCanonical() error = %v, want injected failure", err)
+	}
+	if _, err := os.Stat(stalePath); err != nil {
+		t.Fatalf("stale planning record was removed after publication failure: %v", err)
+	}
+}
+
+func TestExportCanonicalPlanningRemovalFailureLeavesStaleRecord(t *testing.T) {
+	p, _ := newInternalProviderWithTask(t)
+	item := planningStorageTask(t, "15c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0002", core.PlanningStatusToplan)
+	writePlanningStorageItem(t, filepath.Join(p.planningStatusDir(item.Status), item.ShortID+".json"), item)
+	exportDir := t.TempDir()
+	planningExportDir := filepath.Join(exportDir, planningDirectory)
+	if err := os.MkdirAll(planningExportDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(planning export) error = %v", err)
+	}
+	stalePath := filepath.Join(planningExportDir, "ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a.json")
+	if err := os.WriteFile(stalePath, []byte("stale planning snapshot\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(stale planning) error = %v", err)
+	}
+	p.fs.remove = func(path string) error {
+		if path == stalePath {
+			return errors.New("injected planning export removal failure")
+		}
+		return os.Remove(path)
+	}
+
+	err := p.ExportCanonical(exportDir)
+	if err == nil || !strings.Contains(err.Error(), "injected planning export removal failure") {
+		t.Fatalf("ExportCanonical() error = %v, want injected failure", err)
+	}
+	if _, err := os.Stat(filepath.Join(planningExportDir, item.ID+".json")); err != nil {
+		t.Fatalf("current planning record missing after removal failure: %v", err)
+	}
+	if _, err := os.Stat(stalePath); err != nil {
+		t.Fatalf("stale planning record disappeared after removal failure: %v", err)
+	}
+}
+
+func snapshotDirectoryBytes(t *testing.T, root string) map[string][]byte {
+	t.Helper()
+	files := make(map[string][]byte)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		files[relative] = data
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("WalkDir(%s) error = %v", root, err)
+	}
+	return files
 }
 
 func newInternalProviderWithTask(t *testing.T) (*Provider, core.Task) {
@@ -1129,6 +1473,29 @@ func assertStoredHandoffs(t *testing.T, path string, want []core.Handoff) {
 		return got == expected
 	}) {
 		t.Fatalf("stored handoffs = %#v, want %#v", stored.Handoffs, want)
+	}
+}
+
+func assertStoredReusableCatalog(t *testing.T, path string, want core.ReusableTaskCatalog) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%s) error = %v", path, err)
+	}
+	got, err := reusablejson.Decode(data)
+	if err != nil {
+		t.Fatalf("reusablejson.Decode(%s) error = %v", path, err)
+	}
+	if got.Version != want.Version || len(got.Definitions) != len(want.Definitions) {
+		t.Fatalf("stored reusable catalog = %#v, want %#v", got, want)
+	}
+	for index := range want.Definitions {
+		actual, expected := got.Definitions[index], want.Definitions[index]
+		if actual.ID != expected.ID || actual.Name != expected.Name || actual.Title != expected.Title ||
+			actual.Instructions != expected.Instructions || !actual.CreatedAt.Equal(expected.CreatedAt) ||
+			!actual.UpdatedAt.Equal(expected.UpdatedAt) {
+			t.Fatalf("stored reusable definition %d = %#v, want %#v", index, actual, expected)
+		}
 	}
 }
 

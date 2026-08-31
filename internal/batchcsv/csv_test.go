@@ -37,6 +37,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 			WorktreeDir:       core.OptionalString{Set: true, Value: "/workspace/csv"},
 			Assignee:          core.OptionalString{Set: true, Value: "Ada"},
 			Dependencies:      core.OptionalStrings{Set: true, Value: []string{"wtp-0002", "00000000-0000-4000-8000-000000000003"}},
+			ReusableTasks:     core.OptionalStrings{Set: true, Value: []string{"7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6", "e5c3806a-bd1b-424d-889b-29e5b06679b8"}},
 		},
 		{
 			ShortID:           "wtp-0002",
@@ -54,12 +55,15 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if bytes.HasPrefix(encoded, []byte{0xef, 0xbb, 0xbf}) {
 		t.Fatal("Encode() emitted a UTF-8 BOM")
 	}
-	wantHeader := "id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,issueId,project,milestone,version,featureId,feature,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear\n"
+	wantHeader := "id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,issueId,project,milestone,version,featureId,feature,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,reusableTasks,_clear\n"
 	if !bytes.HasPrefix(encoded, []byte(wantHeader)) {
 		t.Fatalf("Encode() header = %q, want prefix %q", encoded, wantHeader)
 	}
 	if !strings.Contains(string(encoded), `"wtp-0002,00000000-0000-4000-8000-000000000003"`) {
 		t.Fatalf("Encode() did not CSV-quote dependencies: %q", encoded)
+	}
+	if !strings.Contains(string(encoded), `"7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6,e5c3806a-bd1b-424d-889b-29e5b06679b8"`) {
+		t.Fatalf("Encode() did not CSV-quote reusable task IDs: %q", encoded)
 	}
 	if !strings.Contains(string(encoded), `"description,priority,dependencies"`) {
 		t.Fatalf("Encode() clear list = %q", encoded)
@@ -108,7 +112,7 @@ func TestDecodeBlankCellsPreserveAndClearListClears(t *testing.T) {
 	record[1] = "wtp-0001"
 	record[2] = "2026-01-02T03:04:05Z"
 	record[3] = "New title"
-	record[22] = "description,priority,issueId,project,milestone,version,featureId,feature,dependencies"
+	record[23] = "description,priority,issueId,project,milestone,version,featureId,feature,dependencies,reusableTasks"
 	if err := writer.Write(record); err != nil {
 		t.Fatalf("write row: %v", err)
 	}
@@ -129,8 +133,83 @@ func TestDecodeBlankCellsPreserveAndClearListClears(t *testing.T) {
 		!row.Dependencies.Set || row.Dependencies.Value != nil {
 		t.Fatalf("clear state = %#v", row)
 	}
+	if !row.ReusableTasks.Set || row.ReusableTasks.Value != nil {
+		t.Fatalf("reusable task clear state = %#v", row)
+	}
 	if row.Lane.Set || row.Model.Set || row.Status.Set || row.Estimate.Set {
 		t.Fatalf("blank cells unexpectedly changed fields = %#v", row)
+	}
+}
+
+func TestReusableTasksCSVRoundTripPreservesReplacesAndClears(t *testing.T) {
+	const firstID = "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"
+	const secondID = "e5c3806a-bd1b-424d-889b-29e5b06679b8"
+	data := "id,updatedAt,title,reusableTasks,_clear\n" +
+		"00000000-0000-4000-8000-000000000001,2026-01-02T03:04:05Z,Replace,\"" + secondID + "," + firstID + "\",\n" +
+		"00000000-0000-4000-8000-000000000002,2026-01-02T03:04:05Z,Preserve,,\n" +
+		"00000000-0000-4000-8000-000000000003,2026-01-02T03:04:05Z,Clear,,reusableTasks\n"
+
+	rows, err := Decode([]byte(data))
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got, want := rows[0].ReusableTasks.Value, []string{secondID, firstID}; !rows[0].ReusableTasks.Set || !reflect.DeepEqual(got, want) {
+		t.Fatalf("replace assignment = %#v, want %v", rows[0].ReusableTasks, want)
+	}
+	if rows[1].ReusableTasks.Set {
+		t.Fatalf("blank assignment cell = %#v, want preserve", rows[1].ReusableTasks)
+	}
+	if !rows[2].ReusableTasks.Set || rows[2].ReusableTasks.Value != nil {
+		t.Fatalf("clear assignment = %#v, want explicit nil clear", rows[2].ReusableTasks)
+	}
+
+	encoded, err := Encode([]core.BatchTaskUpdateInput{{
+		ShortID:           "wtp-0004",
+		ExpectedUpdatedAt: time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
+		Title:             core.OptionalString{Set: true, Value: "Clear"},
+		ReusableTasks:     core.OptionalStrings{Set: true, Value: []string{}},
+	}})
+	if err != nil {
+		t.Fatalf("Encode(clear) error = %v", err)
+	}
+	if !strings.Contains(string(encoded), ",reusableTasks,_clear\n") || !strings.Contains(string(encoded), ",,reusableTasks\n") {
+		t.Fatalf("Encode(clear) = %q, want reusableTasks _clear encoding", encoded)
+	}
+}
+
+func TestReusableTasksCSVRejectsMalformedListsDuplicatesAndConflicts(t *testing.T) {
+	const id = "00000000-0000-4000-8000-000000000001"
+	const timestamp = "2026-01-02T03:04:05Z"
+	valid := func(value, clear string) string {
+		return "id,updatedAt,title,reusableTasks,_clear\n" + id + "," + timestamp + ",Patch," + value + "," + clear + "\n"
+	}
+	tests := []struct {
+		name string
+		data string
+		want string
+	}{
+		{"empty list item", valid(`"first,,second"`, ""), "reusableTasks[1] must not be empty"},
+		{"trailing list separator", valid(`"first,second,"`, ""), "reusableTasks[2] must not be empty"},
+		{"duplicate identifier", valid(`"first,first"`, ""), "duplicates identifier"},
+		{"value and clear", valid(`"first,second"`, "reusableTasks"), "both nonblank"},
+		{"duplicate clear name", valid("", `"reusableTasks,reusableTasks"`), "duplicate field"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := Decode([]byte(test.data)); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Decode() error = %v, want %q", err, test.want)
+			}
+		})
+	}
+
+	_, err := Encode([]core.BatchTaskUpdateInput{{
+		ShortID:           "wtp-0001",
+		ExpectedUpdatedAt: time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
+		Title:             core.OptionalString{Set: true, Value: "Patch"},
+		ReusableTasks:     core.OptionalStrings{Set: true, Value: []string{"first", "first"}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "duplicates identifier") {
+		t.Fatalf("Encode(duplicate assignment) error = %v, want duplicate identifier", err)
 	}
 }
 

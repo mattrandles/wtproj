@@ -1,0 +1,43 @@
+{
+  "id": "66be685f-1fdd-486d-aed0-4bcf05603de3",
+  "shortId": "wtp-0d6e4079-0066",
+  "title": "Define versioned planning lifecycle architecture",
+  "description": "Implement and freeze the cross-cutting contract for a second planning lifecycle after the grouping and reusable queues complete. Define fixed planning statuses toplan, researched, planned, and rejected; the .wtp/planning/\u003cstatus\u003e layout; reuse of the global UUID and branch-scoped short-ID allocator; preservation of the complete task metadata payload; nil execution lifecycle timestamps; revisable transitions; separate provider query surfaces; the planning CLI family; project/version/milestone report shape; AND grouping filters across issueId, project, milestone, version, featureId, and feature; dependency-closed promotion; dedicated journal ordering after batch and reusable recovery; and canonical export layout. Keep normal task stats, batch workflows, graphs, and claims planning-blind. Add foundational types/interfaces plus compile-time and architecture contract tests so dependent tasks make no policy decisions. Explicitly exclude planning deletion, comments, batch editing, execution-graph expansion, and non-flat-file support.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "planning-architecture",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "15182c39-e556-4757-be7b-5a7001b68f8b"
+  ],
+  "comments": [
+    {
+      "id": "08a3e5e0-bb69-4abe-b3b1-c281adadc701",
+      "author": "codex-wtp-loop",
+      "message": "Working directly on this architecture task only. Inspecting existing grouping/reusable contracts and downstream requirements; preserving all pre-existing dirty changes. Will freeze planning policy in foundational types/interfaces, architecture documentation, and contract tests before focused/full verification and global handoff.",
+      "createdAt": "2026-08-31T12:17:10.962330815Z"
+    },
+    {
+      "id": "48bac2d9-86ba-4723-9854-39658b98f138",
+      "author": "codex-wtp-loop",
+      "message": "Architecture v1 and additive planning declarations are drafted in docs/planning-lifecycle.md plus core/provider/report/flatfile contract files. Frozen exact transitions, full payload parity, typed capability separation, six-field AND filters, project/version/milestone shape, dependency closure through executable vertices, no-write preview opening, promotion journal/envelope/recovery order, and managed canonical export layout. Reusable deletion must detach planning references atomically. Runtime implementation remains assigned to dependent tasks; no other task or worker touched.",
+      "createdAt": "2026-08-31T12:26:44.913507262Z"
+    },
+    {
+      "id": "d3720040-26de-44fa-b5b7-0fb8e109e8fa",
+      "author": "codex-wtp-loop",
+      "message": "Implemented/froze architecture v1 in docs/planning-lifecycle.md and eight additive Go files: independent PlanningStatus/PlanningItem and complete create/update payloads, exact revisable transition data, separate optional planning provider capabilities, typed promotion preview/publish envelopes, project/version/milestone report types, and version-1 promotion journal/storage/recovery declarations. Contract tests freeze full Task field/tag parity, nil-timestamp JSON shape, no execution decorations, interface signatures/isolation, report/envelope JSON, and normative policy. Verified: focused Planning tests across core/provider/planning/flatfile; focused race tests; go test ./... -count=1; go vet ./...; ./scripts/verify.sh commit (full tests, vet, smoke); gofmt; git diff --check and all nine new-file whitespace checks. All passed; only the pre-existing e2e_smoke.ps1 CRLF warning remains. Runtime planning validation/loaders/commands/promotion/export wiring deliberately remain for dependent tasks. Existing source changes were preserved; no other task or worker changed.",
+      "createdAt": "2026-08-31T12:29:34.607658008Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:14.460060261Z",
+  "updatedAt": "2026-08-31T12:29:34.787295401Z",
+  "startedAt": "2026-08-31T12:16:11.881919337Z",
+  "completedAt": "2026-08-31T12:29:34.787295401Z"
+}

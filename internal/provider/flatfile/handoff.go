@@ -32,7 +32,11 @@ func (p *Provider) handoffsPath() string {
 func (p *Provider) WriteHandoff(request provider.HandoffWriteRequest) (provider.HandoffWriteResult, error) {
 	var result provider.HandoffWriteResult
 	err := p.withGlobalLock(func() error {
-		taskID, err := p.resolveHandoffTaskID(request.Task)
+		snapshot, err := p.loadValidationSnapshot(nil)
+		if err != nil {
+			return err
+		}
+		taskID, err := resolveHandoffTaskID(request.Task, snapshot.tasks)
 		if err != nil {
 			return err
 		}
@@ -91,7 +95,11 @@ func (p *Provider) ListHandoffs(filter provider.HandoffFilter) (provider.Handoff
 			return errors.New("handoff task filter cannot be combined with all scopes")
 		}
 
-		taskID, err := p.resolveHandoffTaskID(filter.Task)
+		snapshot, err := p.loadValidationSnapshot(nil)
+		if err != nil {
+			return err
+		}
+		taskID, err := resolveHandoffTaskID(filter.Task, snapshot.tasks)
 		if err != nil {
 			return err
 		}
@@ -103,6 +111,9 @@ func (p *Provider) ListHandoffs(filter provider.HandoffFilter) (provider.Handoff
 		matching := make([]core.Handoff, 0, len(handoffs))
 		otherScopesAvailable := false
 		for _, handoff := range handoffs {
+			if isPlanningHandoff(handoff, snapshot.planningItems) {
+				continue
+			}
 			if filter.AllScopes || handoff.TaskID == taskID {
 				matching = append(matching, handoff)
 				continue
@@ -135,7 +146,11 @@ func (p *Provider) PurgeHandoffs(request provider.HandoffPurgeRequest) (provider
 	var result provider.HandoffPurgeResult
 	request.Task = strings.TrimSpace(request.Task)
 	err := p.withGlobalLock(func() error {
-		selector, taskID, err := p.resolveHandoffPurgeSelector(request)
+		snapshot, err := p.loadValidationSnapshot(nil)
+		if err != nil {
+			return err
+		}
+		selector, taskID, err := resolveHandoffPurgeSelector(request, snapshot.tasks)
 		if err != nil {
 			return err
 		}
@@ -148,6 +163,14 @@ func (p *Provider) PurgeHandoffs(request provider.HandoffPurgeRequest) (provider
 		retained := make([]core.Handoff, 0, len(handoffs))
 		foundID := false
 		for _, handoff := range handoffs {
+			// Planning-scoped handoffs are outside the execution lifecycle. Keep
+			// them in storage, but never expose or mutate them through execution
+			// handoff operations. Unknown task scopes remain recoverable orphan
+			// records for compatibility with the existing purge-by-ID contract.
+			if isPlanningHandoff(handoff, snapshot.planningItems) {
+				retained = append(retained, handoff)
+				continue
+			}
 			matches := false
 			switch selector {
 			case handoffPurgeByID:
@@ -187,7 +210,7 @@ const (
 	handoffPurgeAllScopes
 )
 
-func (p *Provider) resolveHandoffPurgeSelector(request provider.HandoffPurgeRequest) (handoffPurgeSelector, string, error) {
+func resolveHandoffPurgeSelector(request provider.HandoffPurgeRequest, tasks []core.Task) (handoffPurgeSelector, string, error) {
 	request.Task = strings.TrimSpace(request.Task)
 	selectors := 0
 	if request.ID != "" {
@@ -218,27 +241,35 @@ func (p *Provider) resolveHandoffPurgeSelector(request provider.HandoffPurgeRequ
 		return handoffPurgeAllScopes, "", nil
 	}
 
-	taskID, err := p.resolveHandoffTaskID(request.Task)
+	taskID, err := resolveHandoffTaskID(request.Task, tasks)
 	if err != nil {
 		return 0, "", err
 	}
 	return handoffPurgeTask, taskID, nil
 }
 
-func (p *Provider) resolveHandoffTaskID(idOrShortID string) (string, error) {
+func resolveHandoffTaskID(idOrShortID string, tasks []core.Task) (string, error) {
 	idOrShortID = strings.TrimSpace(idOrShortID)
 	if idOrShortID == "" {
 		return "", nil
-	}
-	tasks, err := p.loadTasks()
-	if err != nil {
-		return "", err
 	}
 	task, err := resolveTask(idOrShortID, tasks)
 	if err != nil {
 		return "", err
 	}
 	return task.ID, nil
+}
+
+func isPlanningHandoff(handoff core.Handoff, planningItems []core.PlanningItem) bool {
+	if handoff.TaskID == "" {
+		return false
+	}
+	for _, item := range planningItems {
+		if item.ID == handoff.TaskID {
+			return true
+		}
+	}
+	return false
 }
 
 func countHandoffScope(handoffs []core.Handoff, taskID string) int {

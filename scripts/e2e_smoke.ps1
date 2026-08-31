@@ -98,7 +98,13 @@ try {
 
         & $binaryPath --json task create `
             --title "Bootstrap provider" `
-            --description "Initial task for smoke testing" > $taskAJson
+            --description "Initial task for smoke testing" `
+            --issue-id ISSUE-42 `
+            --project Apollo `
+            --milestone MVP `
+            --version v1 `
+            --feature-id FEAT-7 `
+            --feature Search > $taskAJson
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
@@ -111,10 +117,23 @@ try {
             Fail "task A filename was not written with shortId"
         }
 
+        & $binaryPath --json task edit $taskAShortID --feature "Search Renamed" > $taskAJson
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        Assert-Contains '"featureId": "FEAT-7"' $taskAJson
+        Assert-Contains '"feature": "Search Renamed"' $taskAJson
+
         & $binaryPath --json task create `
             --title "Follow-up task" `
             --description "Depends on task A" `
-            --depends-on $taskAShortID > $taskBJson
+            --depends-on $taskAShortID `
+            --issue-id ISSUE-42 `
+            --project Apollo `
+            --milestone MVP `
+            --version v1 `
+            --feature-id FEAT-7 `
+            --feature "Search Renamed" > $taskBJson
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
@@ -130,6 +149,12 @@ try {
         }
         Assert-Contains $taskAShortID $listOut
         Assert-Contains $taskBShortID $listOut
+        & $binaryPath task list --issue-id issue-42 --project apollo --milestone mvp --version V1 --feature-id feat-7 --feature "search renamed" > $listOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        Assert-Contains $taskAShortID $listOut
+        Assert-Contains $taskBShortID $listOut
 
         $startOutput = @(Invoke-ExpectedFailure { & $binaryPath task start $taskBShortID --agent Bob })
         $startExitCode = $LASTEXITCODE
@@ -139,7 +164,7 @@ try {
         }
         Assert-Contains "blocked by unresolved dependencies" $errOut
 
-        & $binaryPath --json task next --agent Alice > $taskOut
+        & $binaryPath --json task next --agent Alice --issue-id issue-42 --project apollo --milestone mvp --version V1 --feature-id feat-7 --feature "search renamed" > $taskOut
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
@@ -150,7 +175,7 @@ try {
         & $binaryPath task comment $taskAShortID --agent Alice --message "smoke progress" | Out-Null
         & $binaryPath task done $taskAShortID --agent Alice | Out-Null
 
-        & $binaryPath --json --get-next-task --agent Bob > $taskOut
+        & $binaryPath --json --get-next-task --agent Bob --issue-id issue-42 --project apollo --milestone mvp --version V1 --feature-id feat-7 --feature "search renamed" > $taskOut
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
@@ -167,7 +192,7 @@ try {
         Assert-Contains '"status": "inProgress"' $taskOut
 
         & $binaryPath task done $taskBShortID --agent Bob | Out-Null
-        & $binaryPath batch export --out $batchExportPath > $batchExportSummary
+        & $binaryPath batch export --out $batchExportPath --issue-id issue-42 --project apollo --milestone mvp --version V1 --feature-id feat-7 --feature "search renamed" > $batchExportSummary
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }

@@ -1,0 +1,39 @@
+{
+  "id": "8efd694e-9415-4ddf-80fc-69fcdc152d9b",
+  "shortId": "wtp-0d6e4079-0074",
+  "title": "Resolve reusable assignments in planning views",
+  "description": "Complete planning integration with reusable advisory tasks. Ensure planning create, list, show, update, and set-status views resolve reusableTaskIds against one current catalog snapshot, preserve assignment order, reflect later definition renames/title/instruction edits, and reject manually corrupted missing references during store loads. Planning mutations must share the existing global locking and reusable catalog validation semantics. Do not add new reusable CRUD or execute advisory instructions. Add focused tests for zero/one/many assignments, replacement/clear/reorder, live edits, Unicode instructions, deleted-definition corruption, and unchanged executable-task behavior.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "planning-reusable",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "17e7f2f8-93dc-4547-a75f-4ba0d07bdf6c",
+    "48ed91ab-7fda-4410-acce-0ede1f7f1a25",
+    "7aa1f414-5f65-4627-ac3c-eb9cdf75965b"
+  ],
+  "comments": [
+    {
+      "id": "ef0d1fdf-4212-404e-8fb0-2d72911a04cc",
+      "author": "codex-wtp-loop",
+      "message": "Progress: scoped implementation review started; planning views and mutations already use locked catalog reads in the current worktree. I am tracing snapshot/load validation gaps and will add only task-specific fixes/tests, then run focused and full verification.",
+      "createdAt": "2026-08-31T13:31:17.637049235Z"
+    },
+    {
+      "id": "18021475-a3b7-4dc2-b407-a12f5f1eaaad",
+      "author": "codex-wtp-loop",
+      "message": "Implementation and verification complete: planning create/list/show/update/set-status now load one validated reusable catalog snapshot under the existing global lock, validate every planning reusableTaskIds reference before filtering/mutation, preserve assignment order, and reuse that snapshot for live view decoration. Direct planning loads and store open reject deleted/missing definitions. Added focused zero/one/many, replacement/clear/reorder, Unicode live-edit, deleted-definition, and reopen corruption coverage. go test ./internal/provider/flatfile ./internal/provider ./internal/core; go test ./...; go test -race ./internal/provider/flatfile; go vet ./...; gofmt -d; and git diff --check all pass.",
+      "createdAt": "2026-08-31T13:37:19.447740705Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:52.365199731Z",
+  "updatedAt": "2026-08-31T13:37:28.277084511Z",
+  "startedAt": "2026-08-31T13:30:14.653968119Z",
+  "completedAt": "2026-08-31T13:37:28.277084511Z"
+}

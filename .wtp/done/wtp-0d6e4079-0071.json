@@ -1,0 +1,37 @@
+{
+  "id": "17e7f2f8-93dc-4547-a75f-4ba0d07bdf6c",
+  "shortId": "wtp-0d6e4079-0071",
+  "title": "Implement planning provider creation",
+  "description": "Add the provider create operation for planning items under the global lock. Accept the same full metadata as task creation, default status to toplan, trim and validate inputs consistently, discover omitted Git/worktree origin fields through the existing CLI boundary, resolve dependencies against the unified graph, resolve reusable names/UUIDs to ordered canonical IDs, allocate one global short ID, and publish exactly one planning record atomically. Return a typed planning view without execution readiness. Cover every explicit planning status, validation failures before allocation publication, dependency and reusable resolution, monotonic UTC timestamps, injected write failures, and concurrent creators.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-provider",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "5ef45b73-f794-4abd-8631-51e7fa1e2a58"
+  ],
+  "comments": [
+    {
+      "id": "71f72b96-c263-4e21-9540-8973e5474c13",
+      "author": "codex-wtp-loop",
+      "message": "Progress: continuing the existing claim; auditing planning provider creation against the full metadata, lock, graph/reusable resolution, atomic publication, timestamp, fault-injection, and concurrency requirements. Preserving unrelated dirty worktree changes.",
+      "createdAt": "2026-08-31T13:02:48.097727861Z"
+    },
+    {
+      "id": "bde85826-3055-4cae-a626-054662ddad06",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: focused provider/CLI tests pass; go test ./... passes; go test -race ./internal/provider/flatfile ./internal/cli passes (CLI process tests 171s); git diff --check passes; built-binary smoke confirms wtp planning create emits typed JSON with toplan default and null execution timestamps.",
+      "createdAt": "2026-08-31T13:14:21.809327273Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:52.272565145Z",
+  "updatedAt": "2026-08-31T13:14:32.488863541Z",
+  "startedAt": "2026-08-31T13:01:58.545540868Z",
+  "completedAt": "2026-08-31T13:14:32.488863541Z"
+}

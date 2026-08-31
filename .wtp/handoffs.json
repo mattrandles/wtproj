@@ -373,6 +373,384 @@
       "author": "codex-wtp-loop",
       "message": "Stats CLI grouping task complete: six selectors parse after optional --chart before positionals; issueId/project/milestone/version/featureId/feature flow through overview, focused, JSON/text/charts and series filters. Normal full tests, focused race tests, stats/core race, vet, commit gate, gofmt, and git diff --check passed. Full race was bounded at two minutes because subprocess-heavy TestCLIProcess did not complete.",
       "createdAt": "2026-08-31T08:38:07.767982673Z"
+    },
+    {
+      "id": "9a3d3466-d616-446e-b4b5-93925d7dc522",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0090 worker killed after five-minute unresponsive allowance; preserved skills/wtp-codex-planning and README changes remain. Reclaim exact task before restarting. Usage was 89%, above threshold.",
+      "createdAt": "2026-08-31T08:48:36.083856708Z"
+    },
+    {
+      "id": "6861b570-2241-4a20-8e1c-b09958e1cff2",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0090 resumed in /mnt/dev/dev/wtproj with preserved planning-skill draft. No workers created. Missing test suite and registry/docs validation are being completed; installed WTP is older than repository grouping support, so preview must capability-check native fields and preserve unsupported metadata in descriptions. Task remains inProgress pending verification.",
+      "createdAt": "2026-08-31T08:51:05.787099941Z"
+    },
+    {
+      "id": "b4d21256-ec34-4d32-992e-7e39143c9148",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0090 implementation and verification complete in /mnt/dev/dev/wtproj. Preserved and finished skills/wtp-codex-planning plus README discovery/docs; added scripts/test_proposal.py and internal/cli/wtp_planning_test.go. Workflow researches without writes, asks and validates enabled model/effort percentages, displays editable numbered tasks, requires amend/refuse/approve decision for the reviewed revision, creates canonical dependency-ordered todo/unassigned tasks only after approval, and reports safe partial failures. Helper never executes WTP. Verified 16 Python contracts, focused real-CLI integration, skill quick_validate, git diff --check, full scripts/verify.sh commit (tests/vet/format/smoke), and final uncached go test ./... -count=1. No native planning skill or separate registry was available; existing skills/built-in mode unchanged. No other workers or live proposal tasks created. Changes remain uncommitted; only this exact task is being marked done.",
+      "createdAt": "2026-08-31T08:59:01.866033449Z"
+    },
+    {
+      "id": "a4ed218a-e974-4eb7-b302-e8d1f8a25273",
+      "author": "codex-wtp-loop",
+      "message": "Grouping documentation audit: core/provider/CLI/stats/batch behavior is implemented and already tested. This task should update README, CLI schema/help contract, CHANGELOG, task-management, and codex-wtp-loop with six-field semantics, explicit clearing and compatibility rules, all six selectors for list/ready/next/graph/batch/stats, scoped stats behavior, and a loop example that captures one optional grouping scope and reuses it for model stats and every automatic claim. setup-wtp remains setup-only unless a direct compatibility note is required.",
+      "createdAt": "2026-08-31T09:00:50.341998198Z"
+    },
+    {
+      "id": "09c9bc51-fa9f-4b09-a6d5-cacb8bfc2405",
+      "author": "codex-wtp-loop",
+      "message": "Docs patch status: README, CHANGELOG, internal/cli help/schema text, skills/task-management/SKILL.md, and skills/codex-wtp-loop/SKILL.md updated. New contract checks cover six field names, stable featureId/display feature distinction, clearing/preservation, exact filters, batch null/_clear/all-or-nothing behavior, scoped stats, and reusable grouping_scope loop commands. No setup-wtp change; unrelated planning/worktree edits preserved. Focused tests are next.",
+      "createdAt": "2026-08-31T09:05:30.842128255Z"
+    },
+    {
+      "id": "ce1aa4de-71b9-45cb-92e1-57fe5e799f2d",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0d6e4079-0044. Documentation covers issueId/project/milestone/version/featureId/feature semantics, stable featureId key versus feature display name, create/update clearing, legacy compatibility, exact case-insensitive AND filters, stats dimensions/scoping and status-first compatibility, batch selectors/null/_clear/preservation/all-or-nothing behavior, and targeted loop examples. Updated README.md, CHANGELOG.md, internal/cli/cli.go help/schema, skills/task-management/SKILL.md, and skills/codex-wtp-loop/SKILL.md; added CLI and cross-document contract assertions. setup-wtp unchanged. Validation: go test ./..., go vet ./..., focused CLI/releaseasset tests, go run help/schema contract probes, and git diff --check all pass. Existing unrelated planning and WTP store changes were preserved.",
+      "createdAt": "2026-08-31T09:07:24.202080484Z"
+    },
+    {
+      "id": "ea14577a-ac89-4573-a6ce-c8d278f66723",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0045 final handoff: grouping-end-to-end prerelease coverage now exercises all six metadata fields through create/edit/clear/list/graph/stats/ready/next, JSON v1 and CSV export/import, legacy UUID filename migration, exact mixed-case AND and unmatched filters, deterministic ordering, foreign branch/assignee safety, and two concurrent scoped next claims. Candidate repeat1 passed all 14 scenarios plus race; Unix and pwsh smoke, Windows amd64 cross-build/test compilation, gofmt, uncached go test ./..., go vet ./..., git diff --check, and scripts/verify.sh commit passed. Canonical empty grouping updates now bypass legacy argument rewriting (covered by regression test). Dogfood captured aac52ba8-b7c3-44ab-b6b0-303dcc44a0d4 / wtp-0d6e4079-0045 with stable featureId FEAT-7 and display feature Grouping end-to-end; scoped list/stats returned one, ready returned null, next returned documented no-work. Existing unrelated worktree changes are intentionally preserved.",
+      "createdAt": "2026-08-31T09:25:09.425000798Z"
+    },
+    {
+      "id": "ae9dac44-93fe-48da-9966-1ca629b96851",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0046: reusable advisory contracts are ready in internal/core/reusable.go, core/task.go, and provider/reusable.go. Core exports ReusableTaskDefinition, ReusableTaskCatalog, ReusableTaskCatalogVersion=1, EmptyReusableTaskCatalog, Create/UpdateReusableTaskInput, and ResolveReusableTasks. Catalog.Validate enforces a non-null ordered definitions array and EqualFold name uniqueness; missing-file adapters must use EmptyReusableTaskCatalog, not the invalid zero wrapper. Stored Task.ReusableTaskIDs contains unique canonical UUIDs; TaskView.ReusableTasks contains ordered live definitions and is omitted when empty. Task create uses ReusableTasks []string selectors; update/batch use OptionalStrings (unset preserves, set empty clears, set populated replaces). ReusableTaskProvider embeds the unchanged Provider and declares list/get/create/update/delete with ReusableTaskDeleteResult {deleted,detachedTaskCount}; existing flat-file code does not implement this capability yet. Keep strict codecs, selector resolution under lock, provider persistence, live view population, delete recovery, batch/CLI wiring, exhaustive validation, and integration tests in their dependent tasks. Baseline serialization/compile contracts, full uncached tests, vet, focused race, diff checks, and commit verification with Unix smoke passed. Earlier unrelated changes and retained handoffs are intact; no other workers or task claims were created.",
+      "createdAt": "2026-08-31T09:33:42.871848757Z"
+    },
+    {
+      "id": "19c45873-6dab-4533-90f7-d050d1f39b92",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0047 completed in the core-only scope. Added internal/core/reusable_validation_test.go covering reusable definition canonical IDs, required/trimmed text, UTC/equal/order timestamps, catalog version/shape wrappers, duplicate IDs and EqualFold names, pure ID-list/reference errors, stable assignment ordering and copy isolation, empty assignment omission, populated task/catalog deterministic JSON round trips, and compatibility boundaries. Existing reusable_test.go covers legacy task JSON without reusableTaskIds and EmptyReusableTaskCatalog missing-file semantics. Verification passed: go test -count=1 ./..., go vet ./..., go test -race ./internal/core ./internal/batchjson. No provider I/O or CLI behavior changes; strict duplicate JSON property behavior remains in batchjson codec tests because core has no strict catalog codec.",
+      "createdAt": "2026-08-31T09:38:30.820329655Z"
+    },
+    {
+      "id": "02620e8c-5575-40dd-839c-9f3f11793e2c",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0048 completed: standalone internal/reusablejson codec is ready for the dependent flat-file provider task. Use reusablejson.ReadFile for missing-file-as-empty behavior, Encode/Decode for strict deterministic catalog bytes, and WriteFile only when the provider does not need its existing atomic replacement layer. Codec validates core.ReusableTaskCatalog, retains definition order, canonicalizes UTC timestamps, preserves Unicode, and rejects unknown/duplicate fields plus invalid versions/definitions. No provider methods were wired. Full tests, race-focused tests, vet, and diff-check passed.",
+      "createdAt": "2026-08-31T09:44:52.023010059Z"
+    },
+    {
+      "id": "27828ad7-9607-4da4-b3d3-b762e109ea17",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0049 completed: flat-file reusable catalog APIs live in internal/provider/flatfile/reusable.go. List/Get/Create share the store-wide lock, use .wtp/reusable.json globally across branch scopes, list by lowercase name then UUID, resolve canonical UUID before EqualFold names, regenerate ID collisions, keep catalog timestamps monotonic, validate/encode the entire catalog, and atomically replace bytes. Missing-file read APIs do not create reusable.json. provider.ReusableTaskProvider now intentionally covers list/get/create; ReusableTaskMutationProvider carries the later update/delete contract so the create/list/show CLI task can depend only on implemented methods. Focused race tests, go vet ./..., go test ./..., and diff-check all passed.",
+      "createdAt": "2026-08-31T09:50:22.785396986Z"
+    },
+    {
+      "id": "b9277ee6-72df-4b96-a98d-8d706e96e078",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0050 in progress: existing reusable catalog create/read path is in internal/provider/flatfile/reusable.go and is store-global under withGlobalLock. Update should reuse loadReusableTaskCatalog plus reusablejson.Encode/writeBytesAtomicWithFileSystem, preserve definition ID and CreatedAt, and use nextReusableCatalogMutationTime for monotonic UpdatedAt. Shared worktree contains unrelated documentation/planning changes; preserve them. No deletion/detachment or worker dispatch.",
+      "createdAt": "2026-08-31T09:52:17.722122948Z"
+    },
+    {
+      "id": "b762af68-8874-42d2-a274-650274268134",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0050 complete: UpdateReusableTask now lives in internal/provider/flatfile/reusable.go and uses the existing store-global lock, full catalog validation, and atomic writeBytesAtomicWithFileSystem publication. It preserves UUID/CreatedAt, monotonically advances UpdatedAt only for effective changes, allows same-definition casing-only renames under EqualFold uniqueness, trims supplied text, rejects blank/empty patches, and leaves task UUID references untouched. Focused update tests plus go test ./..., go vet ./..., go test -race ./internal/provider/flatfile -run 'TestUpdateReusableTask', and git diff --check passed. Deletion/detachment remains intentionally unimplemented for the dependent task; unrelated shared-worktree changes were preserved.",
+      "createdAt": "2026-08-31T09:55:01.344358393Z"
+    },
+    {
+      "id": "084113e6-7235-4ed3-a4dc-3e6e6ab33d3e",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0051 complete: reusable_update_journal.go defines the standalone v1 reusable-update contract, prepared→committed transition, atomic read/write/remove helpers, and read-only pre-recovery validation. Journal paths are canonical slash-relative (.wtp/reusable.json and \u003cstatus\u003e/\u003cshortId\u003e.json); endpoints retain exact bytes. Future delete/recovery work should call validateReusableUpdateJournalForRecovery under the global lock before any replacements, then use writeReusableUpdateJournal/transitionReusableUpdateJournal rather than batch-update helpers. Verification passed: focused/race flatfile tests, GOOS=windows compile, go test ./..., go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-31T10:07:15.700953683Z"
+    },
+    {
+      "id": "45ec815e-e470-4d02-975f-1a5e81c69a7c",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0052 implementation handoff: internal/provider/flatfile/reusable_update_recovery.go now centralizes recovery for ensureLayout, loadTasks, and loadReusableTaskCatalog (all callers hold wtp.lock). Batch journals are prevalidated and recovered first; if both journals are pending, any shared batch task path with a reusable target retains both journals and returns a shared-target diagnostic. Reusable recovery fully validates the static journal, every live target (each must match before or after), and live affected-task coverage before any replacement; it writes exact selected snapshots atomically, faults after each replacement for resumable retries, and removes the journal only after all replacements succeed. Focused, race, full, and wtp_fault_injection suites pass; no delete provider exposure was added.",
+      "createdAt": "2026-08-31T10:15:09.942518423Z"
+    },
+    {
+      "id": "8331f42c-39cc-46dc-ac4b-d58134e007a1",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0053 completed: DeleteReusableTask now publishes catalog plus all affected task snapshots through .wtp/meta/reusable-update.json. Prepared journals roll back to byte-exact before endpoints; committed journals roll forward on reopen, and cleanup/retry is idempotent. Task enumeration is read-only across all configured statuses and branch scopes, preventing automatic repair comments or unrelated field changes. Fault tests cover before-journal, prepared, each replacement, publication, committed, cleanup, rollback, roll-forward, and retry. Full, fault-tagged, race, vet, and whitespace verification all pass.",
+      "createdAt": "2026-08-31T10:26:12.042978993Z"
+    },
+    {
+      "id": "124d2add-1688-4245-9bd6-1e4aa2a699b9",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0054 complete: flat-file task mutation paths now resolve reusable names/UUIDs under lock, store canonical ordered UUIDs, preserve omitted assignments, clear explicit empty assignment lists, and validate persisted references during loads. Batch preparation includes assignment patches in stale/no-op/atomic semantics. Added internal/provider/flatfile/reusable_assignment_test.go; go test ./... passes. Claim rendering was intentionally unchanged.",
+      "createdAt": "2026-08-31T10:32:17.733609547Z"
+    },
+    {
+      "id": "97419f14-af83-494e-8583-925e9f6bcedf",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0d6e4079-0055: TaskView decoration now reloads the current reusable catalog under the provider lock and resolves stable ordered reusableTaskIds for all task reads and claim/mutation results, while preserving task-scoped handoff attachment semantics and compact human list behavior. New reusable_views_test.go covers live edits, zero/one/many ordering, JSON list round-trip, branch/assignee selection, handoff claims, and corruption rejection. Verification passed: go test ./...; go test -race -count=1 ./internal/provider/flatfile.",
+      "createdAt": "2026-08-31T10:40:40.224520359Z"
+    },
+    {
+      "id": "da5376e6-6971-4823-8dff-319079f405fc",
+      "author": "codex-wtp-loop",
+      "message": "For wtp-0d6e4079-0056: the reusable catalog provider capability already exposes ListReusableTasks, GetReusableTask, and CreateReusableTask with global locking, deterministic name ordering, name/UUID selectors, duplicate-name validation, and empty-catalog reads. CLI work should stay in internal/cli, add reusable registration plus minimal help usage, render core.ReusableTaskDefinition values directly for root --json, and use an indented instruction block in human show output so Unicode/Markdown/newlines remain unambiguous. Preserve all unrelated shared-worktree changes.",
+      "createdAt": "2026-08-31T10:42:33.832144282Z"
+    },
+    {
+      "id": "64b324e1-c2d8-4b01-b473-1b7f1c375ca8",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0056 complete: internal/cli/cli.go now dispatches reusable create/list/show, uses provider.ReusableTaskProvider, emits typed core.ReusableTaskDefinition values and non-nil deterministic arrays under root --json, and renders human instructions as indented multiline text. Minimal help usage stubs were added; schema/comprehensive docs were intentionally left for the later documentation task. New internal/cli/reusable_cli_test.go covers flag order, Unicode/Markdown instructions, stable sorted JSON, typed empty arrays, safe human output, list/show/create grammar errors, duplicate names, and unknown definitions. Verification: go test ./..., go vet ./..., go test -race ./internal/cli, and git diff --check passed. Existing unrelated shared-worktree changes were preserved.",
+      "createdAt": "2026-08-31T10:49:03.776319151Z"
+    },
+    {
+      "id": "2095ca52-6f6e-49bd-b42a-2775753b9174",
+      "taskId": "ae50a1fd-11d8-4493-82f4-941f0dbe8036",
+      "author": "codex-wtp-loop",
+      "message": "Current implementation context: core/provider/flatfile reusable mutation APIs and atomic detach journal are present in the worktree. Remaining task focus is wiring reusable update/delete CLI commands, explicit optional-field semantics, JSON/human delete output, selector/argument/error handling, and comprehensive CLI coverage. Existing unrelated changes in the worktree must remain untouched.",
+      "createdAt": "2026-08-31T10:50:17.706092218Z"
+    },
+    {
+      "id": "f5dd5f94-a396-434b-9c04-7e49c3455625",
+      "author": "codex-wtp-loop",
+      "message": "Sole-worker handoff: exact task wtp-0d6e4079-0057 is already inProgress on codex-wtp-loop; no additional workers are authorized. Preserve existing modifications and verify before completion.",
+      "createdAt": "2026-08-31T10:50:17.726633807Z"
+    },
+    {
+      "id": "d0a179d1-0c45-4b77-bc3d-aba723a94e74",
+      "taskId": "ae50a1fd-11d8-4493-82f4-941f0dbe8036",
+      "author": "codex-wtp-loop",
+      "message": "Completion handoff: reusable update/delete CLI surface is wired in internal/cli/cli.go with explicit optional-field validation, typed JSON output, precise human delete summaries, and help/README references. internal/cli/reusable_cli_test.go covers selectors, casing-only rename, normalized no-op, empty-vs-omitted flags, argument rejection, all-status detach including done, unreferenced deletion, and mutation error propagation. Existing provider atomic journal/detach implementation was preserved.",
+      "createdAt": "2026-08-31T10:58:48.611523752Z"
+    },
+    {
+      "id": "49c0722c-936b-48b4-b2fd-396df897fc39",
+      "author": "codex-wtp-loop",
+      "message": "Verification handoff for wtp-0d6e4079-0057: go test ./..., go test -race ./internal/cli ./internal/provider/flatfile, go test -tags wtp_fault_injection ./internal/provider/flatfile, go vet ./..., and git diff --check all passed. The worktree contains unrelated pre-existing edits; only reusable CLI/docs/tests were added in this turn.",
+      "createdAt": "2026-08-31T10:58:48.633013302Z"
+    },
+    {
+      "id": "3e105960-26bd-46f3-8386-a3ed1111ab91",
+      "author": "codex-wtp-loop",
+      "message": "Global handoff: WTP reusable assignment work is complete in the shared worktree. The CLI now accepts ordered repeatable --reusable selectors on task create/update/edit and legacy create. Provider inputs receive raw selectors for locked resolution; update clear/mixed/duplicate rules are enforced. Detailed and claim views render ordered name/title/instructions, JSON preserves reusableTaskIds plus resolved reusableTasks, compact list/graph stay stable. Verification: go test ./... and git diff --check passed; built-binary smoke test covered create, update clear, show, list, and graph.",
+      "createdAt": "2026-08-31T11:09:07.923198808Z"
+    },
+    {
+      "id": "2fed331c-8bf4-4cc7-9200-e58112de8dae",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0d6e4079-0059: batch JSON v1 now supports optional reusableTasks ordered selector arrays. Omission preserves, null clears, arrays replace; codec validates structure/nonblank elements without resolving names, preserves strict unknown/duplicate handling and field order. JSON export emits stored canonical reusable task UUIDs in assignment order. Verification passed: go test ./... and git diff --check. Changes are limited to internal/batchjson and internal/batchexport files; pre-existing dirty worktree changes were preserved.",
+      "createdAt": "2026-08-31T11:13:55.571973334Z"
+    },
+    {
+      "id": "00a9d63d-4952-4e3f-bc9d-17eb1f026fa8",
+      "author": "codex-wtp-loop",
+      "message": "Final verification update for wtp-0d6e4079-0059: explicit UTF-8 reusable selector round-trip coverage was added after the initial completion audit; go test ./... and git diff --check still pass. Task status remains done.",
+      "createdAt": "2026-08-31T11:14:38.242159586Z"
+    },
+    {
+      "id": "9bc6ab45-d612-4315-8822-ac94595a660b",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0060 complete: extended deterministic batch CSV v1 with reusableTasks before _clear. Ordered reusable assignment identifiers use the existing CSV comma-list/quoting convention; blank cells preserve, populated cells replace, and _clear reusableTasks clears. Added duplicate/malformed list and value+clear rejection, invalid clear/header handling, BOM/subset compatibility, and provider-deferred definition lookup. Batch export emits stored canonical definition UUIDs in assignment order and explicitly clears empty assignments. Updated batch docs/help and added round-trip/rejection/deterministic export tests. Verification passed: focused batchcsv/batchexport/batchjson/batchimport/cli tests, go test ./... -count=1, go vet ./..., ./scripts/verify.sh commit, and git diff --check. Preserve unrelated existing dirty worktree changes.",
+      "createdAt": "2026-08-31T11:22:25.796944718Z"
+    },
+    {
+      "id": "09ca0df6-16eb-41d0-8a61-9ed9c67801c2",
+      "author": "codex",
+      "message": "Working only on wtp-0d6e4079-0061: integrating reusable-task assignments through batch workflows; preserving the existing dirty worktree.",
+      "createdAt": "2026-08-31T11:23:11.768180249Z"
+    },
+    {
+      "id": "4b71822f-30d1-4ccf-b495-f7da24bcd607",
+      "author": "codex",
+      "message": "Completed wtp-0d6e4079-0061: reusable task assignments now flow through batch JSON/CSV export/import, flat-file atomic validation/journaling/recovery, and response views. Added CLI rename/delete/preserve/replace/clear coverage and reusable batch fault recovery. Verified: go test ./...; go test -tags wtp_fault_injection ./internal/provider/flatfile; git diff --check.",
+      "createdAt": "2026-08-31T11:26:31.285134372Z"
+    },
+    {
+      "id": "e2ab371a-87bf-4730-99c1-13e9acc9d6f1",
+      "author": "codex-wtp-loop",
+      "message": "Global handoff from wtp-0d6e4079-0062: canonical export now publishes UUID task snapshots, handoffs.json, and strict version-1 reusable.json from one store-locked in-memory snapshot. reusable.json is a managed entry, stale replacement and atomic write/removal failure behavior are covered, and root export matches --export-tasks alias. Full verification passed: go test ./..., fault-injection flat-file tests, focused provider/CLI/releaseasset tests, Windows-targeted flat-file compile, git diff --check. Unrelated dirty worktree changes were preserved.",
+      "createdAt": "2026-08-31T11:35:40.12410633Z"
+    },
+    {
+      "id": "0a0f9851-bcdb-44f9-aa61-d9989b74daef",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0063 complete: reusable advisory documentation now matches the finalized CLI/provider/wire behavior across README, help, schema, CHANGELOG, CONTRIBUTING, .gitignore, and documentation contract tests. The docs cover CRUD, ordered canonical/live references, assignment flags, rename and detach-everywhere deletion, human/JSON claim shapes, JSON/CSV batch preserve/replace/clear, canonical export, shared-store scope, legacy compatibility, non-execution/group-end exclusions, the explicit four-item grouped example, and reusable.json/reusable-update.json backup/recovery/ignore guidance. Verification: focused CLI and releaseasset documentation tests, go test ./..., git diff --check.",
+      "createdAt": "2026-08-31T11:46:01.291659593Z"
+    },
+    {
+      "id": "c1100757-022d-46c2-9ffc-c4fa9e11481d",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0d6e4079-0064 in /home/matty/dev/wtproj. Updated skills/task-management/SKILL.md with reusable definition CRUD, explicit final-task selection, ordered repeatable --reusable assignment, and live advisory semantics. Updated skills/codex-wtp-loop/SKILL.md to parse claim-resolved reusableTasks from task start/next, preserve item order in worker prompts, require each item be addressed before completion, and state WTP neither executes nor enforces them. Updated skills/setup-wtp/SKILL.md to preserve reusable.json in complete-store migration/backup/export checks and track reusable-update.json with transient recovery journals. Added skill contract assertions in internal/releaseasset/documentation_test.go. Structural validation passed; focused docs tests and go test ./... passed; git diff --check passed with only the pre-existing unrelated CRLF warning. Unrelated dirty changes remain untouched.",
+      "createdAt": "2026-08-31T11:50:43.245978275Z"
+    },
+    {
+      "id": "db964d01-a01a-4770-8033-4780fad8f542",
+      "author": "codex-wtp-loop",
+      "message": "Reusable-advisory final QA is active on wtp-0d6e4079-0065 in /mnt/dev/dev/wtproj. Existing implementation/docs/test changes are intentionally preserved; verification must cover CRUD, ordered/live assignments and claims, handoffs, legacy/batch/export/scope/corruption/concurrency/recovery/path cases, candidate dogfood cleanup, repository gates, and platform skips. Do not claim or modify another task or start a worker.",
+      "createdAt": "2026-08-31T11:52:35.177950401Z"
+    },
+    {
+      "id": "ef69c6eb-923e-4bfc-bcf2-46764ae120e3",
+      "author": "codex-wtp-loop",
+      "message": "Completed final reusable-advisory QA for wtp-0d6e4079-0065. Source-only prerelease validator fix handles reusable.json in canonical exports. All required repository, docs/skill, disposable black-box, contention, recovery, race, release, PowerShell, and Windows cross-target checks passed. Final artifacts: /tmp/wtp-dogfood-mxyYhB/prerelease-repeat20.json and /tmp/wtp-reusable-blackbox-U0IvJw. Native Windows execution and Unix read-only permission semantics remain documented skips; no other task/worker was touched.",
+      "createdAt": "2026-08-31T12:15:36.084415495Z"
+    },
+    {
+      "id": "426af928-1534-4fa4-8dad-b4565c6d5901",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0066 architecture is verified and frozen in docs/planning-lifecycle.md (normative v1). Reuse internal/core/planning.go, internal/provider/planning.go, internal/planning/report.go, and internal/provider/flatfile/planning_contract.go; do not invent alternative types/policy or advertise unfinished concrete provider support. Exact statuses/transitions are independent of execution catalogs; complete metadata and JSON tags are parity-tested. PlanningProvider is separate from Provider. List/report use shared six-field AND filters; reports are project -\u003e version -\u003e milestone with fixed zero-inclusive status buckets. Promotion selects planned groups, requires transitive planning closure even through executable vertices, preserves identity/payload, and uses one monotonic timestamp. Preview must not initialize/repair/recover storage; pending work yields recovery-required. Journal v1 uses selectedIds plus exact base64 before/after entries, recovery batch -\u003e reusable -\u003e planning, and conflict preflight. Extend reusable deletion detach/recovery to planning references. Canonical exports use planning/\u003cUUID\u003e.json; ordinary execution workflows stay planning-blind. Dependent task mapping and exclusions are in the document; no runtime planning implementation is claimed. Focused/full/race tests, vet, commit gate/smoke, gofmt and diff checks passed. Preserve all pre-existing dirty changes. No other task or worker was started or modified.",
+      "createdAt": "2026-08-31T12:29:34.695028901Z"
+    },
+    {
+      "id": "19363aa4-ad78-4275-97ea-b7baf0a6b61b",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0067 is being handled exclusively in the shared /mnt/dev/dev/wtproj worktree. Existing broad dirty changes are preserved. Current audit target is the fixed core planning status catalog/parser, nil timestamp lifecycle validation, exact transition matrix, and table-driven tests; focused/full verification and git diff --check are required before marking done.",
+      "createdAt": "2026-08-31T12:30:54.961247731Z"
+    },
+    {
+      "id": "672766df-7ecd-4260-a9d3-ff15b12b25c9",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0d6e4079-0067 exclusively. internal/core/planning.go now provides the independent fixed planning catalog/parser, exact eight-edge transition matrix, and nil execution-timestamp lifecycle validation; internal/core/planning_contract_test.go covers table-driven parsing, lifecycle/timestamps, transitions, and same-leaf execution-status independence. Focused/full tests including full race, vet, gofmt, and git diff --check all passed. Shared worktree remains broadly dirty by prior work; those unrelated changes were preserved.",
+      "createdAt": "2026-08-31T12:37:44.524675829Z"
+    },
+    {
+      "id": "29d237d3-fb11-4ab2-83e5-3561f4683e0c",
+      "author": "codex-wtp-loop",
+      "message": "Global handoff for wtp-0d6e4079-0068: planning serialization work is isolated to an additive codec/core validation and tests. Existing worktree is intentionally dirty with unrelated planning/provider changes; preserve them. Contract target: exact Task field order/tags, fixed planning statuses, canonical IDs/metadata, startedAt/completedAt always null, and unchanged executable Task JSON bytes.",
+      "createdAt": "2026-08-31T12:40:52.333794801Z"
+    },
+    {
+      "id": "b82553aa-d738-4ccc-b03a-06d7799e911f",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0069 complete: flat-file initialization now creates planning/{toplan,researched,planned,rejected}; the read-only planning loader strictly validates placement, filename forms, duplicates, malformed records, nested collisions, and valid move residue. Full Go suite and Windows flat-file cross-compile pass.",
+      "createdAt": "2026-08-31T12:53:29.027932069Z"
+    },
+    {
+      "id": "393a7e2d-6deb-4d29-9b91-4f63d8e7d8d4",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0070 complete: flatfile now exposes loadValidationSnapshot plus shared cross-lifecycle dependency/identity helpers. Future planning create/update/list work should use snapshot.tasks and snapshot.planningItems, newAvailableID, nextAvailableShortID(..., planningItems), and resolveDependencyIDs(..., planningItems); execution result slices remain planning-blind while readiness reports planning blockers.",
+      "createdAt": "2026-08-31T13:01:36.617205899Z"
+    },
+    {
+      "id": "9902f1a7-1bfe-4f74-ab01-1833e9956d23",
+      "author": "codex-wtp-loop",
+      "message": "Global handoff for wtp-0d6e4079-0071: Implemented flat-file CreatePlanningItem under the global lock with union identity/short-ID allocation, unified dependency resolution, ordered reusable name/UUID resolution, full metadata trimming/validation, monotonic UTC creation timestamps, strict planning encoding, and atomic single-record publication. Added wtp planning create with full task metadata, all explicit planning statuses/default toplan, repeatable dependency/reusable selectors, and existing CLI Git/worktree discovery/override semantics. Added focused provider and CLI coverage for statuses, validation-before-index publication, references, injected writes, timestamps, concurrency, and origin defaults/clears. Tests: go test ./...; go test -race ./internal/provider/flatfile ./internal/cli; git diff --check; built-binary smoke passed. Unrelated existing worktree changes preserved.",
+      "createdAt": "2026-08-31T13:14:21.832325868Z"
+    },
+    {
+      "id": "60139719-78b7-4f88-bdb7-dc48e46edeee",
+      "author": "codex-wtp-loop",
+      "message": "Global handoff for wtp-0d6e4079-0072: Added internal/provider/flatfile/planning_views.go implementing locked PlanningReader list/show across all planning branch scopes, shared core grouping projection with case-insensitive exact AND matching, optional planning status filtering, createdAt then shortId ordering, planning-only UUID/full-short-ID resolution, and live ordered reusable catalog decoration. Added planning_views_test.go covering empty stores, all statuses, combined mixed-case filters, unset/nonmatching values, branch-scoped IDs, execution-ID isolation, missing/ambiguous selectors, live reusable edits, dependency/full metadata, deterministic order, and no execution readiness fields. Verification passed: go test ./internal/provider/flatfile ./internal/provider; go test ./... -count=1; go test -race ./internal/provider/flatfile ./internal/cli; go vet ./...; git diff --check (pre-existing scripts/e2e_smoke.ps1 CRLF warning only). Unrelated dirty worktree changes preserved; CLI list/show remains assigned to wtp-0d6e4079-0077.",
+      "createdAt": "2026-08-31T13:23:22.639539021Z"
+    },
+    {
+      "id": "5fd8e59a-5310-4bb3-aa86-805cea7733e9",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0073 verified: added flat-file PlanningEditor UpdatePlanningItem and SetPlanningStatus. Updates patch all mutable metadata except status, preserve omission/no-op bytes and createdAt, clear explicit optionals, canonicalize unified dependencies, preserve reusable assignment order, reject executable IDs/cycles/invalid transitions, keep planning execution timestamps nil, advance updatedAt past stale clocks, and publish atomically with stale endpoint cleanup. Added focused contract/fault tests. Verification: go test ./internal/provider/flatfile ./internal/provider ./internal/core; go test ./...; git diff --check all passed.",
+      "createdAt": "2026-08-31T13:29:39.783951115Z"
+    },
+    {
+      "id": "6a19094b-3a91-4e8c-b4e0-a3c176b29147",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0074 completed: planning create/list/show/update/set-status now use one validated reusable catalog snapshot under the existing global lock; all planning references are validated before filters/mutations, assignment order is preserved, and live Unicode definition edits resolve in returned planning views. Direct planning loads and New reject deleted/missing definitions. Focused/full/race/vet/gofmt/diff-check verification passed. Unrelated dirty worktree changes were preserved.",
+      "createdAt": "2026-08-31T13:37:24.317684331Z"
+    },
+    {
+      "id": "31e8e9c2-de4d-4f9c-8481-f5e7ce3d1e86",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0075 completed: execution workflows use executable-only unified snapshots; planning records remain limited to global dependency validation and blocker text. Handoff reads/purges/exports filter known planning scopes while preserving orphan compatibility. Added isolation regressions covering planning-only stores, matching IDs/statuses, cross-lifecycle blockers, stats totals, batch all/status/import behavior, graph internal edges, and concurrent next claims. Verified with focused tests, -race provider/CLI tests, go test ./..., go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-31T13:52:34.851375002Z"
+    },
+    {
+      "id": "a44cc483-44c2-48a9-80e6-5fd8c06859a7",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0076 complete: planning create is registered with the full task metadata flag contract, including fixed planning status default/validation, six grouping selectors, repeatable dependencies/reusable inputs, priority/estimate/lane/model/origin/agent. Omitted origin fields use invocation Git/worktree discovery and explicit empty values suppress discovery. Modern planning commands are isolated from legacy global action rewriting; singleton flags are rejected when duplicated. PlanningItemView is emitted directly for root --json and human output is one shortId/title/status line. Added parser-order, invalid-combination, Unicode, defaults/overrides, output, and legacy-isolation tests. Verified focused tests, go test ./... -count=1, go test -race ./internal/cli ./internal/provider/flatfile, go vet ./..., and git diff --check. Unrelated dirty worktree changes preserved.",
+      "createdAt": "2026-08-31T14:02:17.970670983Z"
+    },
+    {
+      "id": "ba59e000-3bdf-4271-92b3-b78f37e2fdb7",
+      "author": "codex-wtp-loop",
+      "message": "Global handoff for wtp-0d6e4079-0077: planning list/show CLI is implemented in the existing planning command surface. List parses one --status and the six grouping selectors with strict duplicate/empty validation and delegates trimmed case-insensitive exact AND filtering; JSON preserves typed planning views and human list is compact. Show accepts only one planning UUID/full short ID and renders deterministic populated metadata, dependencies, retained comments, and live reusable definitions in assignment order. Added internal/cli/planning_list_show_test.go coverage for empty/filter/unset/mixed-case/scoped/malformed/JSON/human/deterministic cases. Verification passed: go test ./internal/cli -count=1; go test ./... -count=1; go test -race ./internal/cli ./internal/provider/flatfile -count=1; go vet ./...; git diff --check. Preserve unrelated existing dirty changes.",
+      "createdAt": "2026-08-31T14:12:42.092171528Z"
+    },
+    {
+      "id": "a8dec8e5-272d-4916-8585-4875297c40fd",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0078 complete: planning update and set-status CLI are implemented and verified. Update maps all mutable metadata except status, requires a supplied field, supports explicit optional/list clears and ordered replacement, and rejects malformed/duplicate inputs. Set-status accepts exactly ID STATUS from the fixed planning lifecycle with no assignee/options. Planning-only provider isolation and transition semantics are preserved. Focused CLI/provider/core tests, full go test ./..., real temporary-store smoke checks, and git diff --check passed. Unrelated dirty worktree changes were preserved.",
+      "createdAt": "2026-08-31T14:20:01.512327316Z"
+    },
+    {
+      "id": "f84fc40b-bed5-469b-a762-eff221dd63e3",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0079 completed report aggregation in internal/planning/report.go and table-driven coverage in internal/planning/report_test.go. The renderer-neutral API uses planning.Aggregate/Build over provider.PlanningReader, applies fixed planning status plus shared six-field grouping filters, emits project/version/milestone nodes with zero-filled toplan/researched/planned/rejected counts, preserves casing, and sorts empty first then lexical. Verified focused/full Go tests, go vet ./..., and git diff --check; unrelated dirty worktree changes remain untouched.",
+      "createdAt": "2026-08-31T14:25:44.600895308Z"
+    },
+    {
+      "id": "09e8a03e-9487-45ba-a57d-e9dc3f070b92",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0080 in progress: planning.Aggregate/Build from 0079 is present. Wiring wtp planning report CLI parsing, human/typed JSON renderers, filter/error/stdout contracts, and immediate help stubs only; preserving unrelated dirty worktree changes.",
+      "createdAt": "2026-08-31T14:27:17.179534623Z"
+    },
+    {
+      "id": "89cbdc8c-089c-44f7-b0c0-aeafad0eac07",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0080 complete: internal/cli now exposes planning report through the existing planning reader, parses status plus all six shared selectors in arbitrary flag order, rejects malformed selectors before provider access, renders exact nested planning.Report JSON and aligned human hierarchy with (unset). Added focused CLI contract tests. Verification: go test -count=1 ./internal/cli ./internal/planning; go test -race -count=1 ./internal/cli ./internal/planning; go test -count=1 ./...; go vet ./...; gofmt checks; git diff --check; help and zero-result CLI probes. Docs remain separate; unrelated dirty changes preserved.",
+      "createdAt": "2026-08-31T14:34:04.792926064Z"
+    },
+    {
+      "id": "2bb9e19d-945c-461e-b252-8d70902fe8bf",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0081 in progress: promotion contracts/storage/CLI seams are present; implementation is limited to pure selection/validation, dependency closure, read-locked dry run, and focused tests. Unrelated dirty worktree changes are being preserved.",
+      "createdAt": "2026-08-31T14:35:46.604739871Z"
+    },
+    {
+      "id": "c9acc7f0-0e34-48e2-a510-c3637203065b",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0081 complete: pure core.SelectPlanningPromotion now enforces a non-empty grouping selector, planned-only trimmed case-insensitive AND matching, createdAt/shortId ordering, and dependency closure through executable vertices; missing planning dependencies report deterministic short-ID/status chains. Flat-file PreviewPlanningPromotion uses the ordinary global lock with read-only catalog/task/planning loaders, refuses pending recovery/repair/residue, returns exact PlanningItemViews/count/dryRun, and does not initialize or persistently mutate an absent/existing store. NewReadOnly/NewReadOnlyWithCatalog provide the non-initializing constructor seam for later CLI wiring. Focused tests cover combined filters, mixed statuses, transitive closure, deterministic errors, storage-rejected cycles, and no-mutation/absent store. Verification: go test -count=1 ./..., go test -race -count=1 ./..., go vet ./..., git diff --check.",
+      "createdAt": "2026-08-31T14:47:03.071042786Z"
+    },
+    {
+      "id": "1e57edec-fc61-46ca-bf7c-13ac51406087",
+      "author": "codex-wtp-loop",
+      "message": "Global handoff: wtp-0d6e4079-0082 is verified complete. Added internal/provider/flatfile/planning_promote_journal.go with deterministic strict v1 prepared/committed codec, exact snapshot validation, canonical/symlink-safe target resolution, live stale-byte preflight, and transition/read/write/remove helpers; added planning_promote_journal_test.go covering deterministic bytes, Unicode, duplicate/unknown/trailing JSON, corruption, empty sets, Unix/Windows paths, identity/field/timestamp drift, stale endpoints, and transitions. Full go test ./... and focused journal tests pass; git diff --check passes. Recovery wiring remains scoped to dependent task wtp-0d6e4079-0083.",
+      "createdAt": "2026-08-31T14:58:53.102134425Z"
+    },
+    {
+      "id": "652e6ee1-f1d9-404d-96a8-5afa9663dbb1",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0083 complete: flat-file recovery now preflights batch, reusable, and planning-promotion journals under the global lock; refuses shared targets; recovers in fixed batch/reusable/planning order. Planning recovery validates all endpoints before writes, restores prepared planning then removes todo, rolls committed todo forward then removes planning, confirms/syncs convergence before journal cleanup, and preserves the journal on failure. Added mixed residue/reopen/conflict diagnostics, Unix/Windows endpoint coverage, and crash fault injection at every replacement/removal. Verified: go test ./internal/provider/flatfile; go test -tags wtp_fault_injection ./internal/provider/flatfile; GOOS=windows GOARCH=amd64 go test -exec /bin/true ./internal/provider/flatfile; go test ./...; git diff --check.",
+      "createdAt": "2026-08-31T15:07:09.545607286Z"
+    },
+    {
+      "id": "18d8ac2f-6cad-4185-b269-9d08ecfdae0e",
+      "author": "codex-wtp-loop",
+      "message": "Task wtp-0d6e4079-0084: provider promotion is implemented in internal/provider/flatfile/planning_promote_publish.go with byte-preserving lifecycle token rewrite, locked selection/closure, journal publication/recovery, source cleanup, and deterministic todo views. Focused flatfile tests pass; remaining verification is fault-tag coverage, full go test/vet/check, diff review, then mark exact task done.",
+      "createdAt": "2026-08-31T15:14:43.576936311Z"
+    },
+    {
+      "id": "d748009c-a72d-488f-9ff4-90403f707628",
+      "author": "codex-wtp-loop",
+      "message": "Task wtp-0d6e4079-0085 verified complete: added planning promote CLI dispatch with strict six-selector/dry-run parsing, stable text/JSON output, read-only dry-run provider construction for byte-identical storage, and CLI plus flat-file end-to-end coverage. go test ./... -count=1, go vet ./..., ./scripts/check.sh, and git diff --check pass.",
+      "createdAt": "2026-08-31T15:23:29.216013844Z"
+    },
+    {
+      "id": "fd84f5a9-1557-47fb-9775-04fc778fdeea",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0086 completed: ExportCanonical now emits planning/\u003ccanonical-UUID\u003e.json records under an always-present managed planning directory while preserving root executable task JSON compatibility. Root and nested export namespaces validate exact managed contents and reject symlinks/unmanaged entries; stale regular UUID planning files are removed only after publication. Source tasks, planning items, filtered handoffs, and reusable catalog are loaded under the global lock. Focused/full Go tests, Windows amd64 test compilation, and git diff --check passed; unrelated dirty worktree changes were preserved.",
+      "createdAt": "2026-08-31T15:33:56.12682671Z"
+    },
+    {
+      "id": "c2558089-6359-41af-b925-45e231b033d3",
+      "message": "wtp-0d6e4079-0087 progress: planning behavior is already present and docs/planning-lifecycle.md contains the normative contract. Current work is limited to README.md, internal/cli/cli.go help/schema text, CHANGELOG.md, CONTRIBUTING.md, docs/planning-lifecycle.md consistency, and documentation contract tests. Unrelated dirty changes are preserved; validation will include focused/full tests and git diff --check.",
+      "createdAt": "2026-08-31T15:35:46.192425693Z"
+    },
+    {
+      "id": "03bf5295-3d4d-4775-ae87-2da29d295895",
+      "message": "wtp-0d6e4079-0087 final: documentation contract complete. README now has the nested flat-file planning layout, fixed revisable transitions (rejected replaces deletion), complete metadata and independent featureId/feature semantics, global identity/dependency rules, exact command/flag surface, case-insensitive AND filters, project/version/milestone reports, dependency-closed dry-run/atomic promotion, recovery order, canonical export, branch/shared-store behavior, compatibility, and a complete toplan-through-promotion example. CLI help/schema and CONTRIBUTING mirror the contract; docs/planning-lifecycle.md now describes implemented behavior; release documentation contract coverage added. Validation: focused planning/releaseasset tests, go test ./... -count=1, go vet ./..., git diff --check, ./scripts/verify.sh commit.",
+      "createdAt": "2026-08-31T15:43:47.198989383Z"
+    },
+    {
+      "id": "d5fea3a9-047d-4527-8c84-1f508702c361",
+      "author": "codex-wtp-loop",
+      "message": "Global handoff: wtp-0d6e4079-0088 is implemented and verified. The three existing WTP skills now describe the versioned planning lifecycle: task-management inspects reports, creates/researches future work with stable grouping, previews and promotes only dependency-closed planned groups; codex-wtp-loop stays planning-blind and never claims or auto-promotes planning work; setup-wtp preserves planning/ during migration and export checks and recovers planning-promote.json in fixed journal order. Added releaseasset skill contract coverage. Validation: focused planning/releaseasset/CLI/provider/core tests, go test ./..., go vet ./..., python3 -B skills/wtp-codex-planning/scripts/test_proposal.py, and git diff --check all pass. Unrelated worktree changes remain preserved.",
+      "createdAt": "2026-08-31T15:51:59.144200115Z"
+    },
+    {
+      "id": "922dd3ed-b3e7-45d8-91fd-e9b8274f581e",
+      "author": "codex-wtp-loop",
+      "message": "Final end-to-end planning QA passed.\\n\\nCoverage/evidence:\\n- Disposable black-box flow passed at /tmp/wtp-planning-dogfood.S2lyGj: reusable create; planning create/list/show/update/report; toplan/researched/planned/rejected; rejected -\u003e toplan -\u003e researched -\u003e planned; six mixed-case AND selectors; global IDs; cross-scope dependency closure rejection; rejected-item retention; byte-identical repeated dry-run; promotion to todo; planning/task isolation; live reusable assignment; task next claim.\\n- Final Unix prerelease: /tmp/wtp-prerelease-planning-unix-20260831-final.json. Final PowerShell prerelease: /tmp/wtp-prerelease-planning-powershell-20260831-final.json. Both passed all 14 scenarios with candidate SHA256 e676c5c170c176b9c2045b5655b226e77e5d437c4f5af04178509fcb520b00e4.\\n- Reports covered lifecycle, grouping, stats/custom statuses, dependency ownership, handoffs/canonical export, Git/storage topology, malformed/configuration cases, nested hermeticity, contention creates/claims/handoffs/readers-writers, and failure recovery.\\n- Tagged fault matrix passed: go test -count=1 -tags wtp_fault_injection ./...\\n- Direct race passed: time go test -race ./... (2:56.73); prerelease race passed under a 6m suite bound.\\n- Unix and PowerShell commit gates passed, including smoke; Windows amd64/arm64 and Darwin arm64 cross-test compilation passed.\\n- Documentation/skill validation passed: python3 -B skills/wtp-codex-planning/scripts/test_proposal.py (16/16), go test ./..., go vet ./..., gofmt, git diff --check.\\n- Narrow QA fix: prerelease export validators now accept/strictly validate canonical flat planning/ exports, enforce UUID filenames, and detect duplicate IDs across planning/execution lifecycles. Changed files: internal/prerelease/harness.go and internal/prerelease/contention.go. Unrelated dirty changes were preserved.\\n\\nPlatform skips/residual risk:\\n- The only prerelease skip is failure-recovery/read-only because this runner has privileges to write read-only files.\\n- Native Windows/macOS execution was not available; PowerShell ran on Unix and Windows/Darwin targets were compile-checked. Native platform matrix and privileged read-only behavior remain residuals.\\n- The documented 3m prerelease quick bound is too tight for this host's full race/concurrency suite; serial 6m runs passed.",
+      "createdAt": "2026-08-31T16:18:52.593849547Z"
     }
   ]
 }

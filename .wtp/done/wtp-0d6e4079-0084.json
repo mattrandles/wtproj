@@ -1,0 +1,40 @@
+{
+  "id": "931247fb-6aa0-4a5f-bfb0-da82fbcdc3e2",
+  "shortId": "wtp-0d6e4079-0084",
+  "title": "Publish atomic planning group promotions",
+  "description": "Implement the mutating provider promotion operation under one global lock. Re-run filter selection and dependency-closure validation inside the lock, capture one timestamp, convert every selected planned record to todo while preserving UUID, shortId, createdAt, all metadata, comments, dependencies, assignee, and reusableTaskIds, clear execution lifecycle timestamps, and advance updatedAt monotonically. Publish the prepared journal, todo snapshots, committed journal, source removals, directory syncs, and final journal removal so success is all-or-nothing and recoverable. Return promoted views in deterministic selection order. Cover concurrent promotion/update attempts, cross-branch IDs, executable blockers, every fault boundary, rollback, roll-forward, retry, and exact byte preservation outside allowed fields.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "planning-promotion",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "2c10213f-ca78-412e-a3d5-6604068cf26f",
+    "48ed91ab-7fda-4410-acce-0ede1f7f1a25",
+    "9fa3cdf9-5844-43c3-a6ec-b19cc2ccdb2f",
+    "bd639c89-fc66-4a9a-88d8-dc6ca1b3ffe3"
+  ],
+  "comments": [
+    {
+      "id": "6438e3e1-ffaf-433d-b76f-de7ebdaa8f4a",
+      "author": "codex-wtp-loop",
+      "message": "Implemented provider promotion under one global lock: reselects and validates closure inside the lock, uses one monotonic UTC timestamp, preserves exact source JSON bytes outside status/updatedAt, journals prepared/todo/committed publication, recovers rollback/roll-forward, removes sources and journal only after convergence, and decorates deterministic todo views. Added focused tests for byte preservation, executable blockers, and concurrent promotion/update.",
+      "createdAt": "2026-08-31T15:14:39.082388403Z"
+    },
+    {
+      "id": "a11f57f8-7a38-42e7-96e5-ca1eb591b215",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: go test -count=1 ./..., go vet ./..., focused race tests, and go test -tags wtp_fault_injection ./internal/provider/flatfile all pass; gofmt and git diff --check pass. No unrelated worktree changes were reverted or modified. Promotion and recovery behavior is ready for completion.",
+      "createdAt": "2026-08-31T15:16:40.845226377Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:18:12.886391878Z",
+  "updatedAt": "2026-08-31T15:16:40.874151258Z",
+  "startedAt": "2026-08-31T15:07:41.188465698Z",
+  "completedAt": "2026-08-31T15:16:40.874151258Z"
+}

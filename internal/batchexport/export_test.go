@@ -146,7 +146,7 @@ func TestExportRendersCompleteEditableTaskAndDependencyShortIDs(t *testing.T) {
 	if !row.Title.Set || !row.Description.Set || !row.Status.Set || !row.Priority.Set || !row.Estimate.Set ||
 		!row.Lane.Set || !row.Model.Set || !row.IssueID.Set || !row.Project.Set || !row.Milestone.Set || !row.Version.Set ||
 		!row.FeatureID.Set || !row.Feature.Set || !row.GitRepo.Set || !row.GitBranch.Set || !row.WorktreeName.Set ||
-		!row.WorktreeDir.Set || !row.Assignee.Set || !row.Dependencies.Set {
+		!row.WorktreeDir.Set || !row.Assignee.Set || !row.Dependencies.Set || !row.ReusableTasks.Set {
 		t.Fatalf("export did not include every mutable field: %#v", row)
 	}
 
@@ -162,6 +162,55 @@ func TestExportRendersCompleteEditableTaskAndDependencyShortIDs(t *testing.T) {
 	}
 	if fields["version"] != float64(batchjson.Version) {
 		t.Fatalf("JSON version = %#v", fields["version"])
+	}
+}
+
+func TestExportUsesStableReusableTaskUUIDsInAssignmentOrder(t *testing.T) {
+	task := testTask("00000000-0000-4000-8000-000000000001", "wtp-0001", core.StatusTodo, 1)
+	firstID := "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"
+	secondID := "e5c3806a-bd1b-424d-889b-29e5b06679b8"
+	task.ReusableTaskIDs = []string{secondID, firstID}
+
+	var output bytes.Buffer
+	if _, err := Export(&exportTestProvider{tasks: []core.TaskView{{Task: task}}}, Options{Destination: "-", Format: FormatJSON}, &output); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if !strings.Contains(output.String(), `"reusableTasks":["`+secondID+`","`+firstID+`"]`) {
+		t.Fatalf("export = %s, want stable assignment UUIDs in order", output.String())
+	}
+	rows, err := batchjson.Decode(output.Bytes())
+	if err != nil {
+		t.Fatalf("decode export: %v", err)
+	}
+	if !rows[0].ReusableTasks.Set || !reflect.DeepEqual(rows[0].ReusableTasks.Value, []string{secondID, firstID}) {
+		t.Fatalf("exported reusable tasks = %#v", rows[0].ReusableTasks)
+	}
+}
+
+func TestExportCSVUsesStableReusableTaskUUIDsInAssignmentOrderAndDeterministically(t *testing.T) {
+	task := testTask("00000000-0000-4000-8000-000000000001", "wtp-0001", core.StatusTodo, 1)
+	firstID := "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"
+	secondID := "e5c3806a-bd1b-424d-889b-29e5b06679b8"
+	task.ReusableTaskIDs = []string{secondID, firstID}
+	p := &exportTestProvider{tasks: []core.TaskView{{Task: task}}}
+
+	var firstOutput, secondOutput bytes.Buffer
+	options := Options{Destination: "-", Format: FormatCSV}
+	if _, err := Export(p, options, &firstOutput); err != nil {
+		t.Fatalf("first CSV export: %v", err)
+	}
+	if _, err := Export(p, options, &secondOutput); err != nil {
+		t.Fatalf("second CSV export: %v", err)
+	}
+	if !bytes.Equal(firstOutput.Bytes(), secondOutput.Bytes()) {
+		t.Fatalf("CSV export is not deterministic:\nfirst:  %q\nsecond: %q", firstOutput.Bytes(), secondOutput.Bytes())
+	}
+	rows, err := batchcsv.Decode(firstOutput.Bytes())
+	if err != nil {
+		t.Fatalf("decode CSV export: %v\n%s", err, firstOutput.String())
+	}
+	if len(rows) != 1 || !rows[0].ReusableTasks.Set || !reflect.DeepEqual(rows[0].ReusableTasks.Value, []string{secondID, firstID}) {
+		t.Fatalf("exported reusable tasks = %#v, want ordered UUIDs", rows[0].ReusableTasks)
 	}
 }
 
@@ -198,6 +247,9 @@ func TestExportUsesCSVClearSemanticsForEmptyMutableFields(t *testing.T) {
 	}
 	if !rows[0].Description.Set || rows[0].Description.Value != "" || !rows[0].Dependencies.Set || rows[0].Dependencies.Value != nil {
 		t.Fatalf("CSV clear state = %#v", rows[0])
+	}
+	if !rows[0].ReusableTasks.Set || rows[0].ReusableTasks.Value != nil {
+		t.Fatalf("CSV reusable task clear state = %#v", rows[0].ReusableTasks)
 	}
 }
 
@@ -338,7 +390,8 @@ func expectedInput(task core.Task, dependencyShortIDs []string) core.BatchTaskUp
 		Feature: core.OptionalString{Set: true, Value: task.Feature}, GitRepo: core.OptionalString{Set: true, Value: task.GitRepo},
 		GitBranch: core.OptionalString{Set: true, Value: task.GitBranch}, WorktreeName: core.OptionalString{Set: true, Value: task.WorktreeName},
 		WorktreeDir: core.OptionalString{Set: true, Value: task.WorktreeDir}, Assignee: core.OptionalString{Set: true, Value: task.Assignee},
-		Dependencies: core.OptionalStrings{Set: true, Value: dependencyShortIDs},
+		Dependencies:  core.OptionalStrings{Set: true, Value: dependencyShortIDs},
+		ReusableTasks: core.OptionalStrings{Set: true, Value: append([]string(nil), task.ReusableTaskIDs...)},
 	}
 }
 

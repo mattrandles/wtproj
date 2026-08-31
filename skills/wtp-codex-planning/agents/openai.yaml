@@ -1,0 +1,4 @@
+interface:
+  display_name: "WTP Codex Planning"
+  short_description: "Plan work and approve a model-aware WTP task handoff"
+  default_prompt: "Use $wtp-codex-planning to research this workspace, propose a complete plan with a model distribution, and create WTP tasks only after I approve the numbered proposal."

@@ -1,0 +1,38 @@
+{
+  "id": "4797970d-600a-491a-95e5-25bcb0aa82c5",
+  "shortId": "wtp-0d6e4079-0064",
+  "title": "Teach WTP skills to use reusable advisory tasks",
+  "description": "Update skills/task-management/SKILL.md, skills/codex-wtp-loop/SKILL.md, and skills/setup-wtp/SKILL.md to match the completed feature. Task management must show how to define reusable items, explicitly choose the final parent task, attach ordered --reusable flags, and understand live advisory semantics. The Codex loop must parse resolved reusableTasks from start/next claims, preserve their order in the worker prompt, require the worker to address each item before reporting completion, and state that WTP itself neither executes nor enforces them. Setup guidance must include reusable.json in complete-store migration/backup/export checks and reusable-update.json among transient recovery journals. Keep scopes and safety rules intact, add no new skill folders, validate every changed skill, and add/update repository contract tests where appropriate.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "reusable-skills",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "0a238a49-9373-43d7-bd18-6609386b7b2f",
+    "f2f880d5-2c8e-498f-a1d2-d590d326e2d7"
+  ],
+  "comments": [
+    {
+      "id": "310aee29-498b-4748-b7ae-7f14531290b8",
+      "author": "codex-wtp-loop",
+      "message": "Starting the skill documentation update: I will align task-management, codex-wtp-loop, and setup-wtp with reusable advisory task semantics, then add/adjust contract assertions and run focused/full validation.",
+      "createdAt": "2026-08-31T11:47:45.009369968Z"
+    },
+    {
+      "id": "118fd319-dd47-4737-aad2-9029aaa681ef",
+      "author": "codex-wtp-loop",
+      "message": "Implemented reusable advisory guidance in all three requested skills and added repository contract assertions. Structural skill validation, focused documentation tests, go test ./..., and git diff --check passed; unrelated dirty worktree changes were preserved.",
+      "createdAt": "2026-08-31T11:50:36.55139235Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:57.160605474Z",
+  "updatedAt": "2026-08-31T11:50:47.38539755Z",
+  "startedAt": "2026-08-31T11:46:32.619499971Z",
+  "completedAt": "2026-08-31T11:50:47.38539755Z"
+}

@@ -1,0 +1,38 @@
+{
+  "id": "a7844d98-63d9-4d20-a8a4-ebfe77eba2df",
+  "shortId": "wtp-0d6e4079-0077",
+  "title": "Expose planning list and show CLI",
+  "description": "Implement wtp planning list and show. List accepts at most one --status plus issue-id, project, milestone, version, feature-id, and feature filters in any flag order, combines grouping filters with AND semantics, and rejects duplicates or empty values. Show accepts one UUID or short ID and no execution agent option. JSON returns stable planning view objects; human list stays compact while show renders every populated metadata field, dependencies, comments already present in the record, and ordered live reusable items. Add empty, filtered, mixed-case, unset, scoped-ID, malformed argument, and deterministic rendering tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "7aa1f414-5f65-4627-ac3c-eb9cdf75965b",
+    "8efd694e-9415-4ddf-80fc-69fcdc152d9b"
+  ],
+  "comments": [
+    {
+      "id": "b13d1e7f-1b8a-4418-8206-fd52ef9b3ffe",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the existing planning contracts, provider views, and CLI test harness. The target task is already inProgress; I am isolating implementation to planning list/show behavior and its focused tests while preserving the pre-existing dirty worktree.",
+      "createdAt": "2026-08-31T14:03:42.532352125Z"
+    },
+    {
+      "id": "4ab6cf73-100c-4e0f-94e9-334ce0f61bbe",
+      "author": "codex-wtp-loop",
+      "message": "Implemented planning list/show CLI. List supports one planning --status and all six strict grouping selectors in any flag order with trimmed case-insensitive AND semantics; show accepts exactly one UUID/short ID and rejects execution-agent/filter options. Added compact list output, detailed deterministic show output for populated metadata/dependencies/comments/live reusable assignments, stable JSON handling, help usage, and focused coverage for empty/filtered/mixed-case/unset/scoped/malformed/deterministic cases. Verification passed: go test ./internal/cli -count=1; go test ./... -count=1; go test -race ./internal/cli ./internal/provider/flatfile -count=1; go vet ./...; git diff --check (pre-existing scripts/e2e_smoke.ps1 CRLF warning only). Unrelated dirty worktree changes preserved.",
+      "createdAt": "2026-08-31T14:12:35.431833578Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:17:30.023084702Z",
+  "updatedAt": "2026-08-31T14:12:46.716065594Z",
+  "startedAt": "2026-08-31T14:02:52.621552246Z",
+  "completedAt": "2026-08-31T14:12:46.716065594Z"
+}

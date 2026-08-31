@@ -1,0 +1,37 @@
+{
+  "id": "6408a48a-bc85-449b-a554-fbb17aab324c",
+  "shortId": "wtp-0d6e4079-0048",
+  "title": "Implement reusable catalog JSON codec",
+  "description": "Implement the standalone version-1 reusable catalog codec used by flat-file storage. Read and write {version:1,definitions:[...]} deterministically with ordered definitions, strict supported-version checking, unknown and duplicate property rejection, canonical UTC RFC3339Nano timestamps, UTF-8 preservation, and validation through the core catalog contract. Treat a missing file as an empty catalog without creating it during reads; reject empty, malformed, or semantically invalid definitions when a file exists. Add table-driven codec tests for round trips, deterministic bytes, Unicode instructions, unsupported versions, duplicate names with mixed case, malformed IDs/timestamps, and unknown fields. Do not connect the codec to provider methods yet.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-storage",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "1f18fd01-6926-4a22-961b-1ca0e90b5bdf"
+  ],
+  "comments": [
+    {
+      "id": "3621bee1-0833-4872-880c-9e38d648ee7c",
+      "author": "codex-wtp-loop",
+      "message": "Scope confirmed: add a standalone internal/reusablejson codec plus focused table-driven tests only. It will validate core.ReusableTaskCatalog, preserve definition order and Unicode, emit compact deterministic JSON with canonical UTC timestamps, reject unknown/duplicate properties and invalid existing files, and expose missing-file-as-empty reads without wiring provider methods.",
+      "createdAt": "2026-08-31T09:40:48.33937175Z"
+    },
+    {
+      "id": "e82da0ff-737c-4224-ad2d-4f7afe38ab03",
+      "author": "codex-wtp-loop",
+      "message": "Implemented internal/reusablejson/json.go and table-driven json_test.go. Encode validates the core catalog, preserves definition order and UTF-8 text, and emits compact deterministic {version,definitions} JSON with canonical UTC RFC3339Nano timestamps. Decode strictly rejects unknown/duplicate properties, unsupported versions, malformed values, non-UTC timestamps, and semantic catalog violations. ReadFile maps only a missing path to EmptyReusableTaskCatalog without creating storage; existing empty/malformed files fail. WriteFile uses codec bytes and creates parents only on writes. Provider methods and integration remain untouched. Verification passed: gofmt, go test -count=1 ./..., go test -race ./internal/reusablejson ./internal/core, go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-31T09:44:51.99888378Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.71559846Z",
+  "updatedAt": "2026-08-31T09:44:56.743082706Z",
+  "startedAt": "2026-08-31T09:38:46.118981048Z",
+  "completedAt": "2026-08-31T09:44:56.743082706Z"
+}

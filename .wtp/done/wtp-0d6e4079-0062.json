@@ -1,0 +1,39 @@
+{
+  "id": "210ec169-d247-44ae-b419-ef6b4b487a79",
+  "shortId": "wtp-0d6e4079-0062",
+  "title": "Include reusable catalog in canonical exports",
+  "description": "Extend canonical export and the legacy --export-tasks alias to write reusable.json beside canonical task UUID snapshots and handoffs.json. Always emit a valid version-1 catalog, including an empty definitions array, and treat reusable.json as a managed export entry for unmanaged-directory checks and stale cleanup. Capture tasks, handoffs, and reusable definitions from one consistent store-locked snapshot so exported task references always resolve. Preserve overlap rejection, deterministic task ordering, atomic file replacement, and idempotent repeat exports. Add Unix/Windows export tests for empty/populated catalogs, live renames, assigned definitions, exact managed-file sets, stale reusable cleanup, injected write/removal failure, and legacy alias parity.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-export",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "062a93ed-5d41-4e96-b810-f65c9c3f315f",
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a",
+    "fb47f310-2259-4823-b580-41be699f2f9e"
+  ],
+  "comments": [
+    {
+      "id": "ab30a6a5-2fac-4661-9938-023a3a40f398",
+      "author": "codex-wtp-loop",
+      "message": "Starting implementation: auditing canonical export locking, managed-file cleanup, atomic replacement, and existing reusable catalog contracts/tests. Preserving unrelated dirty worktree changes.",
+      "createdAt": "2026-08-31T11:27:31.623881911Z"
+    },
+    {
+      "id": "e821099d-7540-4a57-98ea-8ddd067150fd",
+      "author": "codex-wtp-loop",
+      "message": "Implemented canonical reusable catalog export: reusable.json is loaded with tasks/handoffs from one store-locked snapshot, always encoded as valid version-1 (including empty definitions), atomically replaced, managed for exact-directory validation and stale cleanup, and shared by the legacy --export-tasks alias. Added assigned-definition/rename, empty/populated, exact managed set, stale replacement, write/removal fault, alias parity, and Unix/Windows coverage. Verified focused suites, go test ./..., fault-injection flat-file tests, Windows-targeted flat-file compilation, and git diff --check.",
+      "createdAt": "2026-08-31T11:35:35.207090772Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:57.104310594Z",
+  "updatedAt": "2026-08-31T11:35:43.429709412Z",
+  "startedAt": "2026-08-31T11:26:48.429656389Z",
+  "completedAt": "2026-08-31T11:35:43.429709412Z"
+}

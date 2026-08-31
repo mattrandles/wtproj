@@ -747,7 +747,7 @@ func TestRunPublicExportWithSpacesPreservesStorage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDir(export) after repeat: %v", err)
 	}
-	if got, want := entryNames(entries), []string{created.ID + ".json", "handoffs.json"}; !slices.Equal(got, want) {
+	if got, want := entryNames(entries), []string{created.ID + ".json", "handoffs.json", "planning", "reusable.json"}; !slices.Equal(got, want) {
 		t.Fatalf("repeat public export entries = %v, want %v", got, want)
 	}
 	assertExportedHandoffs(t, filepath.Join(exportDir, "handoffs.json"), []core.Handoff{})
@@ -774,7 +774,7 @@ func TestRunPublicExportOfEmptyStoreWritesManagedHandoffs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDir(empty export): %v", err)
 	}
-	if got, want := entryNames(entries), []string{"handoffs.json"}; !slices.Equal(got, want) {
+	if got, want := entryNames(entries), []string{"handoffs.json", "planning", "reusable.json"}; !slices.Equal(got, want) {
 		t.Fatalf("empty export entries = %v, want %v", got, want)
 	}
 	assertExportedHandoffs(t, filepath.Join(exportDir, "handoffs.json"), []core.Handoff{})
@@ -822,7 +822,7 @@ func TestRunPublicExportIncludesExactRetainedHandoffsAndCleansStaleTasks(t *test
 	if err != nil {
 		t.Fatalf("ReadDir(populated export): %v", err)
 	}
-	if got, want := entryNames(entries), []string{created.ID + ".json", "handoffs.json"}; !slices.Equal(got, want) {
+	if got, want := entryNames(entries), []string{created.ID + ".json", "handoffs.json", "planning", "reusable.json"}; !slices.Equal(got, want) {
 		t.Fatalf("populated export entries = %v, want %v", got, want)
 	}
 
@@ -1057,7 +1057,7 @@ func TestRunConfiguredStatusesEndToEndAndNoConfigCompatibility(t *testing.T) {
 		}
 	}
 	slices.Sort(layout)
-	if want := []string{"done", "inProgress", "meta", "paused", "todo"}; !slices.Equal(layout, want) {
+	if want := []string{"done", "inProgress", "meta", "paused", "planning", "todo"}; !slices.Equal(layout, want) {
 		t.Fatalf("no-config status layout = %v, want exactly %v", layout, want)
 	}
 	legacyStats, err := runCLIProcess(noConfig, "--json", "stats")

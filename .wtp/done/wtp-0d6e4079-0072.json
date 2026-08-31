@@ -1,0 +1,39 @@
+{
+  "id": "7aa1f414-5f65-4627-ac3c-eb9cdf75965b",
+  "shortId": "wtp-0d6e4079-0072",
+  "title": "Implement planning provider list and show",
+  "description": "Add provider list and show operations that read only planning records while decorating ordered reusable definitions live from the current catalog. List accepts an optional planning status plus the shared six-field grouping filter; filters use case-insensitive exact AND matching while values retain stored casing. Sort by createdAt then shortId and resolve identifiers only within the planning namespace. Show/list must expose full metadata and dependencies but no execution claimability. Cover empty stores, all statuses, combined filters, mixed casing, unset values, ambiguous or missing identifiers, branch-scoped IDs, live reusable edits, and deterministic JSON-ready ordering.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-provider",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "177a8b95-10f7-4147-8d27-64bda30a0a69",
+    "17e7f2f8-93dc-4547-a75f-4ba0d07bdf6c",
+    "5ef45b73-f794-4abd-8631-51e7fa1e2a58"
+  ],
+  "comments": [
+    {
+      "id": "79091875-a3a2-43f3-8167-b928274ed5df",
+      "author": "codex-wtp-loop",
+      "message": "Progress: inspected the planning contracts, flat-file snapshot loader, reusable catalog resolution, and CLI dispatch. Implementing only planning list/show plus focused provider/CLI coverage; preserving the existing dirty worktree.",
+      "createdAt": "2026-08-31T13:16:00.637092607Z"
+    },
+    {
+      "id": "92dcda65-1f82-40ab-8a24-38606bde6144",
+      "author": "codex-wtp-loop",
+      "message": "Progress: added flat-file PlanningReader list/show with locked snapshot validation, planning-only identifier resolution, shared six-field case-insensitive AND filtering, createdAt/shortId ordering, live ordered reusable decoration, and no execution readiness. Focused provider tests pass.",
+      "createdAt": "2026-08-31T13:19:40.653602221Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:52.303547433Z",
+  "updatedAt": "2026-08-31T13:23:27.484572537Z",
+  "startedAt": "2026-08-31T13:15:02.067092554Z",
+  "completedAt": "2026-08-31T13:23:27.484572537Z"
+}

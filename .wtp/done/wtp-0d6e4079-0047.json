@@ -1,0 +1,37 @@
+{
+  "id": "1f18fd01-6926-4a22-961b-1ca0e90b5bdf",
+  "shortId": "wtp-0d6e4079-0047",
+  "title": "Harden reusable core validation and compatibility tests",
+  "description": "Build exhaustive core tests around the contracts introduced by the architecture task. Validate canonical IDs, required and trimmed name/title/instructions, UTC timestamps, createdAt/updatedAt ordering, case-insensitive duplicate names, duplicate assigned IDs, and stable assignment order. Cover JSON omission for tasks without assignments, deterministic round trips for populated tasks and catalogs, legacy task files with no reusableTaskIds, and missing-catalog-as-empty behavior at the contract boundary. Reject malformed version wrappers, unsupported versions, duplicate JSON properties where the codec contract requires strictness, and invalid references supplied to pure validation helpers. Keep this task confined to core validation and compatibility fixtures; do not add provider I/O or CLI behavior.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-core",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "1cd6bcd8-8087-4ba6-bf15-32015a920b62"
+  ],
+  "comments": [
+    {
+      "id": "a3fadf6b-ef34-46a2-9380-55144e40886c",
+      "author": "codex-wtp-loop",
+      "message": "Added internal/core/reusable_validation_test.go with exhaustive core contract fixtures: canonical reusable IDs, required/trimmed name/title/instructions, UTC and timestamp ordering, invalid catalog wrappers/versions, duplicate IDs and EqualFold names, pure ID/reference validation, stable assignment-order resolution with copy isolation, empty-assignment JSON omission, populated task/catalog deterministic round trips, and legacy/missing-catalog compatibility coverage. Strict duplicate-property rejection remains covered by the existing batchjson codec tests because core catalog types intentionally have no strict wire codec.",
+      "createdAt": "2026-08-31T09:37:53.94142317Z"
+    },
+    {
+      "id": "a2ec62db-85e6-49b1-bdd7-97cd3480dc02",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: go test -count=1 ./..., go vet ./..., and go test -race ./internal/core ./internal/batchjson all pass. git diff --check reports no issue in the task change; provider I/O and CLI behavior were not changed. The existing batchjson duplicate-property test remains the strict codec coverage; core reusable catalog tests correctly stop at JSON unmarshal plus Validate boundaries.",
+      "createdAt": "2026-08-31T09:38:30.843184276Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.688253056Z",
+  "updatedAt": "2026-08-31T09:38:34.237597364Z",
+  "startedAt": "2026-08-31T09:34:07.032267053Z",
+  "completedAt": "2026-08-31T09:38:34.237597364Z"
+}

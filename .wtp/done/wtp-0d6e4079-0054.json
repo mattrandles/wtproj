@@ -1,0 +1,39 @@
+{
+  "id": "998e7dc0-2588-41f2-825b-77c47d70a79d",
+  "shortId": "wtp-0d6e4079-0054",
+  "title": "Integrate reusable assignments with task mutations",
+  "description": "Extend flat-file task create, update/edit, legacy create, and provider batch preparation to accept ordered reusable definition identifiers. Resolve each supplied name or UUID under the global lock, canonicalize storage to UUIDs, preserve caller order, reject unknown or duplicate definitions, and support explicit clearing. Any supplied assignment list replaces the complete stored list; omission preserves it. Follow the same metadata mutability rules as ordinary task fields, including in-progress and completed tasks, while maintaining monotonic updatedAt and existing lifecycle/dependency/grouping validation. Validate all persisted reusableTaskIds against the catalog during store loads and report unresolved manual corruption clearly. Add provider tests for create, replace, reorder, clear, legacy records, terminal tasks, stale writes, and atomic failure without changing claim rendering yet.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "reusable-assignments",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "1f18fd01-6926-4a22-961b-1ca0e90b5bdf",
+    "6b4c6d6e-37e6-4a7a-9df0-e539e14b2614",
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a"
+  ],
+  "comments": [
+    {
+      "id": "c4f1ca62-5f70-4a9d-9207-d00a81089c8e",
+      "author": "codex-wtp-loop",
+      "message": "Beginning implementation: mapping task mutation paths and existing reusable catalog validation before adding canonical assignment handling and provider coverage.",
+      "createdAt": "2026-08-31T10:27:31.316545491Z"
+    },
+    {
+      "id": "4e596284-3468-4058-a4a8-e1cdf8086cf6",
+      "author": "codex-wtp-loop",
+      "message": "Implemented flat-file assignment resolution under the global lock for create, update, and batch preparation. Names/UUIDs are canonicalized to ordered UUIDs; duplicate/unknown selectors reject atomically; explicit empty updates clear; store loads now reject unresolved persisted references. Added provider coverage for create/replace/reorder/clear, legacy IDs, in-progress/done metadata updates, stale batch writes, batch atomic failure, and manual corruption. Verified with go test ./... .",
+      "createdAt": "2026-08-31T10:32:17.710639894Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.880443138Z",
+  "updatedAt": "2026-08-31T10:32:17.760763032Z",
+  "startedAt": "2026-08-31T10:26:31.982222079Z",
+  "completedAt": "2026-08-31T10:32:17.760763032Z"
+}

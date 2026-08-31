@@ -15,6 +15,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented the expanded `wtp stats` selectors and compatibility form, JSON
   guidance for agents, optional fixed-width `--chart` output for humans, and
   UTC half-open created/progressed rolling ranges.
+- Documented the six optional grouping fields (`issueId`, `project`,
+  `milestone`, `version`, `featureId`, and `feature`), including stable
+  feature-key versus display-name semantics, clearing and legacy compatibility,
+  exact AND filters, scoped statistics, and editable batch behavior.
+- Documented targeted Codex WTP loops that establish one optional grouping
+  scope and reuse it for scoped model statistics and every automatic claim.
+- Documented store-global reusable advisory definitions, CRUD and rename/
+  detach behavior, ordered live task references, assignment and claim JSON /
+  human shapes, batch preserve/replace/clear rules, canonical export, shared
+  stores, legacy compatibility, explicit non-execution exclusions, the
+  ordered grouped example, and catalog/journal backup and recovery guidance.
+- Documented the versioned planning workflow: nested flat-file storage, fixed
+  revisable transitions with rejected replacing deletion, complete metadata and
+  global identity/dependency semantics, exact commands and filters, the
+  project/version/milestone report tree, dependency-closed dry-run/atomic
+  promotion, journal recovery order, canonical export, shared-store branch
+  behavior, and compatibility in the README, CLI help/schema, and contributor
+  guidance.
 
 ## [0.3.3] - 2026-08-23
 

@@ -1,0 +1,37 @@
+{
+  "id": "f7b4a511-07b3-4f5d-8822-f034dc840eb6",
+  "shortId": "wtp-0d6e4079-0068",
+  "title": "Add planning record serialization compatibility",
+  "description": "Implement planning-record JSON serialization and validation using the complete post-grouping, post-reusable task metadata payload: identity, title/description, priority, estimate, lane, model, origin, assignee, dependencies, comments, issueId, project, milestone, version, featureId, feature, reusableTaskIds, and timestamps. Preserve current JSON field names and omitempty behavior, require canonical IDs and valid metadata, and prohibit execution lifecycle timestamps. Add deterministic round-trip fixtures, Unicode and multiline content, empty optional fields, populated reusable assignments, unknown/malformed status rejection, and compatibility coverage showing existing executable task JSON remains byte-contract compatible.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-core",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "86eb10bd-0edb-49e6-b4f3-29d5f65a0dd1"
+  ],
+  "comments": [
+    {
+      "id": "7ef57c90-4791-4a43-b18b-0b86b24f42ae",
+      "author": "codex-wtp-loop",
+      "message": "Progress: inspected the complete PlanningItem/Task parity contract and existing reusablejson strict codec. Implementing an additive planningjson codec with core validation, strict unknown/duplicate handling, nil lifecycle enforcement, and deterministic fixture coverage while preserving executable Task JSON behavior.",
+      "createdAt": "2026-08-31T12:40:52.360945518Z"
+    },
+    {
+      "id": "d4439654-eefa-46d8-830f-e448055d836a",
+      "author": "codex-wtp-loop",
+      "message": "Completed planning-record serialization compatibility. Added core.PlanningItem.Validate using shared executable metadata rules plus fixed planning lifecycle validation; added internal/planningjson strict deterministic codec with complete Task-parity fields/tags, canonical IDs, metadata checks, explicit null lifecycle timestamps, UTF-8 validation, duplicate/unknown rejection, nested comment validation, and file helpers. Fixtures cover full Unicode/multiline round trips, ordered reusableTaskIds, empty optional omission/required arrays, malformed/unknown execution/planning statuses, lifecycle timestamp rejection, canonical-ID/metadata failures, and executable Task JSON byte compatibility. Verification: go test ./... -count=1 PASS; go vet ./... PASS; go test -race ./internal/core ./internal/planningjson -count=1 PASS; ./scripts/verify.sh commit PASS (full tests, vet, smoke, commit verification); git diff --check PASS with only the pre-existing e2e_smoke.ps1 LF/CRLF warning. Unrelated dirty worktree changes preserved; no other task or worker modified.",
+      "createdAt": "2026-08-31T12:45:42.982703372Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:52.17518502Z",
+  "updatedAt": "2026-08-31T12:45:43.011724691Z",
+  "startedAt": "2026-08-31T12:38:14.675901338Z",
+  "completedAt": "2026-08-31T12:45:43.011724691Z"
+}

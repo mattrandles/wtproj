@@ -1,0 +1,38 @@
+{
+  "id": "062a93ed-5d41-4e96-b810-f65c9c3f315f",
+  "shortId": "wtp-0d6e4079-0053",
+  "title": "Publish atomic reusable delete and task detachment",
+  "description": "Implement provider deletion by name or UUID using the reusable-update transaction. Resolve one definition, compute every referencing task across all configured statuses and branch scopes, remove that UUID from each ordered assignment list, advance affected task updatedAt monotonically, and delete the definition from the after catalog. Publish prepared and committed states so success is all-or-nothing across catalog and tasks, then return the deleted definition and exact detachedTaskCount. Deleting an unreferenced definition must use the same safe path. Add concurrency and fault-point tests covering multiple assignments per task, completed and in-progress tasks, shared stores, simultaneous readers/writers, every publication boundary, rollback, roll-forward recovery, and retry after interruption. Do not append audit comments or alter unrelated task fields.",
+  "priority": "urgent",
+  "estimate": "m",
+  "lane": "reusable-recovery",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "6b4c6d6e-37e6-4a7a-9df0-e539e14b2614",
+    "a21f7bd7-599f-4c2e-ae67-60d01c551e8c"
+  ],
+  "comments": [
+    {
+      "id": "9b67533d-0338-4db7-bc38-6fcaa65061e5",
+      "author": "codex-wtp-loop",
+      "message": "Implementation started: tracing the existing prepared/committed reusable-update journal and all-status task enumeration; preserving unrelated worktree edits and keeping deletion free of task audit comments.",
+      "createdAt": "2026-08-31T10:18:20.941338264Z"
+    },
+    {
+      "id": "c1d1061f-95a6-446e-82e6-eded39fe3831",
+      "author": "codex-wtp-loop",
+      "message": "Implemented DeleteReusableTask(name/UUID) using reusable-update prepared/committed journaling. It resolves one definition, scans every configured status directory regardless of provider branch scope, preserves assignment order while detaching UUIDs, advances only affected task updatedAt monotonically, preserves all other fields/comments/lifecycle, and returns the deleted definition plus exact detachedTaskCount. The delete scan is read-only so it cannot trigger normal loader repairs or audit comments; catalog-only deletes use the same journal path. Added focused coverage for multiple assignments, todo/in-progress/paused/done/custom status, shared branch providers, unreferenced definitions, concurrent reader/writer serialization, exact rollback after mid-publication failure, and process interruption boundaries. Verification passed: go test -count=1 ./..., go test -tags wtp_fault_injection ./..., go test -race ./internal/provider/flatfile ./internal/provider ./internal/core, go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-31T10:26:12.020097973Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.853963877Z",
+  "updatedAt": "2026-08-31T10:26:16.142739355Z",
+  "startedAt": "2026-08-31T10:16:55.516333183Z",
+  "completedAt": "2026-08-31T10:26:16.142739355Z"
+}

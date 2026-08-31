@@ -1,0 +1,38 @@
+{
+  "id": "9fa3cdf9-5844-43c3-a6ec-b19cc2ccdb2f",
+  "shortId": "wtp-0d6e4079-0082",
+  "title": "Define planning promotion journal codec",
+  "description": "Add a strict version-1 .wtp/meta/planning-promote.json contract with prepared and committed states. Store the deterministic selected IDs plus exact before planning paths/bytes and after todo paths/bytes for every record, including status and updatedAt changes. Validate canonical paths remain inside the expected planning/planned and todo directories, targets are unique, snapshots decode to the same identities and allowed statuses, the after set preserves every field except status/updatedAt/lifecycle normalization, and malformed, stale, unknown, duplicate, or path-escaping journals are rejected before replacement. Add deterministic codec, duplicate-property, Unicode, Unix/Windows path, empty-set rejection, and corruption tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-promotion",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "177a8b95-10f7-4147-8d27-64bda30a0a69",
+    "66be685f-1fdd-486d-aed0-4bcf05603de3"
+  ],
+  "comments": [
+    {
+      "id": "2ab103ae-f14a-483a-a882-9e78f0d4b8c6",
+      "author": "codex-wtp-loop",
+      "message": "Tracing the existing strict reusable journal and planning record codecs; implementation will add only the planning-promotion journal contract/tests and preserve all unrelated dirty changes.",
+      "createdAt": "2026-08-31T14:50:18.952779679Z"
+    },
+    {
+      "id": "6a173393-9fa5-4a9c-a160-c982f521fa92",
+      "author": "codex-wtp-loop",
+      "message": "Implemented strict v1 planning promotion journal codec and tests. It validates prepared/committed state, non-empty ordered selected IDs/entries, canonical planning/planned and todo targets, exact base64 bytes, strict duplicate/unknown/trailing JSON, snapshot identity/status/field/timestamp invariants, symlink-safe target resolution, stale live-byte preflight, and legal state transition. Focused journal tests and full go test ./... pass; git diff --check passes.",
+      "createdAt": "2026-08-31T14:58:53.080039363Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:17:30.18161465Z",
+  "updatedAt": "2026-08-31T14:58:53.128916284Z",
+  "startedAt": "2026-08-31T14:47:44.513549312Z",
+  "completedAt": "2026-08-31T14:58:53.128916284Z"
+}

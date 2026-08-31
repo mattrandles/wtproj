@@ -1,0 +1,45 @@
+{
+  "id": "e3fedecb-23f0-4a23-8010-e75b151608e0",
+  "shortId": "wtp-0d6e4079-0044",
+  "title": "Document grouping fields and targeted agent loops",
+  "description": "Update README, schema, changelog, task-management skill, and codex-wtp-loop skill for issueId, project, milestone, version, featureId, and feature semantics, clearing, filters, stats, batch behavior, compatibility, and targeted loop examples. Explain that featureId is the stable key and feature is the display name. Make the loop establish one optional grouping scope and reuse it for scoped model stats and every automatic claim. Leave setup-wtp focused on setup unless directly affected.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "012638c3-846a-4747-9d7a-364908cd3991",
+    "2fd09cb3-9938-4d4a-851a-63ee3df29c4a",
+    "ef977840-ab3e-45e8-8043-3ea95bef07a1"
+  ],
+  "comments": [
+    {
+      "id": "437ea70f-23f4-4ab0-a1e4-d0e7ca0e873d",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the exact task, current worktree, task-management/codex-wtp-loop/setup-wtp skills, README, changelog, CLI schema, and grouping/stats/batch implementation. Existing code already defines six optional fields, featureId as the stable key and feature as display name, exact case-insensitive AND filters, JSON null/CSV _clear semantics, scoped stats, and batch all-or-nothing behavior. I am preserving unrelated planning edits and will close documentation gaps plus contract checks.",
+      "createdAt": "2026-08-31T09:00:50.320105803Z"
+    },
+    {
+      "id": "96f8e951-57ce-4d5c-8b19-4e77d69ab97b",
+      "author": "codex-wtp-loop",
+      "message": "Documentation implementation complete: README now defines all six fields, featureId stable-key versus feature display-name semantics, clearing, legacy compatibility, exact AND selectors, scoped stats, and batch patch behavior. CLI help/schema now expose the grouping contract and stats scope rules. task-management has targeted command examples; codex-wtp-loop establishes one reusable grouping_scope for model stats and every automatic ready/next claim. Added focused CLI and releaseasset documentation contract assertions; setup-wtp remains unchanged.",
+      "createdAt": "2026-08-31T09:05:30.823170716Z"
+    },
+    {
+      "id": "63721e38-a7cf-452a-bb9b-7f2ea3a85119",
+      "author": "codex-wtp-loop",
+      "message": "Verification passed: go test ./... and go vet ./... both succeeded; focused CLI/releaseasset tests passed; go run ./cmd/wtp help and schema expose the new grouping/stat contracts; git diff --check is clean. The final audit confirms setup-wtp is unchanged and unrelated planning/task-store edits remain preserved.",
+      "createdAt": "2026-08-31T09:07:24.179867676Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:56.323302359Z",
+  "updatedAt": "2026-08-31T09:07:24.228388885Z",
+  "startedAt": "2026-08-31T08:59:09.199584521Z",
+  "completedAt": "2026-08-31T09:07:24.228388885Z"
+}

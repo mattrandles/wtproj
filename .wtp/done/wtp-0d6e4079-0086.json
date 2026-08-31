@@ -1,0 +1,39 @@
+{
+  "id": "64f8ccfe-6401-4d17-b639-a713f779626b",
+  "shortId": "wtp-0d6e4079-0086",
+  "title": "Include planning records in canonical exports",
+  "description": "Extend canonical export and legacy --export-tasks to include a managed planning directory containing UUID-named planning JSON records while executable task files remain at the export root. Snapshot executable tasks, planning items, handoffs, and reusable definitions consistently under the global lock. Treat planning as a managed directory, enforce its exact expected contents, remove stale managed planning records safely, and continue rejecting symlinks, unmanaged entries, and paths overlapping active storage. Preserve deterministic bytes/order, empty planning directory behavior, idempotence, and existing executable export compatibility. Add Unix/Windows tests for empty/populated stores, all planning statuses, shared IDs, reusable assignments, live renames, stale cleanup, and injected failures.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-export",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "177a8b95-10f7-4147-8d27-64bda30a0a69",
+    "7aa1f414-5f65-4627-ac3c-eb9cdf75965b",
+    "8efd694e-9415-4ddf-80fc-69fcdc152d9b"
+  ],
+  "comments": [
+    {
+      "id": "83298c4f-af87-45b4-9e68-75b0c806e4d9",
+      "author": "codex-wtp-loop",
+      "message": "Starting implementation: tracing canonical/legacy export, flat-file planning storage, global-lock snapshot boundaries, and existing Unix/Windows export tests. Preserving unrelated dirty worktree changes.",
+      "createdAt": "2026-08-31T15:24:42.140480918Z"
+    },
+    {
+      "id": "c4b8c1d7-373a-4a93-a02d-4599ee4fe60f",
+      "author": "codex-wtp-loop",
+      "message": "Implemented canonical/legacy planning export: managed planning/ directory with flat UUID-named planning JSON, empty-directory/idempotence support, deterministic ordering/bytes, exact nested validation, symlink/unmanaged/overlap rejection, stale managed-record cleanup, and global-lock snapshot of tasks/planning/handoffs/reusables. Added Unix/Windows and public CLI coverage for statuses, assignments/live renames, shared IDs, cleanup, and injected failures. Verified focused tests, go test ./..., Windows amd64 test compilation, and git diff --check.",
+      "createdAt": "2026-08-31T15:33:56.103962937Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:18:12.953059022Z",
+  "updatedAt": "2026-08-31T15:33:59.731103514Z",
+  "startedAt": "2026-08-31T15:24:01.134353769Z",
+  "completedAt": "2026-08-31T15:33:59.731103514Z"
+}

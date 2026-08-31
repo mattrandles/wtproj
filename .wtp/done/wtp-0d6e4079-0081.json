@@ -1,0 +1,39 @@
+{
+  "id": "bd639c89-fc66-4a9a-88d8-dc6ca1b3ffe3",
+  "shortId": "wtp-0d6e4079-0081",
+  "title": "Select dependency-closed promotion groups and dry runs",
+  "description": "Implement the pure selection and validation layer for planning promotion. Require at least one of issueId, project, milestone, version, featureId, or feature; combine supplied filters case-insensitively with AND; select only planned records; sort by createdAt then shortId; and error when nothing matches. Compute transitive planning dependencies and reject the entire selection if any required planning item falls outside it, reporting the missing dependency chain. Dependencies on executable tasks are allowed and preserved. Add a dry-run provider path that acquires the normal read lock, returns the exact selected records/count, and performs no timestamp, index, file, or journal mutation. Cover combined filters, mixed statuses, transitive closure, cycles already rejected by storage, and deterministic errors.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-promotion",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "48ed91ab-7fda-4410-acce-0ede1f7f1a25",
+    "5ef45b73-f794-4abd-8631-51e7fa1e2a58",
+    "7aa1f414-5f65-4627-ac3c-eb9cdf75965b"
+  ],
+  "comments": [
+    {
+      "id": "0cb3fb61-2672-4137-a274-c379109cbf49",
+      "author": "codex-wtp-loop",
+      "message": "Started implementation: tracing existing planning contracts, flat-file locking/storage, and CLI promotion seams; preserving unrelated dirty worktree changes and will add focused closure/dry-run coverage before verification.",
+      "createdAt": "2026-08-31T14:35:46.58137351Z"
+    },
+    {
+      "id": "90dd1b55-c84d-4bba-bdac-12f6e229adb7",
+      "author": "codex-wtp-loop",
+      "message": "Implemented pure planning promotion selection/validation in internal/core: at-least-one selector, trimmed case-insensitive AND filters, planned-only deterministic createdAt/shortId ordering, transitive closure through executable vertices, and stable missing planning dependency chains. Added flat-file PreviewPlanningPromotion with ordinary global lock, read-only snapshot/loaders, NewReadOnly constructors, pending-recovery/residue/repair refusal, exact decorated records/count, and no persistent mutation. Added focused tests for filters, mixed statuses, transitive closure, deterministic errors, storage-rejected cycles, and absent-store/no-mutation behavior. Verification passed: go test -count=1 ./..., go test -race -count=1 ./..., go vet ./..., git diff --check.",
+      "createdAt": "2026-08-31T14:47:03.047234704Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:17:30.149237985Z",
+  "updatedAt": "2026-08-31T14:47:03.097727399Z",
+  "startedAt": "2026-08-31T14:34:39.921641237Z",
+  "completedAt": "2026-08-31T14:47:03.097727399Z"
+}

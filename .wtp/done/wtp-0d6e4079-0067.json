@@ -1,0 +1,43 @@
+{
+  "id": "86eb10bd-0edb-49e6-b4f3-29d5f65a0dd1",
+  "shortId": "wtp-0d6e4079-0067",
+  "title": "Add fixed planning status validation",
+  "description": "Implement the fixed planning status catalog and parser for toplan, researched, planned, and rejected without mixing them into configurable execution statuses. Enforce nil startedAt/completedAt for every planning record. Implement exactly these transitions: toplan to researched or rejected; researched to toplan, planned, or rejected; planned to researched or rejected; rejected to toplan; reject same-state and every other direct move. Creation may select any planning status and defaults are handled by callers. Add table-driven parsing, lifecycle, transition, and timestamp tests, including configured execution statuses with the same leaf names remaining independent.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-core",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "66be685f-1fdd-486d-aed0-4bcf05603de3"
+  ],
+  "comments": [
+    {
+      "id": "a1e9f597-3e95-47c8-bc6e-f9f3b1cc1da9",
+      "author": "codex-wtp-loop",
+      "message": "Starting focused implementation audit: fixed planning catalog/parser/lifecycle/transition rules in core, preserving unrelated dirty worktree changes. I will add or correct table-driven tests, then run focused/full verification and diff checks before completion.",
+      "createdAt": "2026-08-31T12:30:54.897291921Z"
+    },
+    {
+      "id": "37493017-174b-447c-8c1e-6313c495a3ac",
+      "author": "codex-wtp-loop",
+      "message": "Implementation complete in internal/core/planning.go with fixed immutable catalog/parser, exact transition predicate, and nil execution-timestamp lifecycle validation; table-driven tests added in internal/core/planning_contract_test.go. Focused core tests, core race tests, full go test -count=1 ./..., go vet ./..., gofmt, and git diff --check pass. Final audit of scoped diff and task metadata is next.",
+      "createdAt": "2026-08-31T12:34:07.658526788Z"
+    },
+    {
+      "id": "8a9045be-eb13-4762-bfd6-351f1a8a2909",
+      "author": "codex-wtp-loop",
+      "message": "Final verification passed: go test -count=1 ./internal/core (focused), go test -race -count=1 ./internal/core, go test -count=1 ./..., go test -race -count=1 ./... (full; internal/cli took about 171s), go vet ./..., gofmt -d on scoped Go files, and git diff --check. Fixed catalog/parser accepts only exact toplan/researched/planned/rejected; lifecycle rejects any startedAt/completedAt; transition table has exactly eight permitted moves and rejects same/other/unknown moves; execution statuses with matching names remain independent. Unrelated dirty worktree changes preserved.",
+      "createdAt": "2026-08-31T12:37:44.510057583Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:16:52.141548832Z",
+  "updatedAt": "2026-08-31T12:37:47.430484526Z",
+  "startedAt": "2026-08-31T12:30:09.038926497Z",
+  "completedAt": "2026-08-31T12:37:47.430484526Z"
+}

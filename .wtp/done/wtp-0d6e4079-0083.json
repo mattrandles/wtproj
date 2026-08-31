@@ -1,0 +1,38 @@
+{
+  "id": "2c10213f-ca78-412e-a3d5-6604068cf26f",
+  "shortId": "wtp-0d6e4079-0083",
+  "title": "Recover interrupted planning promotions",
+  "description": "Wire planning-promote journal recovery into every flat-file store-open and relevant load path under the global lock. Recover existing journals in the fixed order batch-update, reusable-update, planning-promote. Prepared promotion journals restore all planning before snapshots and remove any todo after copies; committed journals finish all todo after snapshots and remove every planning source. Recovery must validate the complete journal before touching files, be idempotent, retain the journal on any failure, and remove it only after directory sync confirms convergence. Refuse conflicting live transactions while another recovery journal remains. Add fault injection at each replacement/removal, repeated opens, partial source/target sets, status-move residue, retained diagnostics, and Unix/Windows tests.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "planning-recovery",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "177a8b95-10f7-4147-8d27-64bda30a0a69",
+    "9fa3cdf9-5844-43c3-a6ec-b19cc2ccdb2f"
+  ],
+  "comments": [
+    {
+      "id": "f5aef3cd-14dd-4f68-9940-d8f7eca6c7b3",
+      "author": "codex-wtp-loop",
+      "message": "Mapped recovery entry points and planning-promote journal contract. Implementing locked three-journal preflight/recovery order plus endpoint and fault coverage; preserving existing unrelated planning work.",
+      "createdAt": "2026-08-31T15:00:24.790527706Z"
+    },
+    {
+      "id": "66d59aa3-1516-43ae-9135-d844c2010cec",
+      "author": "codex-wtp-loop",
+      "message": "Implemented three-journal locked recovery preflight and planning-promote rollback/roll-forward recovery. Added partial endpoint, repeated-open, conflict, retained-diagnostic, Unix/Windows, and per-replacement/removal crash-fault coverage. Focused flatfile, tagged fault, Windows compile-only, full go test ./..., and git diff --check pass.",
+      "createdAt": "2026-08-31T15:07:03.984616882Z"
+    }
+  ],
+  "createdAt": "2026-08-30T08:18:12.849532974Z",
+  "updatedAt": "2026-08-31T15:07:13.60097713Z",
+  "startedAt": "2026-08-31T14:59:20.114141454Z",
+  "completedAt": "2026-08-31T15:07:13.60097713Z"
+}

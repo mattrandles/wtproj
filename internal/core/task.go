@@ -136,12 +136,20 @@ type Task struct {
 	UpdatedAt    time.Time  `json:"updatedAt"`
 	StartedAt    *time.Time `json:"startedAt"`
 	CompletedAt  *time.Time `json:"completedAt"`
+
+	// ReusableTaskIDs holds unique canonical definition UUIDs in assignment
+	// order. Nil/empty means unassigned; names and resolved text are not stored.
+	ReusableTaskIDs []string `json:"reusableTaskIds,omitempty"`
 }
 
 type TaskView struct {
 	Task
 	Readiness TaskReadiness `json:"readiness"`
 	Handoffs  []Handoff     `json:"handoffs,omitempty"`
+
+	// ReusableTasks contains live definitions in ReusableTaskIDs order. It is
+	// view-only advisory context and does not affect readiness or completion.
+	ReusableTasks []ReusableTaskDefinition `json:"reusableTasks,omitempty"`
 }
 
 type CreateTaskInput struct {
@@ -164,6 +172,10 @@ type CreateTaskInput struct {
 	WorktreeDir  string
 	Assignee     string
 	Dependencies []string
+
+	// ReusableTasks accepts ordered names or UUIDs. Providers resolve them to
+	// unique UUIDs under the store lock; nil/empty creates no assignments.
+	ReusableTasks []string
 }
 
 type OptionalString struct {
@@ -215,6 +227,11 @@ type UpdateTaskInput struct {
 	WorktreeDir  OptionalString
 	Assignee     OptionalString
 	Dependencies OptionalString
+
+	// ReusableTasks preserves assignments when unset; a set empty list clears
+	// them, and a set non-empty list replaces them in the supplied order.
+	// Values are names or UUIDs, resolved by the provider like create input.
+	ReusableTasks OptionalStrings
 }
 
 // BatchTaskUpdateInput identifies one task, supplies its optimistic
@@ -243,6 +260,10 @@ type BatchTaskUpdateInput struct {
 	WorktreeDir       OptionalString
 	Assignee          OptionalString
 	Dependencies      OptionalStrings
+
+	// ReusableTasks has the same selector and patch semantics as update input.
+	// Batch JSON/CSV codecs map their preserve/replace/clear forms to this field.
+	ReusableTasks OptionalStrings
 }
 
 func ParseStatus(value string) (Status, error) {
@@ -278,6 +299,20 @@ func (t Task) Validate() error {
 // ValidateWithCatalog validates a task against an invocation's status
 // catalog.
 func (t Task) ValidateWithCatalog(catalog StatusCatalog) error {
+	if err := t.validateMetadata(); err != nil {
+		return err
+	}
+	if _, err := catalog.ParseStatus(string(t.Status)); err != nil {
+		return err
+	}
+	return t.validateLifecycleTimestamps(catalog)
+}
+
+// validateMetadata validates the fields shared by executable and planning
+// records. Lifecycle status and timestamps are deliberately kept outside this
+// helper because planning has an independent status catalog and prohibits
+// execution timestamps entirely.
+func (t Task) validateMetadata() error {
 	if !canonicalUUIDPattern.MatchString(t.ID) {
 		return fmt.Errorf("task id %q must be a canonical lowercase UUID", t.ID)
 	}
@@ -286,9 +321,6 @@ func (t Task) ValidateWithCatalog(catalog StatusCatalog) error {
 	}
 	if strings.TrimSpace(t.Title) == "" {
 		return errors.New("task title is required")
-	}
-	if _, err := catalog.ParseStatus(string(t.Status)); err != nil {
-		return err
 	}
 	if _, err := ParsePriority(string(t.Priority)); err != nil {
 		return err
@@ -340,6 +372,9 @@ func (t Task) ValidateWithCatalog(catalog StatusCatalog) error {
 			return fmt.Errorf("task dependency %d %q must be a canonical lowercase UUID", index, dependency)
 		}
 	}
+	if err := validateReusableTaskIDList(t.ReusableTaskIDs); err != nil {
+		return err
+	}
 	commentIDs := make(map[string]struct{}, len(t.Comments))
 	for index, comment := range t.Comments {
 		if !canonicalUUIDPattern.MatchString(comment.ID) {
@@ -364,9 +399,6 @@ func (t Task) ValidateWithCatalog(catalog StatusCatalog) error {
 		if comment.CreatedAt.Before(t.CreatedAt) || comment.CreatedAt.After(t.UpdatedAt) {
 			return fmt.Errorf("task comment %d createdAt must be between task createdAt and updatedAt", index)
 		}
-	}
-	if err := t.validateLifecycleTimestamps(catalog); err != nil {
-		return err
 	}
 	return nil
 }

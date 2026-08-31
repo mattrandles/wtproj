@@ -2288,7 +2288,7 @@ func TestHelpMentionsTaskMetadataOptions(t *testing.T) {
 		t.Fatalf("help() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "--git-repo", "--git-branch", "--worktree-name", "--worktree-dir", "current Git worktree root", "wtpDir selects storage", "Usage Guide:", "wtp handoff write", "wtp handoff get", "wtp handoff purge", "handoff write appends by default", "newest global record", "handoff purge requires exactly one", ".wtp/handoffs.json", "claiming never consumes", "other scopes", "scopeCount", "otherScopesAvailable", "batch export writes an editable patch document", "omit both to export every task", "legacy --export-tasks is an alias", "Task IDs and scoped storage:", "wtp-BBBBBBBB-NNNN", "main hashes to 0d6e4079", ".wtp/meta/index-<branchId>.json", "Detached HEAD and non-Git", "foreign task can", "branch object", "UUID-named task file", "export remains canonical"} {
+	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "--git-repo", "--git-branch", "--worktree-name", "--worktree-dir", "current Git worktree root", "wtpDir selects storage", "Usage Guide:", "wtp handoff write", "wtp handoff get", "wtp handoff purge", "handoff write appends by default", "newest global record", "handoff purge requires exactly one", ".wtp/handoffs.json", "claiming never consumes", "other scopes", "scopeCount", "otherScopesAvailable", "batch export writes an editable patch document", "omit both to export every task", "legacy --export-tasks is an alias", "Grouping metadata:", "featureId is the stable machine-facing", "feature key/name", "task list, task ready, task next, graph, batch export, and stats", "Automatic ready/next claims must reuse the exact same scope", "Task IDs and scoped storage:", "wtp-BBBBBBBB-NNNN", "main hashes to 0d6e4079", ".wtp/meta/index-<branchId>.json", "Detached HEAD and non-Git", "foreign task can", "branch object", "UUID-named task file", "export remains canonical"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("help output missing %q", needle)
 		}
@@ -2306,7 +2306,7 @@ func TestSchemaDocumentsTaskAndHandoffContracts(t *testing.T) {
 		t.Fatalf("schema() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, `"gitRepo": "/workspace/repo"`, "Configuration and discovery:", "linked worktrees use that worktree's configuration", "model: optional free-form string", "gitRepo: optional absolute path", "worktreeDir: optional absolute path", "--git-branch=", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid", ".wtp/handoffs.json", `"handoffs": [`, "Handoff field semantics:", "handoff write appends by default", "--task and --all-scopes conflict", "A cutoff is exclusive", "Handoff reads and task claims are non-consuming", "task start and task next attach", "Handoff JSON response shapes:", `"scopeCount": 1`, `"otherScopesAvailable": false`, `"purged": 1`, "missing .wtp/handoffs.json", "Legacy task compatibility:", "--export-tasks=<directory>", "Editable batch task contract:", "batch export accepts at most one selector kind", "omitting both selects every task", "Short IDs, branch scopes, and allocation indexes:", "{\"branch\":\"<exact branch name>\",\"next\":<positive integer>}", "SHA-256", "first four digest bytes", "wtp-0d6e4079-0001.json", "task ready and task next select current-scope", "Foreign tasks are not automatically claimable", "task start <task-id>", "Filename compatibility migration:", "canonical task UUID>.json", "conflicting files are rejected before migration", "export directory contains exactly one canonical UUID-named", "scoped short-ID filenames and allocation indexes are not exported", "preserve unknown future fields", ".wtp/meta/wtp.lock", "tolerate gaps", "Canonical export is unchanged"} {
+	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, `"issueId": "ISSUE-42"`, `"project": "Apollo"`, `"milestone": "MVP"`, `"version": "v1.0"`, `"featureId": "FEAT-7"`, `"feature": "Search"`, `"gitRepo": "/workspace/repo"`, "Configuration and discovery:", "linked worktrees use that worktree's configuration", "model: optional free-form string", "gitRepo: optional absolute path", "worktreeDir: optional absolute path", "--git-branch=", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid", ".wtp/handoffs.json", `"handoffs": [`, "Handoff field semantics:", "handoff write appends by default", "--task and --all-scopes conflict", "A cutoff is exclusive", "Handoff reads and task claims are non-consuming", "task start and task next attach", "Handoff JSON response shapes:", `"scopeCount": 1`, `"otherScopesAvailable": false`, `"purged": 1`, "missing .wtp/handoffs.json", "Legacy task compatibility:", "--export-tasks=<directory>", "Editable batch task contract:", "batch export accepts at most one selector kind", "omitting both selects every task", "Stats and grouping query contract:", "featureId is the stable machine-facing", "task list/ready/next,", "automatic loop should establish one optional grouping scope", "Short IDs, branch scopes, and allocation indexes:", "{\"branch\":\"<exact branch name>\",\"next\":<positive integer>}", "SHA-256", "first four digest bytes", "wtp-0d6e4079-0001.json", "task ready and task next select current-scope", "Foreign tasks are not automatically claimable", "task start <task-id>", "Filename compatibility migration:", "canonical task UUID>.json", "conflicting files are rejected before migration", "export directory contains exactly one canonical UUID-named", "scoped short-ID filenames and allocation indexes are not exported", "preserve unknown future fields", ".wtp/meta/wtp.lock", "tolerate gaps", "Canonical export is unchanged"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("schema output missing %q", needle)
 		}
@@ -2314,6 +2314,47 @@ func TestSchemaDocumentsTaskAndHandoffContracts(t *testing.T) {
 	for _, needle := range []string{"additionalStatuses", "waiting requires startedAt", "Only done resolves dependencies", "blocked also has no lifecycle timestamps"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("schema output missing configurable-status contract %q", needle)
+		}
+	}
+}
+
+func TestReusableHelpAndSchemaContracts(t *testing.T) {
+	var helpOutput bytes.Buffer
+	if err := help(&helpOutput); err != nil {
+		t.Fatalf("help() error = %v", err)
+	}
+	for _, needle := range []string{
+		"Reusable definitions are store-global advisory instructions",
+		"wtp reusable create",
+		"atomic no-confirmation detach",
+		".wtp/reusable.json",
+		".wtp/meta/reusable-update.json",
+		"infers a group end",
+		"reusableTaskIds",
+		"reusableTasks",
+	} {
+		if !strings.Contains(helpOutput.String(), needle) {
+			t.Errorf("help output missing reusable contract %q", needle)
+		}
+	}
+
+	var schemaOutput bytes.Buffer
+	if err := schema(&schemaOutput); err != nil {
+		t.Fatalf("schema() error = %v", err)
+	}
+	for _, needle := range []string{
+		"Reusable definition catalog schema (.wtp/reusable.json):",
+		`"version": 1`,
+		"Reusable claim response shapes:",
+		"detachedTaskCount",
+		"array replaces the complete",
+		".wtp/meta/reusable-update.json",
+		"prepared journals by rollback",
+		"missing .wtp/reusable.json",
+		"Legacy task action flags remain supported, including --reusable",
+	} {
+		if !strings.Contains(schemaOutput.String(), needle) {
+			t.Errorf("schema output missing reusable contract %q", needle)
 		}
 	}
 }

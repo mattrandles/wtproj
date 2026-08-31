@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/mattrandles/wtproj/internal/core"
@@ -67,7 +68,14 @@ func TestBatchUpdateFaultInjectionChild(t *testing.T) {
 			return realReplace(source, path)
 		}
 	}
-	_, err = p.BatchUpdate(faultBatchRequest(tasks))
+	definitions, err := p.ListReusableTasks()
+	if err != nil {
+		t.Fatalf("ListReusableTasks() error = %v", err)
+	}
+	if len(definitions) != 1 {
+		t.Fatalf("fixture reusable definition count = %d, want 1", len(definitions))
+	}
+	_, err = p.BatchUpdate(faultBatchRequest(tasks, definitions[0].ID))
 	if err != nil {
 		t.Fatalf("BatchUpdate() error = %v", err)
 	}
@@ -80,6 +88,12 @@ func createFaultFixture(t *testing.T) (string, []core.TaskView) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	definition, err := p.CreateReusableTask(core.CreateReusableTaskInput{
+		Name: "Recovery assignment", Title: "Recover reusable assignment", Instructions: "verify crash recovery",
+	})
+	if err != nil {
+		t.Fatalf("CreateReusableTask() error = %v", err)
+	}
 	tasks := make([]core.TaskView, 0, 3)
 	for _, title := range []string{"one", "two", "three"} {
 		task, err := p.CreateTask(core.CreateTaskInput{
@@ -89,17 +103,24 @@ func createFaultFixture(t *testing.T) (string, []core.TaskView) {
 		if err != nil {
 			t.Fatalf("CreateTask(%q) error = %v", title, err)
 		}
+		if title == "one" && len(task.ReusableTaskIDs) != 0 {
+			t.Fatalf("new fixture task unexpectedly has reusable assignments: %#v", task)
+		}
 		tasks = append(tasks, task)
+	}
+	if definition.ID == "" {
+		t.Fatal("fixture reusable definition has no ID")
 	}
 	return root, tasks
 }
 
-func faultBatchRequest(tasks []core.TaskView) provider.BatchUpdateRequest {
+func faultBatchRequest(tasks []core.TaskView, reusableTaskID string) provider.BatchUpdateRequest {
 	return provider.BatchUpdateRequest{Tasks: []core.BatchTaskUpdateInput{
 		{ShortID: tasks[0].ShortID, ExpectedUpdatedAt: tasks[0].UpdatedAt, Title: core.OptionalString{Set: true, Value: "one changed"},
 			IssueID: core.OptionalString{Set: true, Value: "changed-issue"}, Project: core.OptionalString{Set: true, Value: "changed-project"},
 			Milestone: core.OptionalString{Set: true, Value: "changed-milestone"}, Version: core.OptionalString{Set: true, Value: "changed-version"},
-			FeatureID: core.OptionalString{Set: true, Value: "changed-feature-id"}, Feature: core.OptionalString{Set: true, Value: "changed-feature"}},
+			FeatureID: core.OptionalString{Set: true, Value: "changed-feature-id"}, Feature: core.OptionalString{Set: true, Value: "changed-feature"},
+			ReusableTasks: core.OptionalStrings{Set: true, Value: []string{reusableTaskID}}},
 		{ShortID: tasks[1].ShortID, ExpectedUpdatedAt: tasks[1].UpdatedAt, Status: core.OptionalStatus{Set: true, Value: core.StatusInProgress}},
 		{ShortID: tasks[2].ShortID, ExpectedUpdatedAt: tasks[2].UpdatedAt, Title: core.OptionalString{Set: true, Value: "three changed"}},
 	}}
@@ -127,6 +148,10 @@ func assertRecoveredFaultFixture(t *testing.T, root string, original []core.Task
 	if err != nil {
 		t.Fatalf("recovery New() error = %v", err)
 	}
+	definitions, err := p.ListReusableTasks()
+	if err != nil || len(definitions) != 1 {
+		t.Fatalf("ListReusableTasks() after recovery = %#v, %v", definitions, err)
+	}
 	for index, want := range original {
 		got, err := p.GetTask(want.ShortID, "")
 		if err != nil {
@@ -148,6 +173,12 @@ func assertRecoveredFaultFixture(t *testing.T, root string, original []core.Task
 				}
 			} else if got.IssueID != "issue-one" || got.Project != "project-one" || got.Milestone != "milestone-one" || got.Version != "version-one" || got.FeatureID != "feature-id-one" || got.Feature != "feature-one" {
 				t.Fatalf("task %s grouping after rollback = %#v", want.ShortID, got.Task)
+			}
+			if expectAfter && !slices.Equal(got.ReusableTaskIDs, []string{definitions[0].ID}) {
+				t.Fatalf("task %s reusable assignments after recovery = %v, want %s", want.ShortID, got.ReusableTaskIDs, definitions[0].ID)
+			}
+			if !expectAfter && len(got.ReusableTaskIDs) != 0 {
+				t.Fatalf("task %s reusable assignments after rollback = %v, want none", want.ShortID, got.ReusableTaskIDs)
 			}
 		}
 	}

@@ -28,3 +28,4 @@ scripts/VERIFY-STEPS.md
 # Ignore only transient files created while wtp performs a mutation.
 .wtp/meta/wtp.lock
 .wtp/meta/batch-update.json
+.wtp/meta/reusable-update.json

@@ -761,6 +761,15 @@ func validateExportSnapshot(path string) error {
 	}
 	seen := map[string]bool{}
 	for _, entry := range entries {
+		if entry.Name() == planningExportDirectory {
+			if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+				return fmt.Errorf("export planning entry is not a directory")
+			}
+			if err := validatePlanningExport(filepath.Join(path, entry.Name()), seen); err != nil {
+				return err
+			}
+			continue
+		}
 		if entry.IsDir() {
 			return fmt.Errorf("export snapshot contains directory %s", entry.Name())
 		}
@@ -771,6 +780,16 @@ func validateExportSnapshot(path string) error {
 		if entry.Name() == "handoffs.json" {
 			var handoffs handoffCollection
 			if err := json.Unmarshal(data, &handoffs); err != nil {
+				return err
+			}
+			continue
+		}
+		if entry.Name() == "reusable.json" {
+			var catalog core.ReusableTaskCatalog
+			if err := json.Unmarshal(data, &catalog); err != nil {
+				return err
+			}
+			if err := catalog.Validate(); err != nil {
 				return err
 			}
 			continue

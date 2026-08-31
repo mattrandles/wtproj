@@ -42,8 +42,10 @@ positive without concealing similar future findings.
 This repository dogfoods `wtp`. Its `.wtp/` task records are intentionally
 version-controlled so planning and task history travel with the source.
 Do not add a broad `.wtp/` ignore rule. The transient
-`.wtp/meta/wtp.lock` and `.wtp/meta/batch-update.json` files, plus export
-directories, are ignored because they are local runtime artifacts.
+`.wtp/meta/wtp.lock`, `.wtp/meta/batch-update.json`, and
+`.wtp/meta/reusable-update.json` files, plus export directories, are ignored
+because they are local runtime artifacts. The durable `.wtp/reusable.json`
+catalog is intentionally tracked with task files.
 
 Use the CLI for normal task changes rather than editing task JSON directly:
 
@@ -66,6 +68,101 @@ Batch rows require the exported `updatedAt` token, so a concurrent change makes
 the complete import fail safely. See `wtp help`, `wtp schema`, and the README
 for JSON version 1, CSV `_clear`, selector, response, and recovery-journal
 details.
+
+### Reusable advisory definitions
+
+Reusable definitions are store-global advisory instructions, not extra queue
+tasks. They have no status, lifecycle, dependency, execution, ordering, or
+completion-enforcement behavior, and WTP never infers a group's final task.
+Create, list, show, update, and delete them with `wtp reusable`; names are
+case-insensitive exact selectors and UUIDs are stable. Update preserves the
+UUID and creation time, so renaming a definition updates future live views
+without rewriting task files. Delete atomically detaches the definition from
+every task in every status and branch scope, including done tasks, while
+preserving the order of remaining assignments.
+
+Tasks accept repeatable `--reusable NAME_OR_ID` on create/update/edit. The
+provider stores only ordered canonical definition UUIDs. Update replaces the
+whole list; one `--reusable=` clears it, while duplicates and mixed empty /
+non-empty occurrences are rejected. Detailed task views and `task start` /
+`task next` claim results resolve the current definitions in assignment order;
+compact list/graph output remains unchanged. Human output has a
+`reusableTasks:` section; JSON keeps `reusableTaskIds` and adds the resolved
+`reusableTasks` array. Claim-attached handoffs remain additive and separate.
+
+The version-1 `.wtp/reusable.json` catalog is shared by all branches,
+worktrees, and projects using the same `wtpDir`. Include it in commits or
+backups and use `wtp export` for a consistent canonical snapshot. An absent
+catalog is compatible empty storage and reads do not create it. The transient
+`.wtp/meta/reusable-update.json` delete journal is recovered under
+`.wtp/meta/wtp.lock`: prepared journals roll back, committed journals roll
+forward, and a failed recovery retains the journal for diagnosis. Keep a store
+backup before any manual recovery, ignore the journal alongside the lock and
+`batch-update.json`, and never add an ignore rule for the durable catalog or
+task directories. See `wtp schema` for the exact journal and catalog contract.
+
+### Versioned planning workflow
+
+Planning is a flat-file-only, store-global namespace nested at
+`.wtp/planning/{toplan,researched,planned,rejected}/`. It is separate from
+the executable `todo`, `inProgress`, `paused`, and `done` directories. The
+four planning statuses and their only direct transitions are:
+
+```text
+toplan     -> researched | rejected
+researched -> toplan | planned | rejected
+planned    -> researched | rejected
+rejected   -> toplan
+```
+
+Same-state and unlisted moves fail. `rejected` is the revisable replacement
+for deletion; planning has no delete, comment, start, next, ready, done,
+graph, or batch command. Planning records always retain the full task payload,
+including all metadata, dependencies, comments, and reusable references, and
+always have null `startedAt`/`completedAt`. `featureId` is the stable feature
+key and `feature` is its independent display name.
+
+There is one UUID/short-ID namespace and one dependency graph across planning
+and executable records, including all branch scopes in a shared `wtpDir`.
+Validate global identity, missing dependencies, and cycles before publishing
+changes. Planning list/show/report/promote are store-wide; normal task
+list/show/ready/next/start, stats, batch, and graph intentionally exclude
+planning. This separation must remain visible in provider capabilities and
+documentation. The only supported backend is the flat-file provider.
+
+The public planning commands are `planning create`, `list`, `show`, `update`,
+`set-status`, `report`, and `promote`. Create accepts required `--title`,
+optional `--status`, and the complete task-create metadata flags:
+`--description`, `--priority`, `--estimate`, `--lane`, `--model`,
+`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`,
+`--feature`, `--git-repo`, `--git-branch`, `--worktree-name`,
+`--worktree-dir`, `--depends-on`, `--reusable`, and `--agent`. Update takes
+the same mutable metadata flags except `--status`; show and set-status accept
+one UUID/full short ID. List/report take `--status` plus any combination of
+the six grouping selectors. Promote takes those selectors and optional
+`--dry-run`, requiring at least one selector. `--depends-on` and `--reusable`
+are the only repeatable flags; update omission preserves, explicit empty
+values clear, and a single empty list occurrence clears the complete list.
+
+Grouping selectors are trimmed, case-insensitive exact AND matches. There is
+no wildcard, substring, version parsing, or feature key/name fallback. The
+report hierarchy is exactly project -> version -> milestone, with total and
+four fixed status counts at every level. Promotion selects only planned
+records and rejects the entire group unless every reachable planning
+dependency—also through executable vertices—is selected and planned. Dry-run
+must be read-only and publication must preserve all metadata while changing
+only the allowed execution lifecycle fields.
+
+Promotion uses the dedicated version-1 `.wtp/meta/planning-promote.json`
+prepared/committed journal and the global lock. Store recovery preflights
+pending transactions and always processes `batch-update.json`, then
+`reusable-update.json`, then `planning-promote.json`. Prepared promotion rolls
+back; committed promotion rolls forward; failed recovery retains the journal.
+Canonical export includes flat `planning/<planning-UUID>.json` records,
+`handoffs.json`, and `reusable.json`; indexes, locks, journals, and planning
+status directories are not exported. A complete example and the exact JSON
+contracts are maintained in the README and `wtp schema`; update both when
+behavior changes.
 
 ### Merge-safe branch-scoped task history
 
@@ -113,8 +210,9 @@ shapes and `.wtp/handoffs.json` contract.
 
 The legacy task action flags remain supported. The legacy
 `--export-tasks=<directory>` form remains an export alias and includes the
-retained `handoffs.json` collection, so task automation and portable exports
-continue to work while handoffs are added.
+retained `handoffs.json` collection and the version-1 `reusable.json` catalog,
+so task automation and portable exports continue to work while both retained
+collections are included.
 
 ## Code of conduct
 

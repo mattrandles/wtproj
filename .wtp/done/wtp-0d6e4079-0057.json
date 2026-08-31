@@ -1,0 +1,38 @@
+{
+  "id": "ae50a1fd-11d8-4493-82f4-941f0dbe8036",
+  "shortId": "wtp-0d6e4079-0057",
+  "title": "Expose reusable update and delete commands",
+  "description": "Complete wtp reusable with update NAME_OR_ID and delete NAME_OR_ID. Update accepts optional --name, --title, and --instructions, requires at least one supplied field, distinguishes omission from an explicit empty invalid value, and returns the updated definition. Delete performs the provider atomic detach operation and returns {deleted:...,detachedTaskCount:N} in JSON plus a precise human summary. Cover name and UUID selectors, casing-only rename, referenced and unreferenced deletion, completed-task detachment, concurrent/stale provider errors, extra arguments, and no-op updates in CLI tests. Do not add confirmation prompts or force flags; deletion semantics are deliberately detach-everywhere.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "reusable-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "0268b202-70dc-4403-8da0-9848daa94244",
+    "062a93ed-5d41-4e96-b810-f65c9c3f315f"
+  ],
+  "comments": [
+    {
+      "id": "bb9d789f-f0de-4ac9-883d-37bebbbd968b",
+      "author": "codex-wtp-loop",
+      "message": "Audited the exact task and current branch: reusable create/list/show plus provider-level update/delete and atomic journal machinery already exist, while CLI mutation subcommands and requested edge-case coverage remain incomplete. I will preserve all unrelated worktree edits, add only the reusable CLI mutation surface/tests needed here, then run focused and full verification.",
+      "createdAt": "2026-08-31T10:50:17.677822629Z"
+    },
+    {
+      "id": "db745556-1b9f-4394-be4c-81f97d499303",
+      "author": "codex-wtp-loop",
+      "message": "Implemented reusable update/delete CLI commands. Update accepts NAME_OR_ID plus optional --name/--title/--instructions, preserves omitted fields, rejects explicit empty values, returns the updated definition, and supports casing-only and normalized no-op edits. Delete accepts NAME_OR_ID with no confirmation/force, delegates atomic detach-everywhere, emits {deleted,detachedTaskCount} JSON, and reports the exact human count with singular/plural wording. Added CLI coverage for name/UUID selectors, referenced/unreferenced and completed-task detachment, extra args, no-op updates, and concurrent/stale provider error propagation.",
+      "createdAt": "2026-08-31T10:58:48.582778977Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.964866701Z",
+  "updatedAt": "2026-08-31T10:58:52.978293606Z",
+  "startedAt": "2026-08-31T10:49:24.256549256Z",
+  "completedAt": "2026-08-31T10:58:52.978293606Z"
+}

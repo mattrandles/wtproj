@@ -19,12 +19,12 @@ import (
 var headerNames = [...]string{
 	"id", "shortId", "updatedAt", "title", "description", "status", "priority", "estimate",
 	"lane", "model", "issueId", "project", "milestone", "version", "featureId", "feature",
-	"gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies", "_clear",
+	"gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies", "reusableTasks", "_clear",
 }
 
 var clearableFields = [...]string{
 	"description", "priority", "estimate", "lane", "model", "issueId", "project", "milestone", "version",
-	"featureId", "feature", "gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies",
+	"featureId", "feature", "gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies", "reusableTasks",
 }
 
 var requiredFields = map[string]struct{}{
@@ -202,8 +202,28 @@ func encodeTask(index int, input core.BatchTaskUpdateInput, seen map[string]int)
 			record[21] = strings.Join(dependencies, ",")
 		}
 	}
+	if input.ReusableTasks.Set {
+		if len(input.ReusableTasks.Value) == 0 {
+			clears = append(clears, "reusableTasks")
+		} else {
+			reusableTasks := make([]string, len(input.ReusableTasks.Value))
+			seenReusableTasks := make(map[string]struct{}, len(input.ReusableTasks.Value))
+			for reusableIndex, reusableTask := range input.ReusableTasks.Value {
+				reusableTask = strings.TrimSpace(reusableTask)
+				if reusableTask == "" {
+					return nil, rowError(index+1, fmt.Sprintf("reusableTasks[%d] must not be empty", reusableIndex))
+				}
+				if _, duplicate := seenReusableTasks[reusableTask]; duplicate {
+					return nil, rowError(index+1, fmt.Sprintf("reusableTasks[%d] duplicates identifier %q", reusableIndex, reusableTask))
+				}
+				seenReusableTasks[reusableTask] = struct{}{}
+				reusableTasks[reusableIndex] = reusableTask
+			}
+			record[22] = strings.Join(reusableTasks, ",")
+		}
+	}
 	if len(clears) > 0 {
-		record[22] = strings.Join(clears, ",")
+		record[23] = strings.Join(clears, ",")
 	}
 	if !hasPatch(input) {
 		return nil, rowError(index+1, "row has no mutable patch fields")
@@ -313,6 +333,23 @@ func decodeTask(rowNumber int, record []string, positions map[string]int, seen m
 				return core.BatchTaskUpdateInput{}, rowError(rowNumber, fmt.Sprintf("dependencies[%d] must not be empty", depIndex))
 			}
 			task.Dependencies.Value[depIndex] = dependency
+		}
+	}
+	if reusableTasks := value("reusableTasks"); reusableTasks != "" {
+		parts := strings.Split(reusableTasks, ",")
+		task.ReusableTasks.Set = true
+		task.ReusableTasks.Value = make([]string, len(parts))
+		seenReusableTasks := make(map[string]struct{}, len(parts))
+		for reusableIndex, reusableTask := range parts {
+			reusableTask = strings.TrimSpace(reusableTask)
+			if reusableTask == "" {
+				return core.BatchTaskUpdateInput{}, rowError(rowNumber, fmt.Sprintf("reusableTasks[%d] must not be empty", reusableIndex))
+			}
+			if _, duplicate := seenReusableTasks[reusableTask]; duplicate {
+				return core.BatchTaskUpdateInput{}, rowError(rowNumber, fmt.Sprintf("reusableTasks[%d] duplicates identifier %q", reusableIndex, reusableTask))
+			}
+			seenReusableTasks[reusableTask] = struct{}{}
+			task.ReusableTasks.Value[reusableIndex] = reusableTask
 		}
 	}
 
@@ -425,6 +462,8 @@ func setClear(task *core.BatchTaskUpdateInput, name string) {
 		task.Assignee = core.OptionalString{Set: true}
 	case "dependencies":
 		task.Dependencies = core.OptionalStrings{Set: true}
+	case "reusableTasks":
+		task.ReusableTasks = core.OptionalStrings{Set: true}
 	}
 }
 
@@ -449,7 +488,7 @@ func hasPatch(input core.BatchTaskUpdateInput) bool {
 	return input.Title.Set || input.Description.Set || input.Status.Set || input.Priority.Set || input.Estimate.Set ||
 		input.Lane.Set || input.Model.Set || input.IssueID.Set || input.Project.Set || input.Milestone.Set || input.Version.Set ||
 		input.FeatureID.Set || input.Feature.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
-		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set
+		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set || input.ReusableTasks.Set
 }
 
 func formatTimestamp(value time.Time) string { return value.UTC().Format(time.RFC3339Nano) }

@@ -314,6 +314,7 @@ func editableInputs(tasks, graph []core.TaskView) ([]core.BatchTaskUpdateInput, 
 			WorktreeDir:       core.OptionalString{Set: true, Value: view.WorktreeDir},
 			Assignee:          core.OptionalString{Set: true, Value: view.Assignee},
 			Dependencies:      core.OptionalStrings{Set: true, Value: dependencies},
+			ReusableTasks:     core.OptionalStrings{Set: true, Value: append([]string(nil), view.ReusableTaskIDs...)},
 		}
 	}
 	return inputs, nil

@@ -212,3 +212,14 @@ func TestLegacyGroupingSelectorsUseSharedValidationAndRewrite(t *testing.T) {
 		}
 	}
 }
+
+func TestCanonicalCommandsBypassLegacyGroupingRewrite(t *testing.T) {
+	args := []string{"--json", "task", "update", "wtp-0001", "--issue-id=", "--feature="}
+	got, err := rewriteLegacyArgs(args)
+	if err != nil {
+		t.Fatalf("rewriteLegacyArgs() error = %v", err)
+	}
+	if got.found || !reflect.DeepEqual(got.args, args) {
+		t.Fatalf("canonical args rewritten = %#v, want unchanged args", got)
+	}
+}

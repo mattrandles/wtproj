@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/planningjson"
 	"github.com/mattrandles/wtproj/internal/provider"
+	"github.com/mattrandles/wtproj/internal/reusablejson"
 )
 
 var canonicalExportFilenamePattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$`)
@@ -74,9 +76,15 @@ func (p *Provider) InvocationScope() *core.BranchScope {
 }
 
 func (p *Provider) ensureLayout() error {
-	dirs := []string{p.root, filepath.Join(p.root, "meta"), filepath.Join(p.root, "meta", "locks")}
+	if p.catalog.Contains(core.Status(planningDirectory)) {
+		return fmt.Errorf("configured execution status %q collides with reserved planning namespace", planningDirectory)
+	}
+	dirs := []string{p.root, filepath.Join(p.root, "meta"), filepath.Join(p.root, "meta", "locks"), p.planningDir()}
 	for _, status := range p.statuses() {
 		dirs = append(dirs, p.statusDir(status))
+	}
+	for _, status := range core.PlanningStatuses() {
+		dirs = append(dirs, p.planningStatusDir(status))
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -84,7 +92,7 @@ func (p *Provider) ensureLayout() error {
 		}
 	}
 	return p.withGlobalLock(func() error {
-		if err := p.recoverBatchUpdate(); err != nil {
+		if err := p.recoverPendingJournals(); err != nil {
 			return err
 		}
 		if err := p.validateUnconfiguredStatusDirs(); err != nil {
@@ -100,7 +108,11 @@ func (p *Provider) ensureLayout() error {
 		} else if _, err := p.readIndex(); err != nil {
 			return err
 		}
-		return p.migrateTaskFilenames()
+		if err := p.migrateTaskFilenames(); err != nil {
+			return err
+		}
+		_, _, err := p.loadPlanningValidationSnapshot()
+		return err
 	})
 }
 
@@ -127,6 +139,12 @@ func (p *Provider) validateUnconfiguredStatusDirs() error {
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() || entry.Name() == "meta" {
+			continue
+		}
+		// Planning is a nested namespace rather than an execution status. Its
+		// loader performs the stricter nested validation, including rejecting
+		// direct records and unknown planning-status directories.
+		if entry.Name() == planningDirectory {
 			continue
 		}
 		if _, ok := configured[entry.Name()]; ok {
@@ -160,10 +178,11 @@ func (p *Provider) validateUnconfiguredStatusDirs() error {
 func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
 	var views []core.TaskView
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
+		tasks := snapshot.tasks
 		allTasks := append([]core.Task(nil), tasks...)
 		filtered := tasks[:0]
 		for _, task := range tasks {
@@ -187,8 +206,8 @@ func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error
 			}
 			return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
 		})
-		views = p.decorateTasks(tasks, allTasks, filter.Agent)
-		return nil
+		views, err = p.decorateTasks(tasks, allTasks, snapshot.planningItems, filter.Agent)
+		return err
 	})
 	return views, err
 }
@@ -196,16 +215,17 @@ func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error
 func (p *Provider) GetTask(idOrShortID, agent string) (core.TaskView, error) {
 	var view core.TaskView
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
+		tasks := snapshot.tasks
 		task, err := resolveTask(idOrShortID, tasks)
 		if err != nil {
 			return err
 		}
-		view = p.decorateTask(task, tasks, agent)
-		return nil
+		view, err = p.decorateTask(task, tasks, snapshot.planningItems, agent)
+		return err
 	})
 	return view, err
 }
@@ -213,56 +233,67 @@ func (p *Provider) GetTask(idOrShortID, agent string) (core.TaskView, error) {
 func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error) {
 	var created core.Task
 	var tasksAfter []core.Task
+	var view core.TaskView
 	err := p.withGlobalLock(func() error {
 		now := time.Now().UTC()
-		id, err := core.NewID()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
-		tasks, err := p.loadTasks()
+		tasks := snapshot.tasks
+		id, err := newAvailableID(tasks, snapshot.planningItems)
 		if err != nil {
 			return err
 		}
-		resolvedDependencies, err := resolveDependencyIDs(input.Dependencies, tasks)
+		reusableCatalog, err := p.loadReusableTaskCatalog()
 		if err != nil {
 			return err
 		}
-		if err := core.ValidateDependenciesWithCatalog(p.catalog, "", resolvedDependencies, tasks); err != nil {
+		resolvedDependencies, err := resolveDependencyIDs(input.Dependencies, tasks, snapshot.planningItems)
+		if err != nil {
+			return err
+		}
+		resolvedReusableTaskIDs, err := resolveReusableTaskIDs(input.ReusableTasks, reusableCatalog)
+		if err != nil {
+			return err
+		}
+		if err := core.ValidateDependenciesAcrossLifecycles("", resolvedDependencies, tasks, snapshot.planningItems); err != nil {
 			return err
 		}
 		index, err := p.readIndex()
 		if err != nil {
 			return err
 		}
-		index, shortID, err := p.nextAvailableShortID(index, tasks)
+		index, shortID, err := p.nextAvailableShortID(index, tasks, snapshot.planningItems)
 		if err != nil {
 			return err
 		}
 		task := core.Task{
-			ID:           id,
-			ShortID:      shortID,
-			Title:        strings.TrimSpace(input.Title),
-			Description:  strings.TrimSpace(input.Description),
-			Priority:     input.Priority,
-			Estimate:     input.Estimate,
-			Lane:         strings.TrimSpace(input.Lane),
-			Model:        strings.TrimSpace(input.Model),
-			IssueID:      strings.TrimSpace(input.IssueID),
-			Project:      strings.TrimSpace(input.Project),
-			Milestone:    strings.TrimSpace(input.Milestone),
-			Version:      strings.TrimSpace(input.Version),
-			FeatureID:    strings.TrimSpace(input.FeatureID),
-			Feature:      strings.TrimSpace(input.Feature),
-			GitRepo:      strings.TrimSpace(input.GitRepo),
-			GitBranch:    strings.TrimSpace(input.GitBranch),
-			WorktreeName: strings.TrimSpace(input.WorktreeName),
-			WorktreeDir:  strings.TrimSpace(input.WorktreeDir),
-			Status:       input.Status,
-			Assignee:     strings.TrimSpace(input.Assignee),
-			Dependencies: resolvedDependencies,
-			Comments:     []core.Comment{},
-			CreatedAt:    now,
-			UpdatedAt:    now,
+			ID:              id,
+			ShortID:         shortID,
+			Title:           strings.TrimSpace(input.Title),
+			Description:     strings.TrimSpace(input.Description),
+			Priority:        input.Priority,
+			Estimate:        input.Estimate,
+			Lane:            strings.TrimSpace(input.Lane),
+			Model:           strings.TrimSpace(input.Model),
+			IssueID:         strings.TrimSpace(input.IssueID),
+			Project:         strings.TrimSpace(input.Project),
+			Milestone:       strings.TrimSpace(input.Milestone),
+			Version:         strings.TrimSpace(input.Version),
+			FeatureID:       strings.TrimSpace(input.FeatureID),
+			Feature:         strings.TrimSpace(input.Feature),
+			GitRepo:         strings.TrimSpace(input.GitRepo),
+			GitBranch:       strings.TrimSpace(input.GitBranch),
+			WorktreeName:    strings.TrimSpace(input.WorktreeName),
+			WorktreeDir:     strings.TrimSpace(input.WorktreeDir),
+			Status:          input.Status,
+			Assignee:        strings.TrimSpace(input.Assignee),
+			Dependencies:    resolvedDependencies,
+			ReusableTaskIDs: resolvedReusableTaskIDs,
+			Comments:        []core.Comment{},
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 		if task.Status == "" {
 			task.Status = core.StatusTodo
@@ -294,22 +325,25 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 		faultPoint("create-publication")
 		created = task
 		tasksAfter = append(tasks, task)
-		return nil
+		view, err = p.decorateTask(created, tasksAfter, snapshot.planningItems, "")
+		return err
 	})
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	return p.decorateTask(created, tasksAfter, ""), nil
+	return view, nil
 }
 
 func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error) {
 	var updated core.Task
 	var tasksAfter []core.Task
+	var view core.TaskView
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
+		tasks := snapshot.tasks
 		task, err := resolveTask(idOrShortID, tasks)
 		if err != nil {
 			return err
@@ -372,20 +406,31 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 			task.Assignee = strings.TrimSpace(input.Assignee.Value)
 		}
 		if input.Dependencies.Set {
-			resolvedDependencies, err := resolveDependencyIDs(splitCSV(input.Dependencies.Value), tasks)
+			resolvedDependencies, err := resolveDependencyIDs(splitCSV(input.Dependencies.Value), tasks, snapshot.planningItems)
 			if err != nil {
 				return err
 			}
-			if err := core.ValidateDependenciesWithCatalog(p.catalog, task.ID, resolvedDependencies, tasks); err != nil {
+			if err := core.ValidateDependenciesAcrossLifecycles(task.ID, resolvedDependencies, tasks, snapshot.planningItems); err != nil {
 				return err
 			}
 			task.Dependencies = resolvedDependencies
+		}
+		if input.ReusableTasks.Set {
+			reusableCatalog, err := p.loadReusableTaskCatalog()
+			if err != nil {
+				return err
+			}
+			resolvedReusableTaskIDs, err := resolveReusableTaskIDs(input.ReusableTasks.Value, reusableCatalog)
+			if err != nil {
+				return err
+			}
+			task.ReusableTaskIDs = resolvedReusableTaskIDs
 		}
 
 		now := nextTaskMutationTime(task)
 		if input.Status.Set {
 			if input.Status.Value == core.StatusInProgress {
-				if err := p.validateStartable(task, tasks); err != nil {
+				if err := p.validateStartable(task, tasks, snapshot.planningItems); err != nil {
 					return err
 				}
 			}
@@ -402,23 +447,26 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 		}
 		updated = task
 		tasksAfter = replaceTaskInMemory(tasks, task)
-		return nil
+		view, err = p.decorateTask(updated, tasksAfter, snapshot.planningItems, "")
+		return err
 	})
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	return p.decorateTask(updated, tasksAfter, ""), nil
+	return view, nil
 }
 
 func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
 	var updated core.Task
 	var tasksAfter []core.Task
 	var handoffs []core.Handoff
+	var view core.TaskView
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
+		tasks := snapshot.tasks
 		task, err := resolveTask(idOrShortID, tasks)
 		if err != nil {
 			return err
@@ -427,7 +475,7 @@ func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, acto
 			return fmt.Errorf("invalid status transition from %s to %s", task.Status, target)
 		}
 		if target == core.StatusInProgress {
-			if err := p.validateStartable(task, tasks); err != nil {
+			if err := p.validateStartable(task, tasks, snapshot.planningItems); err != nil {
 				return err
 			}
 			storedHandoffs, err := p.loadHandoffs()
@@ -452,24 +500,29 @@ func (p *Provider) UpdateTaskStatus(idOrShortID string, target core.Status, acto
 		}
 		updated = task
 		tasksAfter = replaceTaskInMemory(tasks, task)
+		view, err = p.decorateTask(updated, tasksAfter, snapshot.planningItems, "")
+		if err != nil {
+			return err
+		}
+		view.Handoffs = handoffs
 		return nil
 	})
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	view := p.decorateTask(updated, tasksAfter, "")
-	view.Handoffs = handoffs
 	return view, nil
 }
 
 func (p *Provider) AddComment(idOrShortID, actor, message string) (core.TaskView, error) {
 	var updated core.Task
 	var tasksAfter []core.Task
+	var view core.TaskView
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
+		tasks := snapshot.tasks
 		task, err := resolveTask(idOrShortID, tasks)
 		if err != nil {
 			return err
@@ -494,12 +547,13 @@ func (p *Provider) AddComment(idOrShortID, actor, message string) (core.TaskView
 		}
 		updated = task
 		tasksAfter = replaceTaskInMemory(tasks, task)
-		return nil
+		view, err = p.decorateTask(updated, tasksAfter, snapshot.planningItems, "")
+		return err
 	})
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	return p.decorateTask(updated, tasksAfter, ""), nil
+	return view, nil
 }
 
 func (p *Provider) PeekNextTask(agent string) (core.TaskView, error) {
@@ -509,16 +563,16 @@ func (p *Provider) PeekNextTask(agent string) (core.TaskView, error) {
 func (p *Provider) PeekNextTaskWithFilter(filter provider.SelectionFilter) (core.TaskView, error) {
 	var view core.TaskView
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
-		task, err := p.selectNextEligibleTask(tasks, filter)
+		task, err := p.selectNextEligibleTask(snapshot.tasks, snapshot.planningItems, filter)
 		if err != nil {
 			return err
 		}
-		view = p.decorateTask(task, tasks, filter.Agent)
-		return nil
+		view, err = p.decorateTask(task, snapshot.tasks, snapshot.planningItems, filter.Agent)
+		return err
 	})
 	return view, err
 }
@@ -530,16 +584,16 @@ func (p *Provider) PeekNextTasks(agent string, limit int) ([]core.TaskView, erro
 func (p *Provider) PeekNextTasksWithFilter(filter provider.SelectionFilter, limit int) ([]core.TaskView, error) {
 	var views []core.TaskView
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
-		selected, err := p.selectEligibleTasks(tasks, filter, limit)
+		selected, err := p.selectEligibleTasks(snapshot.tasks, snapshot.planningItems, filter, limit)
 		if err != nil {
 			return err
 		}
-		views = p.decorateTasks(selected, tasks, filter.Agent)
-		return nil
+		views, err = p.decorateTasks(selected, snapshot.tasks, snapshot.planningItems, filter.Agent)
+		return err
 	})
 	return views, err
 }
@@ -552,12 +606,14 @@ func (p *Provider) GetNextTaskWithFilter(filter provider.SelectionFilter) (core.
 	var claimed core.Task
 	var tasksAfter []core.Task
 	var handoffs []core.Handoff
+	var view core.TaskView
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
-		next, err := p.selectNextEligibleTask(tasks, filter)
+		tasks := snapshot.tasks
+		next, err := p.selectNextEligibleTask(tasks, snapshot.planningItems, filter)
 		if err != nil {
 			return err
 		}
@@ -583,13 +639,16 @@ func (p *Provider) GetNextTaskWithFilter(filter provider.SelectionFilter) (core.
 		}
 		claimed = next
 		tasksAfter = replaceTaskInMemory(tasks, next)
+		view, err = p.decorateTask(claimed, tasksAfter, snapshot.planningItems, filter.Agent)
+		if err != nil {
+			return err
+		}
+		view.Handoffs = handoffs
 		return nil
 	})
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	view := p.decorateTask(claimed, tasksAfter, filter.Agent)
-	view.Handoffs = handoffs
 	return view, nil
 }
 
@@ -614,13 +673,31 @@ func (p *Provider) ExportCanonical(outDir string) error {
 		if err != nil {
 			return fmt.Errorf("read export dir %s: %w", exportDir, err)
 		}
+		planningExportDir := filepath.Join(exportDir, planningDirectory)
+		var planningEntries []os.DirEntry
+		planningExists := false
 		var unmanaged []string
 		for _, entry := range entries {
+			if entry.Name() == planningDirectory {
+				if isSymlinkEntry(entry) || !entry.IsDir() {
+					unmanaged = append(unmanaged, entry.Name())
+					continue
+				}
+				planningExists = true
+				planningEntries, err = os.ReadDir(planningExportDir)
+				if err != nil {
+					return fmt.Errorf("read planning export dir %s: %w", planningExportDir, err)
+				}
+				if nestedUnmanaged := unmanagedCanonicalPlanningEntries(planningEntries); len(nestedUnmanaged) != 0 {
+					return fmt.Errorf("planning export directory %s contains unmanaged entries: %s", planningExportDir, strings.Join(nestedUnmanaged, ", "))
+				}
+				continue
+			}
 			info, err := entry.Info()
 			if err != nil {
 				return fmt.Errorf("inspect export entry %s: %w", filepath.Join(exportDir, entry.Name()), err)
 			}
-			if !info.Mode().IsRegular() || !isManagedCanonicalExportEntry(entry.Name()) {
+			if isSymlinkEntry(entry) || !info.Mode().IsRegular() || !isManagedCanonicalExportEntry(entry.Name()) {
 				unmanaged = append(unmanaged, entry.Name())
 			}
 		}
@@ -629,17 +706,29 @@ func (p *Provider) ExportCanonical(outDir string) error {
 			return fmt.Errorf("export directory %s contains unmanaged entries: %s", exportDir, strings.Join(unmanaged, ", "))
 		}
 
-		tasks, err := p.loadTasks()
+		reusableCatalog, err := p.loadReusableTaskCatalog()
+		if err != nil {
+			return fmt.Errorf("load reusable catalog for export: %w", err)
+		}
+		snapshot, err := p.loadValidationSnapshot(&reusableCatalog)
 		if err != nil {
 			return err
 		}
+		tasks := snapshot.tasks
 		handoffs, err := p.loadHandoffs()
 		if err != nil {
 			return err
 		}
+		handoffs = filterExecutionHandoffs(handoffs, snapshot.planningItems)
+		reusableData, err := reusablejson.Encode(reusableCatalog)
+		if err != nil {
+			return fmt.Errorf("encode reusable catalog for export: %w", err)
+		}
 		sort.Slice(tasks, func(i, j int) bool { return tasks[i].ID < tasks[j].ID })
-		expected := make(map[string]struct{}, len(tasks)+1)
+		expected := make(map[string]struct{}, len(tasks)+3)
 		expected[handoffsFilename] = struct{}{}
+		expected[reusableFilename] = struct{}{}
+		expected[planningDirectory] = struct{}{}
 		for _, task := range tasks {
 			name := task.ID + ".json"
 			expected[name] = struct{}{}
@@ -648,10 +737,40 @@ func (p *Provider) ExportCanonical(outDir string) error {
 				return err
 			}
 		}
+		if !planningExists {
+			if err := os.MkdirAll(planningExportDir, 0o755); err != nil {
+				return fmt.Errorf("create planning export dir %s: %w", planningExportDir, err)
+			}
+		}
+		sort.Slice(snapshot.planningItems, func(i, j int) bool { return snapshot.planningItems[i].ID < snapshot.planningItems[j].ID })
+		planningExpected := make(map[string]struct{}, len(snapshot.planningItems))
+		for _, item := range snapshot.planningItems {
+			name := item.ID + ".json"
+			planningExpected[name] = struct{}{}
+			data, err := planningjson.Encode(item)
+			if err != nil {
+				return fmt.Errorf("encode planning record %s for export: %w", item.ID, err)
+			}
+			if err := writeBytesAtomicWithFileSystem(filepath.Join(planningExportDir, name), data, p.fs); err != nil {
+				return fmt.Errorf("write planning record export %s: %w", name, err)
+			}
+		}
 		if err := p.writeJSONAtomic(filepath.Join(exportDir, handoffsFilename), handoffFile{Handoffs: handoffs}); err != nil {
 			return err
 		}
+		if err := writeBytesAtomicWithFileSystem(filepath.Join(exportDir, reusableFilename), reusableData, p.fs); err != nil {
+			return fmt.Errorf("write reusable catalog export: %w", err)
+		}
 		faultPoint("export-publication")
+		for _, entry := range planningEntries {
+			if _, keep := planningExpected[entry.Name()]; keep {
+				continue
+			}
+			path := filepath.Join(planningExportDir, entry.Name())
+			if err := p.removeFile(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("remove stale planning export file %s: %w", path, err)
+			}
+		}
 		for _, entry := range entries {
 			if _, keep := expected[entry.Name()]; keep {
 				continue
@@ -665,8 +784,34 @@ func (p *Provider) ExportCanonical(outDir string) error {
 	})
 }
 
+func unmanagedCanonicalPlanningEntries(entries []os.DirEntry) []string {
+	unmanaged := make([]string, 0)
+	for _, entry := range entries {
+		if isSymlinkEntry(entry) || !entry.Type().IsRegular() || !canonicalExportFilenamePattern.MatchString(entry.Name()) {
+			unmanaged = append(unmanaged, entry.Name())
+		}
+	}
+	sort.Strings(unmanaged)
+	return unmanaged
+}
+
+func isSymlinkEntry(entry os.DirEntry) bool {
+	return entry.Type()&os.ModeSymlink != 0
+}
+
 func isManagedCanonicalExportEntry(name string) bool {
-	return name == handoffsFilename || canonicalExportFilenamePattern.MatchString(name)
+	return name == handoffsFilename || name == reusableFilename || canonicalExportFilenamePattern.MatchString(name)
+}
+
+func filterExecutionHandoffs(handoffs []core.Handoff, planningItems []core.PlanningItem) []core.Handoff {
+	filtered := make([]core.Handoff, 0, len(handoffs))
+	for _, handoff := range handoffs {
+		if isPlanningHandoff(handoff, planningItems) {
+			continue
+		}
+		filtered = append(filtered, handoff)
+	}
+	return filtered
 }
 
 func resolvePath(path string) (string, error) {
@@ -715,7 +860,41 @@ func pathContains(parent, child string) bool {
 }
 
 func (p *Provider) loadTasks() ([]core.Task, error) {
-	if err := p.recoverBatchUpdate(); err != nil {
+	snapshot, err := p.loadValidationSnapshot(nil)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot.tasks, nil
+}
+
+// validationSnapshot is one store-locked, lifecycle-partitioned view. The
+// partitioning protects execution query results from planning records, while
+// all validation and allocation callers use the complete graph.
+type validationSnapshot struct {
+	tasks         []core.Task
+	planningItems []core.PlanningItem
+}
+
+func (p *Provider) loadValidationSnapshot(reusableCatalog *core.ReusableTaskCatalog) (validationSnapshot, error) {
+	tasks, err := p.loadTaskPartition(reusableCatalog)
+	if err != nil {
+		return validationSnapshot{}, err
+	}
+	planningItems, err := p.loadPlanningItemsWithCatalog(reusableCatalog)
+	if err != nil {
+		return validationSnapshot{}, err
+	}
+	if err := core.ValidateDependenciesAcrossLifecycles("", nil, tasks, planningItems); err != nil {
+		return validationSnapshot{}, fmt.Errorf("invalid dependency graph: %w", err)
+	}
+	return validationSnapshot{tasks: tasks, planningItems: planningItems}, nil
+}
+
+// loadTaskPartition loads only executable records. Global identity and graph
+// validation belongs to loadValidationSnapshot so planning records participate
+// without ever entering execution result slices.
+func (p *Provider) loadTaskPartition(reusableCatalog *core.ReusableTaskCatalog) ([]core.Task, error) {
+	if err := p.recoverPendingJournals(); err != nil {
 		return nil, err
 	}
 	if err := p.validateUnconfiguredStatusDirs(); err != nil {
@@ -793,8 +972,20 @@ func (p *Provider) loadTasks() ([]core.Task, error) {
 	for _, task := range tasksByID {
 		tasks = append(tasks, task)
 	}
-	if err := core.ValidateDependenciesWithCatalog(p.catalog, "", nil, tasks); err != nil {
-		return nil, fmt.Errorf("invalid dependency graph: %w", err)
+	for _, task := range tasks {
+		if len(task.ReusableTaskIDs) == 0 {
+			continue
+		}
+		if reusableCatalog == nil {
+			catalog, err := p.loadReusableTaskCatalog()
+			if err != nil {
+				return nil, fmt.Errorf("load reusable catalog for task %s: %w", task.ShortID, err)
+			}
+			reusableCatalog = &catalog
+		}
+		if _, err := core.ResolveReusableTasks(task.ReusableTaskIDs, *reusableCatalog); err != nil {
+			return nil, fmt.Errorf("task %s has unresolved reusableTaskIds: %w", task.ShortID, err)
+		}
 	}
 	residueSet := make(map[string]struct{}, len(residuePaths))
 	for _, path := range residuePaths {
@@ -960,10 +1151,13 @@ func (p *Provider) writeIndex(index indexFile) error {
 	return p.writeJSONAtomic(p.indexPath(), index)
 }
 
-func (p *Provider) nextAvailableShortID(index indexFile, tasks []core.Task) (indexFile, string, error) {
-	usedShortIDs := make(map[string]struct{}, len(tasks))
+func (p *Provider) nextAvailableShortID(index indexFile, tasks []core.Task, planningItems []core.PlanningItem) (indexFile, string, error) {
+	usedShortIDs := make(map[string]struct{}, len(tasks)+len(planningItems))
 	for _, task := range tasks {
 		usedShortIDs[task.ShortID] = struct{}{}
+	}
+	for _, item := range planningItems {
+		usedShortIDs[item.ShortID] = struct{}{}
 	}
 
 	maxInt := int(^uint(0) >> 1)
@@ -1151,24 +1345,15 @@ func resolveTask(idOrShortID string, tasks []core.Task) (core.Task, error) {
 	return matches[0], nil
 }
 
-func (p *Provider) validateStartable(task core.Task, tasks []core.Task) error {
-	blocked := []string{}
-	for _, dependencyID := range task.Dependencies {
-		for _, candidate := range tasks {
-			if candidate.ID == dependencyID && !p.catalog.DependencyResolved(candidate.Status) {
-				blocked = append(blocked, fmt.Sprintf("%s (%s)", candidate.ShortID, candidate.Title))
-			}
-		}
-	}
-	if len(blocked) > 0 {
-		sort.Strings(blocked)
+func (p *Provider) validateStartable(task core.Task, tasks []core.Task, planningItems []core.PlanningItem) error {
+	if blocked := p.unresolvedDependencies(task, tasks, planningItems); len(blocked) > 0 {
 		return fmt.Errorf("task %s is blocked by unresolved dependencies: %s", task.ShortID, strings.Join(blocked, ", "))
 	}
 	return nil
 }
 
-func (p *Provider) selectNextEligibleTask(tasks []core.Task, filter provider.SelectionFilter) (core.Task, error) {
-	eligible, err := p.selectEligibleTasks(tasks, filter, 1)
+func (p *Provider) selectNextEligibleTask(tasks []core.Task, planningItems []core.PlanningItem, filter provider.SelectionFilter) (core.Task, error) {
+	eligible, err := p.selectEligibleTasks(tasks, planningItems, filter, 1)
 	if err != nil {
 		return core.Task{}, err
 	}
@@ -1178,7 +1363,7 @@ func (p *Provider) selectNextEligibleTask(tasks []core.Task, filter provider.Sel
 	return core.Task{}, provider.ErrNoEligibleTask
 }
 
-func (p *Provider) selectEligibleTasks(tasks []core.Task, filter provider.SelectionFilter, limit int) ([]core.Task, error) {
+func (p *Provider) selectEligibleTasks(tasks []core.Task, planningItems []core.PlanningItem, filter provider.SelectionFilter, limit int) ([]core.Task, error) {
 	if limit <= 0 {
 		return nil, errors.New("ready task limit must be greater than zero")
 	}
@@ -1193,7 +1378,7 @@ func (p *Provider) selectEligibleTasks(tasks []core.Task, filter provider.Select
 		if !p.catalog.IsClaimableStatus(task.Status) {
 			continue
 		}
-		if err := p.validateStartable(task, tasks); err == nil {
+		if err := p.validateStartable(task, tasks, planningItems); err == nil {
 			eligible = append(eligible, task)
 		}
 	}
@@ -1273,29 +1458,74 @@ func (p *Provider) automaticSelectionTier(task core.Task) int {
 	return -1
 }
 
-func (p *Provider) decorateTasks(tasks []core.Task, allTasks []core.Task, agent string) []core.TaskView {
+func (p *Provider) decorateTasks(tasks []core.Task, allTasks []core.Task, planningItems []core.PlanningItem, agent string) ([]core.TaskView, error) {
 	views := make([]core.TaskView, 0, len(tasks))
+	var reusableCatalog *core.ReusableTaskCatalog
 	for _, task := range tasks {
-		views = append(views, p.decorateTask(task, allTasks, agent))
+		if len(task.ReusableTaskIDs) == 0 {
+			continue
+		}
+		catalog, err := p.loadReusableTaskCatalog()
+		if err != nil {
+			return nil, err
+		}
+		reusableCatalog = &catalog
+		break
 	}
-	return views
+	for _, task := range tasks {
+		view, err := p.decorateTaskWithCatalog(task, allTasks, planningItems, agent, reusableCatalog)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	return views, nil
 }
 
-func (p *Provider) decorateTask(task core.Task, allTasks []core.Task, agent string) core.TaskView {
-	blockedReason := p.blockedReason(task, allTasks)
-	return core.TaskView{
+func (p *Provider) decorateTask(task core.Task, allTasks []core.Task, planningItems []core.PlanningItem, agent string) (core.TaskView, error) {
+	var reusableCatalog *core.ReusableTaskCatalog
+	if len(task.ReusableTaskIDs) != 0 {
+		catalog, err := p.loadReusableTaskCatalog()
+		if err != nil {
+			return core.TaskView{}, err
+		}
+		reusableCatalog = &catalog
+	}
+	return p.decorateTaskWithCatalog(task, allTasks, planningItems, agent, reusableCatalog)
+}
+
+func (p *Provider) decorateTaskWithCatalog(task core.Task, allTasks []core.Task, planningItems []core.PlanningItem, agent string, reusableCatalog *core.ReusableTaskCatalog) (core.TaskView, error) {
+	blockedReason := p.blockedReason(task, allTasks, planningItems)
+	view := core.TaskView{
 		Task: task,
 		Readiness: core.TaskReadiness{
-			Claimable:              p.isClaimable(task, allTasks, agent),
+			Claimable:              p.isClaimable(task, allTasks, planningItems, agent),
 			Blocked:                blockedReason != "",
 			BlockedReason:          blockedReason,
 			DependencyCount:        len(task.Dependencies),
 			ReverseDependencyCount: reverseDependencyCount(task.ID, allTasks),
 		},
 	}
+	if reusableCatalog == nil {
+		return view, nil
+	}
+	resolved, err := core.ResolveReusableTasks(task.ReusableTaskIDs, *reusableCatalog)
+	if err != nil {
+		return core.TaskView{}, fmt.Errorf("resolve reusable tasks for %s: %w", task.ShortID, err)
+	}
+	view.ReusableTasks = resolved
+	return view, nil
 }
 
-func (p *Provider) blockedReason(task core.Task, tasks []core.Task) string {
+func (p *Provider) blockedReason(task core.Task, tasks []core.Task, planningItems []core.PlanningItem) string {
+	blocked := p.unresolvedDependencies(task, tasks, planningItems)
+	if len(blocked) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("unresolved dependencies: %s", strings.Join(blocked, ", "))
+}
+
+func (p *Provider) unresolvedDependencies(task core.Task, tasks []core.Task, planningItems []core.PlanningItem) []string {
 	blocked := []string{}
 	for _, dependencyID := range task.Dependencies {
 		for _, candidate := range tasks {
@@ -1303,22 +1533,24 @@ func (p *Provider) blockedReason(task core.Task, tasks []core.Task) string {
 				blocked = append(blocked, fmt.Sprintf("%s (%s)", candidate.ShortID, candidate.Title))
 			}
 		}
-	}
-	if len(blocked) == 0 {
-		return ""
+		for _, item := range planningItems {
+			if item.ID == dependencyID {
+				blocked = append(blocked, fmt.Sprintf("%s (%s; planning %s)", item.ShortID, item.Title, item.Status))
+			}
+		}
 	}
 	sort.Strings(blocked)
-	return fmt.Sprintf("unresolved dependencies: %s", strings.Join(blocked, ", "))
+	return blocked
 }
 
-func (p *Provider) isClaimable(task core.Task, tasks []core.Task, agent string) bool {
+func (p *Provider) isClaimable(task core.Task, tasks []core.Task, planningItems []core.PlanningItem, agent string) bool {
 	if p.automaticSelectionTier(task) < 0 {
 		return false
 	}
 	if !p.catalog.IsClaimableStatus(task.Status) {
 		return false
 	}
-	if p.blockedReason(task, tasks) != "" {
+	if p.blockedReason(task, tasks, planningItems) != "" {
 		return false
 	}
 	agent = strings.TrimSpace(agent)
@@ -1350,16 +1582,61 @@ func replaceTaskInMemory(tasks []core.Task, updated core.Task) []core.Task {
 	return out
 }
 
-func resolveDependencyIDs(identifiers []string, tasks []core.Task) ([]string, error) {
+func resolveDependencyIDs(identifiers []string, tasks []core.Task, planningItems []core.PlanningItem) ([]string, error) {
 	resolved := make([]string, 0, len(identifiers))
 	for _, identifier := range identifiers {
-		task, err := resolveTask(identifier, tasks)
+		id, err := resolveDependencyID(identifier, tasks, planningItems)
 		if err != nil {
 			return nil, fmt.Errorf("resolve dependency %q: %w", identifier, err)
 		}
-		resolved = append(resolved, task.ID)
+		resolved = append(resolved, id)
 	}
 	return core.NormalizeDependencies(resolved), nil
+}
+
+func resolveDependencyID(identifier string, tasks []core.Task, planningItems []core.PlanningItem) (string, error) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" {
+		return "", errors.New("task identifier is required")
+	}
+	matches := make([]string, 0, 1)
+	for _, task := range tasks {
+		if task.ID == identifier || task.ShortID == identifier {
+			matches = append(matches, task.ID)
+		}
+	}
+	for _, item := range planningItems {
+		if item.ID == identifier || item.ShortID == identifier {
+			matches = append(matches, item.ID)
+		}
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("task %q not found", identifier)
+	}
+	if len(matches) > 1 {
+		sort.Strings(matches)
+		return "", fmt.Errorf("task identifier %q is ambiguous: %s", identifier, strings.Join(matches, ", "))
+	}
+	return matches[0], nil
+}
+
+func newAvailableID(tasks []core.Task, planningItems []core.PlanningItem) (string, error) {
+	used := make(map[string]struct{}, len(tasks)+len(planningItems))
+	for _, task := range tasks {
+		used[task.ID] = struct{}{}
+	}
+	for _, item := range planningItems {
+		used[item.ID] = struct{}{}
+	}
+	for {
+		id, err := core.NewID()
+		if err != nil {
+			return "", err
+		}
+		if _, exists := used[id]; !exists {
+			return id, nil
+		}
+	}
 }
 
 func splitCSV(value string) []string {

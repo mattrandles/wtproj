@@ -48,15 +48,16 @@ type resolvedBatchUpdate struct {
 func (p *Provider) BatchUpdate(request provider.BatchUpdateRequest) (provider.BatchUpdateResult, error) {
 	var result provider.BatchUpdateResult
 	err := p.withGlobalLock(func() error {
-		tasks, err := p.loadTasks()
+		snapshot, err := p.loadValidationSnapshot(nil)
 		if err != nil {
 			return err
 		}
+		tasks := snapshot.tasks
 		if len(request.Tasks) == 0 {
 			return errors.New("batch update requires at least one task")
 		}
 
-		resolved, finalTasks, err := p.prepareBatchUpdates(request.Tasks, tasks)
+		resolved, finalTasks, err := p.prepareBatchUpdates(request.Tasks, tasks, snapshot.planningItems)
 		if err != nil {
 			return err
 		}
@@ -109,7 +110,10 @@ func (p *Provider) BatchUpdate(request provider.BatchUpdateRequest) (provider.Ba
 		result.Updated = make([]core.TaskView, 0, len(journal.Entries))
 		result.Unchanged = make([]core.TaskView, 0, len(resolved)-len(journal.Entries))
 		for _, update := range resolved {
-			view := p.decorateTask(update.after, finalTasks, "")
+			view, err := p.decorateTask(update.after, finalTasks, snapshot.planningItems, "")
+			if err != nil {
+				return err
+			}
 			if update.changed {
 				result.Updated = append(result.Updated, view)
 			} else {
@@ -124,9 +128,20 @@ func (p *Provider) BatchUpdate(request provider.BatchUpdateRequest) (provider.Ba
 	return result, nil
 }
 
-func (p *Provider) prepareBatchUpdates(inputs []core.BatchTaskUpdateInput, tasks []core.Task) ([]resolvedBatchUpdate, []core.Task, error) {
+func (p *Provider) prepareBatchUpdates(inputs []core.BatchTaskUpdateInput, tasks []core.Task, planningItems []core.PlanningItem) ([]resolvedBatchUpdate, []core.Task, error) {
 	resolved := make([]resolvedBatchUpdate, 0, len(inputs))
 	seenTaskIDs := make(map[string]int, len(inputs))
+	var reusableCatalog core.ReusableTaskCatalog
+	for _, input := range inputs {
+		if input.ReusableTasks.Set {
+			catalog, err := p.loadReusableTaskCatalog()
+			if err != nil {
+				return nil, nil, err
+			}
+			reusableCatalog = catalog
+			break
+		}
+	}
 
 	for index, input := range inputs {
 		if !hasBatchPatch(input) {
@@ -148,7 +163,7 @@ func (p *Provider) prepareBatchUpdates(inputs []core.BatchTaskUpdateInput, tasks
 		}
 
 		after := cloneTask(before)
-		if err := p.applyBatchPatch(&after, input, tasks); err != nil {
+		if err := p.applyBatchPatch(&after, input, tasks, planningItems, reusableCatalog); err != nil {
 			return nil, nil, fmt.Errorf("batch task %d (%s): %w", index+1, before.ShortID, err)
 		}
 		resolved = append(resolved, resolvedBatchUpdate{
@@ -187,12 +202,12 @@ func (p *Provider) prepareBatchUpdates(inputs []core.BatchTaskUpdateInput, tasks
 	}
 	for index, update := range resolved {
 		if update.changed && update.before.Status != update.after.Status && update.after.Status == core.StatusInProgress {
-			if err := p.validateStartable(update.after, finalTasks); err != nil {
+			if err := p.validateStartable(update.after, finalTasks, planningItems); err != nil {
 				return nil, nil, fmt.Errorf("batch task %d (%s): %w", index+1, update.before.ShortID, err)
 			}
 		}
 	}
-	if err := core.ValidateDependenciesWithCatalog(p.catalog, "", nil, finalTasks); err != nil {
+	if err := core.ValidateDependenciesAcrossLifecycles("", nil, finalTasks, planningItems); err != nil {
 		return nil, nil, fmt.Errorf("invalid final dependency graph: %w", err)
 	}
 
@@ -225,7 +240,7 @@ func resolveBatchTask(input core.BatchTaskUpdateInput, tasks []core.Task) (core.
 	return byID, nil
 }
 
-func (p *Provider) applyBatchPatch(task *core.Task, input core.BatchTaskUpdateInput, tasks []core.Task) error {
+func (p *Provider) applyBatchPatch(task *core.Task, input core.BatchTaskUpdateInput, tasks []core.Task, planningItems []core.PlanningItem, reusableCatalog core.ReusableTaskCatalog) error {
 	if input.Title.Set {
 		task.Title = strings.TrimSpace(input.Title.Value)
 	}
@@ -292,11 +307,18 @@ func (p *Provider) applyBatchPatch(task *core.Task, input core.BatchTaskUpdateIn
 		task.Assignee = strings.TrimSpace(input.Assignee.Value)
 	}
 	if input.Dependencies.Set {
-		resolvedDependencies, err := resolveDependencyIDs(input.Dependencies.Value, tasks)
+		resolvedDependencies, err := resolveDependencyIDs(input.Dependencies.Value, tasks, planningItems)
 		if err != nil {
 			return err
 		}
 		task.Dependencies = resolvedDependencies
+	}
+	if input.ReusableTasks.Set {
+		resolvedReusableTaskIDs, err := resolveReusableTaskIDs(input.ReusableTasks.Value, reusableCatalog)
+		if err != nil {
+			return err
+		}
+		task.ReusableTaskIDs = resolvedReusableTaskIDs
 	}
 	return nil
 }
@@ -305,7 +327,7 @@ func hasBatchPatch(input core.BatchTaskUpdateInput) bool {
 	return input.Title.Set || input.Description.Set || input.Status.Set || input.Priority.Set || input.Estimate.Set ||
 		input.Lane.Set || input.Model.Set || input.IssueID.Set || input.Project.Set || input.Milestone.Set || input.Version.Set ||
 		input.FeatureID.Set || input.Feature.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
-		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set
+		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set || input.ReusableTasks.Set
 }
 
 func mutableTaskFieldsEqual(left, right core.Task) bool {
@@ -327,13 +349,17 @@ func mutableTaskFieldsEqual(left, right core.Task) bool {
 		left.WorktreeName == right.WorktreeName &&
 		left.WorktreeDir == right.WorktreeDir &&
 		left.Assignee == right.Assignee &&
-		slices.Equal(left.Dependencies, right.Dependencies)
+		slices.Equal(left.Dependencies, right.Dependencies) &&
+		slices.Equal(left.ReusableTaskIDs, right.ReusableTaskIDs)
 }
 
 func cloneTask(task core.Task) core.Task {
 	cloned := task
 	if task.Dependencies != nil {
 		cloned.Dependencies = append([]string{}, task.Dependencies...)
+	}
+	if task.ReusableTaskIDs != nil {
+		cloned.ReusableTaskIDs = append([]string{}, task.ReusableTaskIDs...)
 	}
 	if task.Comments != nil {
 		cloned.Comments = append([]core.Comment{}, task.Comments...)

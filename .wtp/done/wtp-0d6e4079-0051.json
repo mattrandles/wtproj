@@ -1,0 +1,38 @@
+{
+  "id": "96d655c6-09e9-4961-8e46-02e1d0bc563d",
+  "shortId": "wtp-0d6e4079-0051",
+  "title": "Add reusable delete transaction journal contract",
+  "description": "Design and implement the crash-recovery journal contract required to delete a reusable definition while detaching it from every referencing task atomically. Add a versioned .wtp/meta/reusable-update.json document with prepared and committed states, exact before/after catalog snapshots, exact before/after snapshots for every affected task, deterministic validation, and explicit target paths. Reuse established atomic replacement and fault-point patterns without coupling this journal to the existing batch-update journal. Reject malformed, stale, path-escaping, duplicate-target, or internally inconsistent journals before any recovery action. Add codec and validation tests for empty and multi-status detach sets, state transitions, corrupt input, and Windows/Unix path handling. This task establishes the journal state machine and helpers only; publication and startup recovery are separate dependent tasks.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "reusable-recovery",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "1f18fd01-6926-4a22-961b-1ca0e90b5bdf",
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a"
+  ],
+  "comments": [
+    {
+      "id": "477381dc-35f3-4724-87e5-a031bea89ed4",
+      "author": "codex-wtp-loop",
+      "message": "Started reusable delete journal contract work. I will add an isolated versioned codec/validator and focused tests only; no deletion publication or startup recovery.",
+      "createdAt": "2026-08-31T09:55:57.174857937Z"
+    },
+    {
+      "id": "0f62050c-cbce-4f29-b347-a178f5f8384b",
+      "author": "codex-wtp-loop",
+      "message": "Implemented an isolated v1 .wtp/meta/reusable-update.json contract in internal/provider/flatfile/reusable_update_journal.go. It stores base64 byte-exact before/after catalog and task snapshots at canonical root-relative targets; strictly rejects duplicate/unknown JSON properties, malformed snapshots, stale endpoints, omitted live references, escaping/symlink paths, duplicate task targets, and any change beyond deleting one catalog definition plus ordered task detachment/updatedAt advancement. Empty and multi-status detach sets are supported. The helper uses the existing atomic byte replacement path; no publication or startup recovery was wired.",
+      "createdAt": "2026-08-31T10:07:15.67800393Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.799230532Z",
+  "updatedAt": "2026-08-31T10:07:15.727434383Z",
+  "startedAt": "2026-08-31T09:55:27.610733213Z",
+  "completedAt": "2026-08-31T10:07:15.727434383Z"
+}

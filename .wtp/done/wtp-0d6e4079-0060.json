@@ -1,0 +1,38 @@
+{
+  "id": "60b09929-a605-4222-9005-a9406cd6f355",
+  "shortId": "wtp-0d6e4079-0060",
+  "title": "Extend batch CSV with reusable assignments",
+  "description": "Add reusableTasks to the deterministic version-1 batch CSV header and subset handling. Encode ordered canonical definition UUIDs with the existing CSV list convention; blank cells preserve assignments, populated cells replace them, and _clear may explicitly clear reusableTasks. Reject ambiguous simultaneous value-and-clear input, duplicate identifiers, malformed list syntax, unknown headers, and invalid _clear names while deferring definition existence to provider validation. Preserve UTF-8/BOM behavior and backward compatibility for imported CSV files whose headers omit the new optional column where the existing subset contract permits it. Add focused round-trip and rejection tests for commas/quoting, empty values, reorder, clear, duplicate entries, and deterministic export.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-batch-csv",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "1f18fd01-6926-4a22-961b-1ca0e90b5bdf",
+    "998e7dc0-2588-41f2-825b-77c47d70a79d"
+  ],
+  "comments": [
+    {
+      "id": "b9061852-412b-4c78-a09b-407ee791eddb",
+      "author": "codex-wtp-loop",
+      "message": "Started implementation. Inspecting the existing batchcsv/batchexport/batchimport contracts and reusable assignment provider validation; will preserve unrelated dirty worktree changes and verify focused/full suites before completion.",
+      "createdAt": "2026-08-31T11:15:49.646430984Z"
+    },
+    {
+      "id": "b7709982-2fc8-47b9-9c30-846051c06b00",
+      "author": "codex-wtp-loop",
+      "message": "Implemented reusableTasks in batch CSV: deterministic header column, ordered comma-list encode/decode with CSV quoting, blank-preserve/explicit _clear semantics, duplicate and malformed-list rejection, conflict handling, subset/BOM compatibility, and provider-deferred identifier resolution. Batch export now emits stored canonical reusable-definition UUIDs in order (including explicit clear for empty assignments); focused codec/export/JSON/import/CLI tests pass.",
+      "createdAt": "2026-08-31T11:21:49.876861945Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:57.048801416Z",
+  "updatedAt": "2026-08-31T11:22:25.826561349Z",
+  "startedAt": "2026-08-31T11:15:08.288208686Z",
+  "completedAt": "2026-08-31T11:22:25.826561349Z"
+}

@@ -1,0 +1,50 @@
+{
+  "id": "15182c39-e556-4757-be7b-5a7001b68f8b",
+  "shortId": "wtp-0d6e4079-0065",
+  "title": "Verify and dogfood reusable advisory tasks end to end",
+  "description": "Run final cross-platform and black-box verification of reusable advisory tasks after all implementation and documentation work. Cover definition create/list/show/update/rename/delete; ordered task create/update/clear; live resolution on show/list/start/ready/next; handoffs plus reusable items; legacy task creation; batch JSON/CSV round trips and stale failures; canonical exports; shared stores and branch scopes; malformed legacy/catalog input; concurrent claims, definition edits, and deletes; fault-injected reusable journal rollback/roll-forward; and Unix/Windows path behavior. Use a disposable store to prove a claimed final task surfaces test, review, version, and commit instructions in order without creating child backlog tasks or blocking completion. Also use the candidate binary against this dogfood task to attach representative definitions, inspect the live view, then cleanly detach/delete them without losing unrelated metadata. Run gofmt, go test ./..., go vet ./..., documentation and skill validators, git diff --check, repository verification scripts, and Unix/Windows smoke/prerelease coverage. Record commands, evidence, any platform skips, and residual risk in the completion comment.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "reusable-qa",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "062a93ed-5d41-4e96-b810-f65c9c3f315f",
+    "0a238a49-9373-43d7-bd18-6609386b7b2f",
+    "210ec169-d247-44ae-b419-ef6b4b487a79",
+    "3230f122-a083-4ae3-b643-ffbfec17e108",
+    "4797970d-600a-491a-95e5-25bcb0aa82c5",
+    "ae50a1fd-11d8-4493-82f4-941f0dbe8036",
+    "f2f880d5-2c8e-498f-a1d2-d590d326e2d7",
+    "fb47f310-2259-4823-b580-41be699f2f9e"
+  ],
+  "comments": [
+    {
+      "id": "b97ef1dd-cd48-4da2-aba9-b5d2761f27b2",
+      "author": "codex-wtp-loop",
+      "message": "Beginning final reusable-advisory verification in /mnt/dev/dev/wtproj (invoked as /home/matty/dev/wtproj). Task is already inProgress under this agent; preserving unrelated dirty worktree changes. I will run focused black-box/disposable-store, candidate-binary, recovery/concurrency, repository, docs/skill, and Unix/Windows prerelease checks, then record evidence and residual risk before completion.",
+      "createdAt": "2026-08-31T11:52:35.163730467Z"
+    },
+    {
+      "id": "10f3f9f5-c7d7-49fc-af80-05397753fd06",
+      "author": "codex-wtp-loop",
+      "message": "Candidate dogfood passed on the exact claimed task: built a wtp_fault_injection candidate, attached four representative definitions, verified live JSON order and complete titles/instructions, cleared with --reusable=, deleted definitions, and compared task metadata plus pre-existing catalog before/after. The detached view correctly omits optional reusable fields; the harness assertion was corrected in evidence to accept omission/empty semantics. No child tasks were created and task lifecycle metadata was preserved.",
+      "createdAt": "2026-08-31T11:54:30.3347495Z"
+    },
+    {
+      "id": "12baec33-4522-4bad-86a5-ef45527216c9",
+      "author": "codex-wtp-loop",
+      "message": "Final verification complete for wtp-0d6e4079-0065. Source fix: prerelease export validators now recognize and validate canonical reusable.json alongside task and handoff files (internal/prerelease/harness.go and contention.go); the fix was required by black-box export validation and reran cleanly. Evidence: gofmt -l ./cmd ./internal, go test ./..., go vet ./..., go test -race ./..., git diff --check, ./scripts/verify.sh commit, pwsh -NoProfile -File ./scripts/verify.ps1 commit, and ./scripts/verify.sh release all passed. Planning proposal validator plus quick_validate.py passed for wtp-codex-planning, task-management, codex-wtp-loop, and setup-wtp. Source manifest stayed unchanged during hermetic runs. Prerelease report /tmp/wtp-dogfood-mxyYhB/prerelease-repeat20.json: GO, 280/280 scenarios passed (14 x 20), race passed, 4,180 recorded child processes, no failed assertions; contention creates/next/handoffs/readers-writers and prepared/committed rollback/roll-forward recovery passed. Only skip: failure-recovery/read-only because this runner has sufficient privileges to write read-only files. Dedicated disposable reusable black-box /tmp/wtp-reusable-blackbox-U0IvJw passed CRUD/list/show/rename, ordered four-item assignment, clear, ready/next live resolution, task-scoped handoff attachment, non-blocking completion, delete-detach/order, and no child backlog. Candidate /tmp/wtp-dogfood-mxyYhB/wtp SHA-256 6919ac7eac64c5c73de4905e3097f2016cf93b0d4436a3f24822f831d53b3962 was used against this exact task: attached test/review/version/commit definitions, verified live order/instructions, cleared/deleted them, and preserved task metadata; the previously absent canonical catalog was restored absent. Release QA validated six assets, install/update/workflow, and Windows amd64/arm64 cross-targets; native Windows execution is unavailable on this Linux host and remains the residual platform risk. No other task or worker was started or modified.",
+      "createdAt": "2026-08-31T12:15:35.994269125Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:57.189246719Z",
+  "updatedAt": "2026-08-31T12:15:36.177618106Z",
+  "startedAt": "2026-08-31T11:51:15.069983615Z",
+  "completedAt": "2026-08-31T12:15:36.177618106Z"
+}

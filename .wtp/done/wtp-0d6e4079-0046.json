@@ -1,0 +1,37 @@
+{
+  "id": "1cd6bcd8-8087-4ba6-bf15-32015a920b62",
+  "shortId": "wtp-0d6e4079-0046",
+  "title": "Define reusable advisory-task contracts",
+  "description": "Implement the decision-complete architecture for reusable advisory items after the grouping-metadata queue is complete. Add core types for a reusable definition with canonical UUID, case-insensitively unique trimmed name, required trimmed title and instructions, and UTC createdAt/updatedAt. Define the version-1 .wtp/reusable.json wrapper, optional ordered reusableTaskIds on stored tasks, resolved reusableTasks on TaskView, create/update/batch input shapes, and provider interface contracts. Preserve assignment order and stable UUID references across definition renames. Missing catalogs and omitted task fields must remain valid legacy input. Explicitly exclude queue generation, automatic group-end inference, item status, completion enforcement, command execution, and stats dimensions. Add focused compile-time and baseline serialization tests; leave exhaustive validation, persistence, CLI, and integration behavior to dependent tasks.",
+  "priority": "urgent",
+  "estimate": "xl",
+  "lane": "reusable-architecture",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "aac52ba8-b7c3-44ab-b6b0-303dcc44a0d4"
+  ],
+  "comments": [
+    {
+      "id": "2a72edbe-8b03-4813-a67c-80b6cee27cc7",
+      "author": "codex-wtp-loop",
+      "message": "Scope confirmed against the exact task and dependent reusable backlog. Implementing core definition/catalog contracts, ordered UUID-only stored references, resolved TaskView shape, create/update/batch selector inputs with preserve/replace/clear semantics, and a reusable-capable provider interface. Existing Provider implementations will remain source-compatible; provider I/O, codecs, CLI wiring, live view population, and transaction behavior stay with dependent tasks. Baseline worktree changes are recorded and will be preserved; no workers or other task claims will be created.",
+      "createdAt": "2026-08-31T09:27:13.240444879Z"
+    },
+    {
+      "id": "433af1f2-e84e-4dea-ac21-634dfa58b8f8",
+      "author": "codex-wtp-loop",
+      "message": "Implemented the advisory contracts in internal/core/reusable.go and task.go plus internal/provider/reusable.go. Definitions validate canonical lowercase UUIDs, required trimmed text, UTC nonzero ordered timestamps, and catalog-wide EqualFold name/UUID uniqueness. Version-1 catalogs use a non-null definitions array; EmptyReusableTaskCatalog maps missing storage to an empty value. Task.ReusableTaskIDs is optional ordered UUID-only storage; ResolveReusableTasks validates references and returns independent live definitions in assignment order; TaskView adds optional reusableTasks. Create inputs accept names/UUIDs; update and batch use OptionalStrings for preserve/replace/clear. ReusableTaskProvider extends the unchanged base interface with typed CRUD and atomic delete/detach result contracts; concrete provider adoption remains deferred. Focused compile-time and serialization tests cover Unicode/nanoseconds, empty and populated catalogs, legacy omission/null/empty arrays, rename stability, UUID/name ordering, handoff coexistence, and delete result shape. Verification passed: gofmt, uncached go test ./..., go vet ./..., focused core/provider race tests, git diff --check, and scripts/verify.sh commit including Unix smoke. No queue, lifecycle enforcement, execution, stats, provider I/O, codec, CLI, or integration implementation was added. Unrelated worktree changes remain preserved.",
+      "createdAt": "2026-08-31T09:33:42.786051543Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.660553099Z",
+  "updatedAt": "2026-08-31T09:33:55.722404523Z",
+  "startedAt": "2026-08-31T09:25:48.165290163Z",
+  "completedAt": "2026-08-31T09:33:55.722404523Z"
+}

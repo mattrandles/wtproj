@@ -23,6 +23,11 @@ Before claiming work, establish:
 - `intervention_policy`: either stop immediately for a human or allow one
   read-only reviewer escalation before stopping. When escalation is enabled,
   also establish an explicit `reviewer_model` and `reviewer_effort`.
+- `grouping_scope`: either unrestricted or one fixed set of non-empty values
+  from `issueId`, `project`, `milestone`, `version`, `featureId`, and
+  `feature`. Ask once whether the run is targeted and record the exact
+  selector values before the first claim; do not change the scope between
+  claims.
 - `model_inventory`: the models and model/effort combinations advertised by
   the selected backend's currently available tool.
 
@@ -32,9 +37,11 @@ reviewer model and effort. Use the user-input tool when available. Do not infer
 these choices from an earlier run, repository guidance, task labels, or the
 dispatcher's model. Do not claim work until every setting is resolved.
 
-Run `wtp --json stats model` from `project_root` before the first claim. Use its
-distinct non-empty labels to identify unresolved or ambiguous recommendations
-while asking for run settings; this inspection is not a claim.
+Run `wtp --json stats [GROUPING_FLAGS] model` from `project_root` before the
+first claim, using the established `grouping_scope` (or no grouping flags for
+an unrestricted run). Use its distinct non-empty labels to identify unresolved
+or ambiguous recommendations while asking for run settings; this inspection
+is not a claim. The same scope must be passed to every later automatic claim.
 
 For `thread`, discover saved Codex projects and select the single project whose
 canonical path exactly equals `project_root`. Use its opaque project ID and the
@@ -111,12 +118,75 @@ the exact label and resolution failure, write the required handoff, pause that
 exact task, and stop the loop. Ask the user to resolve it. After the response,
 use the explicit reclaim procedure below; do not continue to another claim.
 
+## Establish and reuse a grouping scope
+
+The six grouping fields are independent optional metadata. `featureId` is the
+stable machine-facing feature key; `feature` is the human-readable display
+name. Keep `featureId` unchanged when the display name is renamed. They are
+not aliases: filtering by one never matches the other. WTP trims selector
+values and applies case-insensitive exact AND matching for every supplied
+field. Omitted fields are unrestricted; wildcard, substring, version parsing,
+and display-name/key fallback are not supported. Legacy tasks that omit a
+field remain valid but do not match a query constrained on that field.
+
+Represent the run's single optional scope as one reusable argument array. It
+may contain any non-empty subset of the six selectors, but it must be captured
+once and reused verbatim for scoped model stats and every automatic
+`task ready`/`task next` operation. A scope such as `--project Apollo
+--feature-id FEAT-7` is one scope, not two runs. Do not calculate model counts
+for one group and claim from an unrestricted or differently filtered queue.
+
+Targeted loop example:
+
+```sh
+# Set this once from the user's chosen scope; use an empty array for all work.
+grouping_scope=(--project Apollo --feature-id FEAT-7)
+
+# Scoped model inventory/recommendation check; this does not claim work.
+wtp --json stats "${grouping_scope[@]}" model
+
+# Preview and claim with the exact same scope on every loop iteration.
+wtp --json task ready --agent "$agent_name" "${grouping_scope[@]}"
+wtp --json task next --agent "$agent_name" "${grouping_scope[@]}"
+```
+
+For a fully specified scope, use the corresponding flags once in the same
+array: `--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`,
+and/or `--feature`. Selector flags precede positional `stats` selectors. Stats
+uses the scope for overview, focused `model`/grouping attributes, comments,
+dependency metrics, and rolling `created`/`progressed` series. `--task`/explicit
+known-task starts are deliberate operations rather than automatic claims and
+must not be used to silently broaden a targeted loop.
+
+## Planning boundary: keep the execution loop planning-blind
+
+This loop dispatches executable WTP tasks only. It must never claim planning
+work or auto-promote planning work. `task next`, `task ready`, `task start`,
+execution stats, batch operations, and graph inspection stay planning-blind;
+they do not turn `toplan`, `researched`, or `planned` records into queue work.
+
+Do not use this loop to inspect planning reports, create or research future
+work, move planning statuses, or invoke `planning promote`, including when a
+planning group appears complete. Route those decisions to the task-management
+workflow. Planning promotion requires an explicit grouping selection, a
+dependency-closed planned group, and a deliberate preview/publication decision;
+it is never an automatic step after an executable task finishes. Treat a
+planning UUID or planning short ID as outside the claimable execution queue;
+never pass it to `task start` or report it as an executable completion.
+
 ## Non-negotiable rules
 
 - Claim and update tasks through `wtp`; never edit `.wtp/` directly.
 - Preserve the exact returned `TASK_ID`, including a branch-scope prefix, in
   every prompt, WTP command, comment, handoff, and follow-up. Never reconstruct
   it from a sequence, filename, title, UUID, or sanitized worker name.
+- Preserve the established `grouping_scope` for the entire run. Every
+  automatic `task ready`/`task next` call and the scoped model-stats check must
+  use the same six-field selector values; never mix scoped inspection with an
+  unrestricted claim.
+- Keep the dispatch loop planning-blind: never claim a planning record and
+  never auto-promote planning work. Planning reports, lifecycle changes, and
+  promotion belong to an explicitly authorized task-management workflow.
 - Use comments for audit/progress and retained handoffs for cross-worker
   context; do not substitute one for the other.
 - Keep at most one claimed task and one primary worker active. Do not
@@ -133,17 +203,23 @@ use the explicit reclaim procedure below; do not continue to another claim.
 
 ### 1. Claim atomically
 
-Run from `project_root` with a bounded timeout:
+Run from `project_root` with a bounded timeout, passing the established
+`grouping_scope` flags unchanged:
 
 ```sh
-wtp --json task next --agent AGENT_NAME
+wtp --json task next --agent AGENT_NAME [GROUPING_FLAGS]
 ```
 
 This command is the initial automatic claim. Do not use `task ready` and later
 assume its result remains available. Parse and retain the exact JSON `shortId`,
-title, description, model recommendation, and claim-attached `handoffs` array.
-Treat attached handoffs as task-scoped context in newest-first order. Reads and
-claim attachment are non-consuming; do not purge them during dispatch.
+title, description, model recommendation, resolved `reusableTasks` array, and
+claim-attached `handoffs` array. The same parsing requirement applies to every
+explicit `task start` claim used during reclaim. Treat `reusableTasks` as the
+live definition objects returned by WTP: preserve their exact array order and
+each item's name, title, and instructions; do not sort, deduplicate, infer,
+or re-resolve them from the catalog. Treat attached handoffs as task-scoped
+context in newest-first order. Reads and claim attachment are non-consuming;
+do not purge them during dispatch.
 
 On a named Git branch, automatic selection considers current-branch scoped
 tasks before legacy tasks and does not select a foreign scoped task. Do not
@@ -162,18 +238,29 @@ claimable, stop or wait; never create an empty worker.
 ### 2. Launch the selected primary worker
 
 Build one common worker message containing the exact task ID, title,
-description, task handoffs, newest global handoff, `project_root`, and
-`agent_name`. Require the worker to:
+description, the resolved `reusableTasks` in their returned order, task
+handoffs, newest global handoff, `project_root`, and `agent_name`. Include a
+dedicated advisory block with one item per resolved object and its name, title,
+and complete instructions. If the array is empty, state that no reusable
+advisory items were assigned. Require the worker to:
 
 - inspect the exact task and repository guidance before editing;
 - implement only that task and run proportionate verification;
 - add concise comments for material progress;
 - write one concise global handoff before `task done` or `task pause`;
 - keep supplied task handoffs intact;
+- before reporting completion, address every resolved reusable advisory item in
+  the supplied order and report the action and result for each one (or the
+  concrete blocker/user decision preventing it);
 - avoid spawning or creating other workers because the dispatcher owns
   orchestration;
 - mark `done` only after implementation and verification;
 - use the blocker protocol below whenever direction is required.
+
+Reusable items are advisory instructions. WTP itself neither executes nor
+enforces them; the worker interprets and carries them out, and the dispatcher
+checks the worker's report before accepting completion. Never claim that a
+reusable item ran merely because it appeared in a claim response.
 
 For a project thread, call the thread-creation tool with the resolved model and
 effort and this target:
@@ -306,8 +393,11 @@ After any worker completion, run:
 wtp task show TASK_ID --agent AGENT_NAME
 ```
 
-- If the exact task is `done`, require its global handoff, then return to the
-  initial automatic claim step.
+- If the exact task is `done`, require its global handoff and verify the
+  worker's completion report addresses every resolved `reusableTasks` item in
+  order. If that evidence is missing, follow up with the same worker and do
+  not advance the loop until the requirement is addressed; then return to the
+  initial automatic claim step with the same established `grouping_scope`.
 - If it is `paused`, verify the blocker and stop for explicit resolution and
   reclaim.
 - If it is waiting, blocked, failed, or another configured non-done status,
@@ -330,7 +420,9 @@ Before every primary-worker launch, confirm:
 4. Thread mode targets the exact saved project locally; subagent mode uses
    `fork_turns: "none"`.
 5. The worker will preserve the dispatcher's sandbox and approval posture.
-6. Task and global handoffs were retained according to their distinct scopes.
-7. The primary worker's identity and backend-specific monitor state will be
+6. The resolved `reusableTasks` array was parsed from the claim response and
+   will be included in its original order in the worker prompt.
+7. Task and global handoffs were retained according to their distinct scopes.
+8. The primary worker's identity and backend-specific monitor state will be
    retained for follow-up and manual continuation.
-8. No other claimed task, primary worker, or reviewer is active.
+9. No other claimed task, primary worker, or reviewer is active.

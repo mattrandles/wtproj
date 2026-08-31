@@ -17,6 +17,7 @@ import (
 	"github.com/mattrandles/wtproj/internal/buildinfo"
 	"github.com/mattrandles/wtproj/internal/config"
 	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/planning"
 	"github.com/mattrandles/wtproj/internal/provider"
 	"github.com/mattrandles/wtproj/internal/runtimecontext"
 	"github.com/mattrandles/wtproj/internal/stats"
@@ -76,7 +77,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return runSelfUpdate(ctx, rest[1:], updater.Run)
 	}
 
-	p, invocation, err := providerAndContextForInvocation(".")
+	p, invocation, err := providerAndContextForInvocationMode(".", planningPromotionPreviewRequested(rest))
 	if err != nil {
 		return err
 	}
@@ -86,6 +87,10 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	switch rest[0] {
 	case "task":
 		return runTask(ctx, rest[1:])
+	case "planning":
+		return runPlanning(ctx, rest[1:])
+	case "reusable":
+		return runReusable(ctx, rest[1:])
 	case "batch":
 		return runBatch(ctx, rest[1:])
 	case "handoff":
@@ -575,6 +580,10 @@ func providerForInvocation(invocationDir string) (provider.Provider, error) {
 }
 
 func providerAndContextForInvocation(invocationDir string) (provider.Provider, runtimecontext.Context, error) {
+	return providerAndContextForInvocationMode(invocationDir, false)
+}
+
+func providerAndContextForInvocationMode(invocationDir string, readOnly bool) (provider.Provider, runtimecontext.Context, error) {
 	runtime, err := runtimecontext.Discover(invocationDir)
 	if err != nil {
 		return nil, runtimecontext.Context{}, err
@@ -588,11 +597,27 @@ func providerAndContextForInvocation(invocationDir string) (provider.Provider, r
 	if err != nil {
 		return nil, runtimecontext.Context{}, err
 	}
-	p, err := app.NewProvider(cfg.WTPDir, cfg, runtime.Scope())
+	newProvider := app.NewProvider
+	if readOnly {
+		newProvider = app.NewReadOnlyProvider
+	}
+	p, err := newProvider(cfg.WTPDir, cfg, runtime.Scope())
 	if err != nil {
 		return nil, runtimecontext.Context{}, err
 	}
 	return p, runtime, nil
+}
+
+func planningPromotionPreviewRequested(args []string) bool {
+	if len(args) < 2 || args[0] != "planning" || args[1] != "promote" {
+		return false
+	}
+	for _, arg := range args[2:] {
+		if arg == "--dry-run" || strings.HasPrefix(arg, "--dry-run=") {
+			return true
+		}
+	}
+	return false
 }
 
 func requireNoArgs(command string, args []string) error {
@@ -694,6 +719,805 @@ func runTask(ctx context, args []string) error {
 	default:
 		return fmt.Errorf("unknown task subcommand %q", args[0])
 	}
+}
+
+func runPlanning(ctx context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("planning subcommand is required")
+	}
+	switch args[0] {
+	case "create":
+		return runPlanningCreate(ctx, args[1:])
+	case "list":
+		return runPlanningList(ctx, args[1:])
+	case "report":
+		return runPlanningReport(ctx, args[1:])
+	case "show":
+		return runPlanningShow(ctx, args[1:])
+	case "promote":
+		return runPlanningPromote(ctx, args[1:])
+	case "update":
+		return runPlanningUpdate(ctx, args[1:])
+	case "set-status":
+		return runPlanningSetStatus(ctx, args[1:])
+	default:
+		return fmt.Errorf("unknown planning subcommand %q", args[0])
+	}
+}
+
+func planningCreator(ctx context) (provider.PlanningCreator, error) {
+	creator, ok := ctx.provider.(provider.PlanningCreator)
+	if !ok {
+		return nil, errors.New("planning item creation is not supported by this provider")
+	}
+	return creator, nil
+}
+
+func planningReader(ctx context) (provider.PlanningReader, error) {
+	reader, ok := ctx.provider.(provider.PlanningReader)
+	if !ok {
+		return nil, errors.New("planning item reads are not supported by this provider")
+	}
+	return reader, nil
+}
+
+func planningEditor(ctx context) (provider.PlanningEditor, error) {
+	editor, ok := ctx.provider.(provider.PlanningEditor)
+	if !ok {
+		return nil, errors.New("planning item editing is not supported by this provider")
+	}
+	return editor, nil
+}
+
+func planningPromoter(ctx context) (provider.PlanningPromoter, error) {
+	promoter, ok := ctx.provider.(provider.PlanningPromoter)
+	if !ok {
+		return nil, errors.New("planning item promotion is not supported by this provider")
+	}
+	return promoter, nil
+}
+
+func runPlanningPromote(ctx context, args []string) error {
+	if err := rejectDuplicateFlags("planning promote", args, map[string]struct{}{
+		"dry-run": {},
+	}, nil); err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet("planning promote", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	dryRun := flags.Bool("dry-run", false, "preview promotion without changing storage")
+	grouping := newGroupingSelectorParser(flags)
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(planningPromoteUsage)
+	}
+	filter := grouping.Filter()
+	if !filter.HasSelector() {
+		return errors.New("planning promote requires at least one grouping selector")
+	}
+
+	promoter, err := planningPromoter(ctx)
+	if err != nil {
+		return err
+	}
+	if *dryRun {
+		result, err := promoter.PreviewPlanningPromotion(filter)
+		if err != nil {
+			return err
+		}
+		return printPlanningPromotion(ctx, result)
+	}
+	result, err := promoter.PromotePlanningItems(filter)
+	if err != nil {
+		return err
+	}
+	return printPlanningPromotion(ctx, result)
+}
+
+func printPlanningPromotion[T core.PlanningItemView | core.TaskView](ctx context, result provider.PlanningPromotionResult[T]) error {
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, result)
+	}
+	label := "promoted"
+	if result.DryRun {
+		label = "would-promote"
+	}
+	if _, err := fmt.Fprintf(ctx.stdout, "%s: %d\n", label, result.Count); err != nil {
+		return err
+	}
+	switch items := any(result.Items).(type) {
+	case []core.PlanningItemView:
+		return printValue(ctx, items)
+	case []core.TaskView:
+		return printValue(ctx, items)
+	default:
+		return fmt.Errorf("unsupported planning promotion output type %T", result.Items)
+	}
+}
+
+func runPlanningList(ctx context, args []string) error {
+	if err := rejectDuplicateFlags("planning list", args, map[string]struct{}{"status": {}}, nil); err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet("planning list", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	var statusValue optionString
+	flags.Var(&statusValue, "status", "planning status filter")
+	grouping := newGroupingSelectorParser(flags)
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(planningListUsage)
+	}
+
+	filter := provider.PlanningFilter{Grouping: grouping.Filter()}
+	if statusValue.set {
+		statusText := strings.TrimSpace(statusValue.value)
+		if statusText == "" {
+			return errors.New("planning list --status cannot be empty")
+		}
+		status, err := core.ParsePlanningStatus(statusText)
+		if err != nil {
+			return err
+		}
+		filter.Status = &status
+	}
+
+	reader, err := planningReader(ctx)
+	if err != nil {
+		return err
+	}
+	items, err := reader.ListPlanningItems(filter)
+	if err != nil {
+		return err
+	}
+	if items == nil {
+		items = []core.PlanningItemView{}
+	}
+	return printValue(ctx, items)
+}
+
+func runPlanningReport(ctx context, args []string) error {
+	if err := rejectDuplicateFlags("planning report", args, map[string]struct{}{"status": {}}, nil); err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet("planning report", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	var statusValue optionString
+	flags.Var(&statusValue, "status", "planning status filter")
+	grouping := newGroupingSelectorParser(flags)
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(planningReportUsage)
+	}
+
+	options := planning.Options{Grouping: grouping.Filter()}
+	if statusValue.set {
+		statusText := strings.TrimSpace(statusValue.value)
+		if statusText == "" {
+			return errors.New("planning report --status cannot be empty")
+		}
+		status, err := core.ParsePlanningStatus(statusText)
+		if err != nil {
+			return err
+		}
+		options.Status = &status
+	}
+
+	reader, err := planningReader(ctx)
+	if err != nil {
+		return err
+	}
+	report, err := planning.Aggregate(reader, options)
+	if err != nil {
+		return err
+	}
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, report)
+	}
+	return printPlanningReport(ctx.stdout, report)
+}
+
+func printPlanningReport(w io.Writer, report planning.Report) error {
+	if _, err := fmt.Fprintln(w, "planning report"); err != nil {
+		return err
+	}
+	if err := printPlanningSummary(w, "", report.Summary); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "projects:"); err != nil {
+		return err
+	}
+	for _, project := range report.Projects {
+		if err := printPlanningProject(w, "  ", project); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printPlanningProject(w io.Writer, indent string, project planning.Project) error {
+	if _, err := fmt.Fprintf(w, "%sproject: %s\n", indent, displayPlanningValue(project.Value)); err != nil {
+		return err
+	}
+	if err := printPlanningSummary(w, indent+"  ", project.Summary); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "%sversions:\n", indent+"  "); err != nil {
+		return err
+	}
+	for _, version := range project.Versions {
+		if err := printPlanningVersion(w, indent+"    ", version); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printPlanningVersion(w io.Writer, indent string, version planning.Version) error {
+	if _, err := fmt.Fprintf(w, "%sversion: %s\n", indent, displayPlanningValue(version.Value)); err != nil {
+		return err
+	}
+	if err := printPlanningSummary(w, indent+"  ", version.Summary); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "%smilestones:\n", indent+"  "); err != nil {
+		return err
+	}
+	for _, milestone := range version.Milestones {
+		if err := printPlanningMilestone(w, indent+"    ", milestone); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printPlanningMilestone(w io.Writer, indent string, milestone planning.Milestone) error {
+	if _, err := fmt.Fprintf(w, "%smilestone: %s\n", indent, displayPlanningValue(milestone.Value)); err != nil {
+		return err
+	}
+	return printPlanningSummary(w, indent+"  ", milestone.Summary)
+}
+
+func printPlanningSummary(w io.Writer, indent string, summary planning.Summary) error {
+	if _, err := fmt.Fprintf(w, "%stotalItems: %d\n", indent, summary.TotalItems); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "%sstatusCounts:\n", indent); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "%s  %-11s %-12s %-9s %s\n", indent, "toplan", "researched", "planned", "rejected"); err != nil {
+		return err
+	}
+	counts := planningStatusCounts(summary)
+	_, err := fmt.Fprintf(w, "%s  %-11d %-12d %-9d %d\n", indent, counts[0], counts[1], counts[2], counts[3])
+	return err
+}
+
+func planningStatusCounts(summary planning.Summary) [4]int {
+	var counts [4]int
+	for _, bucket := range summary.StatusCounts {
+		switch bucket.Value {
+		case core.PlanningStatusToplan:
+			counts[0] = bucket.Count
+		case core.PlanningStatusResearched:
+			counts[1] = bucket.Count
+		case core.PlanningStatusPlanned:
+			counts[2] = bucket.Count
+		case core.PlanningStatusRejected:
+			counts[3] = bucket.Count
+		}
+	}
+	return counts
+}
+
+func displayPlanningValue(value string) string {
+	if value == "" {
+		return "(unset)"
+	}
+	return value
+}
+
+func runPlanningShow(ctx context, args []string) error {
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" || strings.HasPrefix(args[0], "-") {
+		return errors.New(planningShowUsage)
+	}
+	reader, err := planningReader(ctx)
+	if err != nil {
+		return err
+	}
+	item, err := reader.GetPlanningItem(strings.TrimSpace(args[0]))
+	if err != nil {
+		return err
+	}
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, item)
+	}
+	return printPlanningItemDetails(ctx.stdout, item)
+}
+
+func runPlanningCreate(ctx context, args []string) error {
+	if err := rejectDuplicateFlags("planning create", args, map[string]struct{}{
+		"title": {}, "description": {}, "status": {}, "priority": {}, "estimate": {},
+		"lane": {}, "model": {}, "issue-id": {}, "project": {}, "milestone": {},
+		"version": {}, "feature-id": {}, "feature": {}, "git-repo": {},
+		"git-branch": {}, "worktree-name": {}, "worktree-dir": {}, "agent": {},
+	}, map[string]struct{}{"depends-on": {}, "reusable": {}}); err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet("planning create", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	title := flags.String("title", "", "planning item title")
+	description := flags.String("description", "", "planning item description")
+	statusValue := flags.String("status", string(core.PlanningStatusToplan), "planning status")
+	priorityValue := flags.String("priority", "", "planning item priority (low|medium|high|urgent)")
+	estimateValue := flags.String("estimate", "", "planning item estimate (xs|s|m|l|xl)")
+	lane := flags.String("lane", "", "planning item lane or area")
+	model := flags.String("model", "", "suggested model for planning")
+	var issueID optionString
+	var project optionString
+	var milestone optionString
+	var version optionString
+	var featureID optionString
+	var feature optionString
+	flags.Var(&issueID, "issue-id", "issue grouping identifier")
+	flags.Var(&project, "project", "project grouping name")
+	flags.Var(&milestone, "milestone", "milestone grouping name")
+	flags.Var(&version, "version", "version grouping name")
+	flags.Var(&featureID, "feature-id", "stable feature grouping identifier")
+	flags.Var(&feature, "feature", "human-readable feature grouping name")
+	var gitRepo optionString
+	var gitBranch optionString
+	var worktreeName optionString
+	var worktreeDir optionString
+	flags.Var(&gitRepo, "git-repo", "absolute path to the Git repository")
+	flags.Var(&gitBranch, "git-branch", "Git branch name")
+	flags.Var(&worktreeName, "worktree-name", "Git worktree name")
+	flags.Var(&worktreeDir, "worktree-dir", "absolute path to the Git worktree")
+	agent := flags.String("agent", "", "assignee")
+	var dependsOn repeatableOption
+	flags.Var(&dependsOn, "depends-on", "comma-separated task identifiers (repeatable)")
+	var reusableTasks repeatableOption
+	flags.Var(&reusableTasks, "reusable", "reusable task name or ID (repeatable)")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(planningCreateUsage)
+	}
+	if strings.TrimSpace(*title) == "" {
+		return errors.New("planning create --title is required")
+	}
+	if err := validateReusableTaskAssignments(reusableTasks.values, false); err != nil {
+		return fmt.Errorf("planning create %s", strings.TrimPrefix(err.Error(), "task create "))
+	}
+	dependencies := make([]string, 0, len(dependsOn.values))
+	for index, occurrence := range dependsOn.values {
+		if strings.TrimSpace(occurrence) == "" {
+			return fmt.Errorf("planning create --depends-on occurrence %d cannot be empty", index+1)
+		}
+		for _, dependency := range splitCSV(occurrence) {
+			dependencies = append(dependencies, strings.TrimSpace(dependency))
+		}
+	}
+	for _, value := range []struct {
+		name   string
+		option optionString
+	}{
+		{name: "issueId", option: issueID},
+		{name: "project", option: project},
+		{name: "milestone", option: milestone},
+		{name: "version", option: version},
+		{name: "featureId", option: featureID},
+		{name: "feature", option: feature},
+	} {
+		if value.option.set && strings.TrimSpace(value.option.value) == "" {
+			return fmt.Errorf("planning create %s cannot be blank", value.name)
+		}
+	}
+	priority, err := core.ParsePriority(*priorityValue)
+	if err != nil {
+		return err
+	}
+	estimate, err := core.ParseEstimate(*estimateValue)
+	if err != nil {
+		return err
+	}
+	status, err := core.ParsePlanningStatus(*statusValue)
+	if err != nil {
+		return err
+	}
+	creator, err := planningCreator(ctx)
+	if err != nil {
+		return err
+	}
+	item, err := creator.CreatePlanningItem(core.CreatePlanningItemInput{
+		Title:         *title,
+		Description:   *description,
+		Status:        status,
+		Priority:      priority,
+		Estimate:      estimate,
+		Lane:          *lane,
+		Model:         *model,
+		IssueID:       strings.TrimSpace(issueID.value),
+		Project:       strings.TrimSpace(project.value),
+		Milestone:     strings.TrimSpace(milestone.value),
+		Version:       strings.TrimSpace(version.value),
+		FeatureID:     strings.TrimSpace(featureID.value),
+		Feature:       strings.TrimSpace(feature.value),
+		GitRepo:       defaultedOption(gitRepo, ctx.invocation.RepositoryRoot),
+		GitBranch:     defaultedOption(gitBranch, ctx.invocation.Branch),
+		WorktreeName:  defaultedOption(worktreeName, ctx.invocation.WorktreeName),
+		WorktreeDir:   defaultedOption(worktreeDir, ctx.invocation.WorktreeRoot),
+		Assignee:      *agent,
+		Dependencies:  dependencies,
+		ReusableTasks: append([]string(nil), reusableTasks.values...),
+	})
+	if err != nil {
+		return err
+	}
+	return printValue(ctx, item)
+}
+
+func runPlanningUpdate(ctx context, args []string) error {
+	if err := rejectDuplicateFlags("planning update", args, map[string]struct{}{
+		"title": {}, "description": {}, "priority": {}, "estimate": {}, "lane": {}, "model": {},
+		"issue-id": {}, "project": {}, "milestone": {}, "version": {}, "feature-id": {}, "feature": {},
+		"git-repo": {}, "git-branch": {}, "worktree-name": {}, "worktree-dir": {}, "agent": {},
+	}, map[string]struct{}{"depends-on": {}, "reusable": {}}); err != nil {
+		return err
+	}
+	id, options, err := splitSinglePositionalArgs(args)
+	if err != nil || strings.TrimSpace(id) == "" || strings.HasPrefix(id, "-") {
+		return errors.New(planningUpdateUsage)
+	}
+
+	flags := flag.NewFlagSet("planning update", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	var title optionString
+	var description optionString
+	var priorityValue optionString
+	var estimateValue optionString
+	var lane optionString
+	var model optionString
+	var issueID optionString
+	var project optionString
+	var milestone optionString
+	var version optionString
+	var featureID optionString
+	var feature optionString
+	var gitRepo optionString
+	var gitBranch optionString
+	var worktreeName optionString
+	var worktreeDir optionString
+	var agent optionString
+	var dependsOn repeatableOption
+	var reusableTasks repeatableOption
+
+	flags.Var(&title, "title", "planning item title")
+	flags.Var(&description, "description", "planning item description")
+	flags.Var(&priorityValue, "priority", "planning item priority (low|medium|high|urgent)")
+	flags.Var(&estimateValue, "estimate", "planning item estimate (xs|s|m|l|xl)")
+	flags.Var(&lane, "lane", "planning item lane or area")
+	flags.Var(&model, "model", "suggested model for planning")
+	flags.Var(&issueID, "issue-id", "issue grouping identifier")
+	flags.Var(&project, "project", "project grouping name")
+	flags.Var(&milestone, "milestone", "milestone grouping name")
+	flags.Var(&version, "version", "version grouping name")
+	flags.Var(&featureID, "feature-id", "stable feature grouping identifier")
+	flags.Var(&feature, "feature", "human-readable feature grouping name")
+	flags.Var(&gitRepo, "git-repo", "absolute path to the Git repository")
+	flags.Var(&gitBranch, "git-branch", "Git branch name")
+	flags.Var(&worktreeName, "worktree-name", "Git worktree name")
+	flags.Var(&worktreeDir, "worktree-dir", "absolute path to the Git worktree")
+	flags.Var(&agent, "agent", "assignee")
+	flags.Var(&dependsOn, "depends-on", "comma-separated task identifiers (repeatable)")
+	flags.Var(&reusableTasks, "reusable", "reusable task name or ID (repeatable)")
+	if err := flags.Parse(options); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(planningUpdateUsage)
+	}
+	if !title.set && !description.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set &&
+		!issueID.set && !project.set && !milestone.set && !version.set && !featureID.set && !feature.set &&
+		!gitRepo.set && !gitBranch.set && !worktreeName.set && !worktreeDir.set && !agent.set &&
+		!dependsOn.set && !reusableTasks.set {
+		return errors.New("planning update requires at least one field to change")
+	}
+	if title.set && strings.TrimSpace(title.value) == "" {
+		return errors.New("planning update --title is required")
+	}
+
+	if err := validatePlanningReusableTaskAssignments(reusableTasks.values); err != nil {
+		return err
+	}
+	dependencies, err := planningUpdateDependencies(dependsOn.values)
+	if err != nil {
+		return err
+	}
+	priority, err := core.ParsePriority(priorityValue.value)
+	if err != nil {
+		return err
+	}
+	estimate, err := core.ParseEstimate(estimateValue.value)
+	if err != nil {
+		return err
+	}
+	reusableValues := append([]string(nil), reusableTasks.values...)
+	if reusableTasks.set && len(reusableValues) == 1 && strings.TrimSpace(reusableValues[0]) == "" {
+		reusableValues = []string{}
+	}
+
+	editor, err := planningEditor(ctx)
+	if err != nil {
+		return err
+	}
+	item, err := editor.UpdatePlanningItem(strings.TrimSpace(id), core.UpdatePlanningItemInput{
+		Title:         core.OptionalString{Set: title.set, Value: title.value},
+		Description:   core.OptionalString{Set: description.set, Value: description.value},
+		Priority:      core.OptionalPriority{Set: priorityValue.set, Value: priority},
+		Estimate:      core.OptionalEstimate{Set: estimateValue.set, Value: estimate},
+		Lane:          core.OptionalString{Set: lane.set, Value: lane.value},
+		Model:         core.OptionalString{Set: model.set, Value: model.value},
+		IssueID:       core.OptionalString{Set: issueID.set, Value: issueID.value},
+		Project:       core.OptionalString{Set: project.set, Value: project.value},
+		Milestone:     core.OptionalString{Set: milestone.set, Value: milestone.value},
+		Version:       core.OptionalString{Set: version.set, Value: version.value},
+		FeatureID:     core.OptionalString{Set: featureID.set, Value: featureID.value},
+		Feature:       core.OptionalString{Set: feature.set, Value: feature.value},
+		GitRepo:       core.OptionalString{Set: gitRepo.set, Value: gitRepo.value},
+		GitBranch:     core.OptionalString{Set: gitBranch.set, Value: gitBranch.value},
+		WorktreeName:  core.OptionalString{Set: worktreeName.set, Value: worktreeName.value},
+		WorktreeDir:   core.OptionalString{Set: worktreeDir.set, Value: worktreeDir.value},
+		Assignee:      core.OptionalString{Set: agent.set, Value: agent.value},
+		Dependencies:  core.OptionalStrings{Set: dependsOn.set, Value: dependencies},
+		ReusableTasks: core.OptionalStrings{Set: reusableTasks.set, Value: reusableValues},
+	})
+	if err != nil {
+		return err
+	}
+	return printValue(ctx, item)
+}
+
+func validatePlanningReusableTaskAssignments(values []string) error {
+	if err := validateReusableTaskAssignments(values, true); err != nil {
+		message := strings.TrimPrefix(err.Error(), "task update ")
+		message = strings.Replace(message, "task --reusable", "planning update --reusable", 1)
+		return errors.New(message)
+	}
+	return nil
+}
+
+func planningUpdateDependencies(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	if len(values) == 1 && strings.TrimSpace(values[0]) == "" {
+		return []string{}, nil
+	}
+	dependencies := make([]string, 0, len(values))
+	for index, occurrence := range values {
+		if strings.TrimSpace(occurrence) == "" {
+			return nil, fmt.Errorf("planning update --depends-on cannot mix empty and non-empty occurrences; use a single --depends-on= to clear (occurrence %d)", index+1)
+		}
+		for _, dependency := range splitCSV(occurrence) {
+			if strings.TrimSpace(dependency) == "" {
+				return nil, fmt.Errorf("planning update --depends-on occurrence %d contains a blank identifier", index+1)
+			}
+			dependencies = append(dependencies, strings.TrimSpace(dependency))
+		}
+	}
+	return dependencies, nil
+}
+
+func runPlanningSetStatus(ctx context, args []string) error {
+	if len(args) != 2 || strings.TrimSpace(args[0]) == "" || strings.TrimSpace(args[1]) == "" ||
+		strings.HasPrefix(args[0], "-") || strings.HasPrefix(args[1], "-") {
+		return errors.New(planningSetStatusUsage)
+	}
+	target, err := core.ParsePlanningStatus(args[1])
+	if err != nil {
+		return err
+	}
+	editor, err := planningEditor(ctx)
+	if err != nil {
+		return err
+	}
+	item, err := editor.SetPlanningStatus(strings.TrimSpace(args[0]), target)
+	if err != nil {
+		return err
+	}
+	return printValue(ctx, item)
+}
+
+const (
+	reusableCreateUsage = "usage: wtp reusable create --name NAME --title TITLE --instructions INSTRUCTIONS"
+	reusableListUsage   = "usage: wtp reusable list"
+	reusableShowUsage   = "usage: wtp reusable show NAME_OR_ID"
+	reusableUpdateUsage = "usage: wtp reusable update NAME_OR_ID [--name NAME] [--title TITLE] [--instructions INSTRUCTIONS]"
+	reusableDeleteUsage = "usage: wtp reusable delete NAME_OR_ID"
+)
+
+func runReusable(ctx context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("reusable subcommand is required")
+	}
+	switch args[0] {
+	case "create":
+		return runReusableCreate(ctx, args[1:])
+	case "list":
+		return runReusableList(ctx, args[1:])
+	case "show":
+		return runReusableShow(ctx, args[1:])
+	case "update":
+		return runReusableUpdate(ctx, args[1:])
+	case "delete":
+		return runReusableDelete(ctx, args[1:])
+	default:
+		return fmt.Errorf("unknown reusable subcommand %q", args[0])
+	}
+}
+
+func reusableProvider(ctx context) (provider.ReusableTaskProvider, error) {
+	reusables, ok := ctx.provider.(provider.ReusableTaskProvider)
+	if !ok {
+		return nil, errors.New("reusable definitions are not supported by this provider")
+	}
+	return reusables, nil
+}
+
+func runReusableCreate(ctx context, args []string) error {
+	flags := flag.NewFlagSet("reusable create", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	name := flags.String("name", "", "reusable definition name")
+	title := flags.String("title", "", "reusable definition title")
+	instructions := flags.String("instructions", "", "reusable definition instructions")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(reusableCreateUsage)
+	}
+	for _, required := range []struct {
+		name  string
+		value *string
+	}{
+		{name: "name", value: name},
+		{name: "title", value: title},
+		{name: "instructions", value: instructions},
+	} {
+		if !wasFlagSet(flags, required.name) {
+			return fmt.Errorf("reusable create --%s is required", required.name)
+		}
+		if strings.TrimSpace(*required.value) == "" {
+			return fmt.Errorf("reusable create --%s cannot be empty", required.name)
+		}
+	}
+
+	reusables, err := reusableProvider(ctx)
+	if err != nil {
+		return err
+	}
+	definition, err := reusables.CreateReusableTask(core.CreateReusableTaskInput{
+		Name:         *name,
+		Title:        *title,
+		Instructions: *instructions,
+	})
+	if err != nil {
+		return err
+	}
+	return printValue(ctx, definition)
+}
+
+func runReusableList(ctx context, args []string) error {
+	if len(args) != 0 {
+		return errors.New(reusableListUsage)
+	}
+	reusables, err := reusableProvider(ctx)
+	if err != nil {
+		return err
+	}
+	definitions, err := reusables.ListReusableTasks()
+	if err != nil {
+		return err
+	}
+	if definitions == nil {
+		definitions = []core.ReusableTaskDefinition{}
+	}
+	return printValue(ctx, definitions)
+}
+
+func runReusableShow(ctx context, args []string) error {
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
+		return errors.New(reusableShowUsage)
+	}
+	reusables, err := reusableProvider(ctx)
+	if err != nil {
+		return err
+	}
+	definition, err := reusables.GetReusableTask(args[0])
+	if err != nil {
+		return err
+	}
+	return printValue(ctx, definition)
+}
+
+func reusableMutationProvider(ctx context) (provider.ReusableTaskMutationProvider, error) {
+	reusables, ok := ctx.provider.(provider.ReusableTaskMutationProvider)
+	if !ok {
+		return nil, errors.New("reusable definition updates and deletes are not supported by this provider")
+	}
+	return reusables, nil
+}
+
+func runReusableUpdate(ctx context, args []string) error {
+	selector, options, err := splitSinglePositionalArgs(args)
+	if err != nil {
+		return errors.New(reusableUpdateUsage)
+	}
+	flags := flag.NewFlagSet("reusable update", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	var name, title, instructions optionString
+	flags.Var(&name, "name", "reusable definition name")
+	flags.Var(&title, "title", "reusable definition title")
+	flags.Var(&instructions, "instructions", "reusable definition instructions")
+	if err := flags.Parse(options); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(reusableUpdateUsage)
+	}
+	for _, field := range []struct {
+		name  string
+		value optionString
+	}{
+		{name: "name", value: name},
+		{name: "title", value: title},
+		{name: "instructions", value: instructions},
+	} {
+		if field.value.set && strings.TrimSpace(field.value.value) == "" {
+			return fmt.Errorf("reusable update --%s cannot be empty", field.name)
+		}
+	}
+	if !name.set && !title.set && !instructions.set {
+		return errors.New("reusable update requires at least one field to change")
+	}
+
+	reusables, err := reusableMutationProvider(ctx)
+	if err != nil {
+		return err
+	}
+	definition, err := reusables.UpdateReusableTask(selector, core.UpdateReusableTaskInput{
+		Name:         core.OptionalString{Set: name.set, Value: name.value},
+		Title:        core.OptionalString{Set: title.set, Value: title.value},
+		Instructions: core.OptionalString{Set: instructions.set, Value: instructions.value},
+	})
+	if err != nil {
+		return err
+	}
+	return printValue(ctx, definition)
+}
+
+func runReusableDelete(ctx context, args []string) error {
+	selector, options, err := splitSinglePositionalArgs(args)
+	if err != nil || len(options) != 0 {
+		return errors.New(reusableDeleteUsage)
+	}
+	reusables, err := reusableMutationProvider(ctx)
+	if err != nil {
+		return err
+	}
+	result, err := reusables.DeleteReusableTask(selector)
+	if err != nil {
+		return err
+	}
+	return printValue(ctx, result)
 }
 
 func runHandoff(ctx context, args []string) error {
@@ -1066,6 +1890,8 @@ func runTaskCreate(ctx context, args []string) error {
 	flags.Var(&worktreeDir, "worktree-dir", "absolute path to the Git worktree")
 	agent := flags.String("agent", "", "assignee")
 	dependsOn := flags.String("depends-on", "", "comma-separated task identifiers")
+	var reusableTasks repeatableOption
+	flags.Var(&reusableTasks, "reusable", "reusable task name or ID (repeatable)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -1074,6 +1900,9 @@ func runTaskCreate(ctx context, args []string) error {
 	}
 	if strings.TrimSpace(*title) == "" {
 		return errors.New("task title is required")
+	}
+	if err := validateReusableTaskAssignments(reusableTasks.values, false); err != nil {
+		return err
 	}
 	for _, value := range []struct {
 		name   string
@@ -1103,25 +1932,26 @@ func runTaskCreate(ctx context, args []string) error {
 		return err
 	}
 	task, err := ctx.provider.CreateTask(core.CreateTaskInput{
-		Title:        *title,
-		Description:  *description,
-		Status:       status,
-		Priority:     priority,
-		Estimate:     estimate,
-		Lane:         *lane,
-		Model:        *model,
-		IssueID:      strings.TrimSpace(issueID.value),
-		Project:      strings.TrimSpace(project.value),
-		Milestone:    strings.TrimSpace(milestone.value),
-		Version:      strings.TrimSpace(version.value),
-		FeatureID:    strings.TrimSpace(featureID.value),
-		Feature:      strings.TrimSpace(feature.value),
-		GitRepo:      defaultedOption(gitRepo, ctx.invocation.RepositoryRoot),
-		GitBranch:    defaultedOption(gitBranch, ctx.invocation.Branch),
-		WorktreeName: defaultedOption(worktreeName, ctx.invocation.WorktreeName),
-		WorktreeDir:  defaultedOption(worktreeDir, ctx.invocation.WorktreeRoot),
-		Assignee:     *agent,
-		Dependencies: splitCSV(*dependsOn),
+		Title:         *title,
+		Description:   *description,
+		Status:        status,
+		Priority:      priority,
+		Estimate:      estimate,
+		Lane:          *lane,
+		Model:         *model,
+		IssueID:       strings.TrimSpace(issueID.value),
+		Project:       strings.TrimSpace(project.value),
+		Milestone:     strings.TrimSpace(milestone.value),
+		Version:       strings.TrimSpace(version.value),
+		FeatureID:     strings.TrimSpace(featureID.value),
+		Feature:       strings.TrimSpace(feature.value),
+		GitRepo:       defaultedOption(gitRepo, ctx.invocation.RepositoryRoot),
+		GitBranch:     defaultedOption(gitBranch, ctx.invocation.Branch),
+		WorktreeName:  defaultedOption(worktreeName, ctx.invocation.WorktreeName),
+		WorktreeDir:   defaultedOption(worktreeDir, ctx.invocation.WorktreeRoot),
+		Assignee:      *agent,
+		Dependencies:  splitCSV(*dependsOn),
+		ReusableTasks: append([]string(nil), reusableTasks.values...),
 	})
 	if err != nil {
 		return err
@@ -1129,9 +1959,16 @@ func runTaskCreate(ctx context, args []string) error {
 	return printValue(ctx, task)
 }
 
-const taskCreateUsage = "usage: wtp task create --title \"...\" [--status STATUS] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]"
+const taskCreateUsage = "usage: wtp task create --title \"...\" [--status STATUS] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--reusable NAME_OR_ID ...] [--agent Tony]"
+const planningCreateUsage = "usage: wtp planning create --title \"...\" [--status toplan|researched|planned|rejected] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--reusable NAME_OR_ID ...] [--agent Tony]"
+const planningListUsage = "usage: wtp planning list [--status toplan|researched|planned|rejected] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE]"
+const planningReportUsage = "usage: wtp planning report [--status toplan|researched|planned|rejected] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE]"
+const planningShowUsage = "usage: wtp planning show <planning-id>"
+const planningPromoteUsage = "usage: wtp planning promote [--dry-run] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE]"
+const planningUpdateUsage = "usage: wtp planning update <planning-id> [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--reusable NAME_OR_ID ...] [--agent Tony]"
+const planningSetStatusUsage = "usage: wtp planning set-status <planning-id> STATUS"
 
-const taskUpdateUsage = "usage: wtp task update <task-id> [--status STATUS] [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]"
+const taskUpdateUsage = "usage: wtp task update <task-id> [--status STATUS] [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--reusable NAME_OR_ID ...] [--agent Tony]"
 
 func runTaskUpdate(ctx context, args []string) error {
 	id, options, err := splitSinglePositionalArgs(args)
@@ -1160,6 +1997,7 @@ func runTaskUpdate(ctx context, args []string) error {
 	var worktreeDir optionString
 	var dependsOn optionString
 	var agent optionString
+	var reusableTasks repeatableOption
 
 	flags.Var(&title, "title", "task title")
 	flags.Var(&description, "description", "task description")
@@ -1180,14 +2018,22 @@ func runTaskUpdate(ctx context, args []string) error {
 	flags.Var(&worktreeDir, "worktree-dir", "absolute path to the Git worktree")
 	flags.Var(&dependsOn, "depends-on", "comma-separated task identifiers")
 	flags.Var(&agent, "agent", "assignee")
+	flags.Var(&reusableTasks, "reusable", "reusable task name or ID (repeatable)")
 	if err := flags.Parse(options); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
 		return errors.New(taskUpdateUsage)
 	}
-	if !title.set && !description.set && !statusValue.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !issueID.set && !project.set && !milestone.set && !version.set && !featureID.set && !feature.set && !gitRepo.set && !gitBranch.set && !worktreeName.set && !worktreeDir.set && !dependsOn.set && !agent.set {
+	if !title.set && !description.set && !statusValue.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !issueID.set && !project.set && !milestone.set && !version.set && !featureID.set && !feature.set && !gitRepo.set && !gitBranch.set && !worktreeName.set && !worktreeDir.set && !dependsOn.set && !agent.set && !reusableTasks.set {
 		return errors.New("task update requires at least one field to change")
+	}
+	if err := validateReusableTaskAssignments(reusableTasks.values, true); err != nil {
+		return err
+	}
+	reusableValues := append([]string(nil), reusableTasks.values...)
+	if reusableTasks.set && len(reusableValues) == 1 && strings.TrimSpace(reusableValues[0]) == "" {
+		reusableValues = []string{}
 	}
 
 	priority, err := core.ParsePriority(priorityValue.value)
@@ -1207,25 +2053,26 @@ func runTaskUpdate(ctx context, args []string) error {
 	}
 
 	task, err := ctx.provider.UpdateTask(id, core.UpdateTaskInput{
-		Title:        core.OptionalString{Set: title.set, Value: title.value},
-		Description:  core.OptionalString{Set: description.set, Value: description.value},
-		Status:       core.OptionalStatus{Set: statusValue.set, Value: status},
-		Priority:     core.OptionalPriority{Set: priorityValue.set, Value: priority},
-		Estimate:     core.OptionalEstimate{Set: estimateValue.set, Value: estimate},
-		Lane:         core.OptionalString{Set: lane.set, Value: lane.value},
-		Model:        core.OptionalString{Set: model.set, Value: model.value},
-		IssueID:      core.OptionalString{Set: issueID.set, Value: issueID.value},
-		Project:      core.OptionalString{Set: project.set, Value: project.value},
-		Milestone:    core.OptionalString{Set: milestone.set, Value: milestone.value},
-		Version:      core.OptionalString{Set: version.set, Value: version.value},
-		FeatureID:    core.OptionalString{Set: featureID.set, Value: featureID.value},
-		Feature:      core.OptionalString{Set: feature.set, Value: feature.value},
-		GitRepo:      core.OptionalString{Set: gitRepo.set, Value: gitRepo.value},
-		GitBranch:    core.OptionalString{Set: gitBranch.set, Value: gitBranch.value},
-		WorktreeName: core.OptionalString{Set: worktreeName.set, Value: worktreeName.value},
-		WorktreeDir:  core.OptionalString{Set: worktreeDir.set, Value: worktreeDir.value},
-		Assignee:     core.OptionalString{Set: agent.set, Value: agent.value},
-		Dependencies: core.OptionalString{Set: dependsOn.set, Value: dependsOn.value},
+		Title:         core.OptionalString{Set: title.set, Value: title.value},
+		Description:   core.OptionalString{Set: description.set, Value: description.value},
+		Status:        core.OptionalStatus{Set: statusValue.set, Value: status},
+		Priority:      core.OptionalPriority{Set: priorityValue.set, Value: priority},
+		Estimate:      core.OptionalEstimate{Set: estimateValue.set, Value: estimate},
+		Lane:          core.OptionalString{Set: lane.set, Value: lane.value},
+		Model:         core.OptionalString{Set: model.set, Value: model.value},
+		IssueID:       core.OptionalString{Set: issueID.set, Value: issueID.value},
+		Project:       core.OptionalString{Set: project.set, Value: project.value},
+		Milestone:     core.OptionalString{Set: milestone.set, Value: milestone.value},
+		Version:       core.OptionalString{Set: version.set, Value: version.value},
+		FeatureID:     core.OptionalString{Set: featureID.set, Value: featureID.value},
+		Feature:       core.OptionalString{Set: feature.set, Value: feature.value},
+		GitRepo:       core.OptionalString{Set: gitRepo.set, Value: gitRepo.value},
+		GitBranch:     core.OptionalString{Set: gitBranch.set, Value: gitBranch.value},
+		WorktreeName:  core.OptionalString{Set: worktreeName.set, Value: worktreeName.value},
+		WorktreeDir:   core.OptionalString{Set: worktreeDir.set, Value: worktreeDir.value},
+		Assignee:      core.OptionalString{Set: agent.set, Value: agent.value},
+		Dependencies:  core.OptionalString{Set: dependsOn.set, Value: dependsOn.value},
+		ReusableTasks: core.OptionalStrings{Set: reusableTasks.set, Value: reusableValues},
 	})
 	if err != nil {
 		return err
@@ -1600,6 +2447,15 @@ func printValue(ctx context, value any) error {
 	switch typed := value.(type) {
 	case core.TaskView:
 		return printTask(ctx.stdout, typed)
+	case core.PlanningItemView:
+		return printPlanningItem(ctx.stdout, typed)
+	case []core.PlanningItemView:
+		for _, item := range typed {
+			if _, err := fmt.Fprintf(ctx.stdout, "%s\t%s\t%s\n", item.ShortID, item.Title, item.Status); err != nil {
+				return err
+			}
+		}
+		return nil
 	case []core.TaskView:
 		for _, task := range typed {
 			if _, err := fmt.Fprintf(ctx.stdout, "%s\t%s\t%s\t%s\t%s\t%s\t%s", task.ShortID, task.Status, displayPriority(task.Priority), displayClaimable(task.Readiness.Claimable), displayAssignee(task.Assignee), displayModel(task.Model), task.Title); err != nil {
@@ -1615,9 +2471,172 @@ func printValue(ctx context, value any) error {
 			}
 		}
 		return nil
+	case core.ReusableTaskDefinition:
+		return printReusableTask(ctx.stdout, typed)
+	case []core.ReusableTaskDefinition:
+		return printReusableTaskList(ctx.stdout, typed)
+	case provider.ReusableTaskDeleteResult:
+		return printReusableTaskDeleteResult(ctx.stdout, typed)
 	default:
 		return fmt.Errorf("unsupported output type %T", value)
 	}
+}
+
+func printPlanningItem(w io.Writer, item core.PlanningItemView) error {
+	_, err := fmt.Fprintf(w, "%s\t%s\t%s\n", item.ShortID, item.Title, item.Status)
+	return err
+}
+
+func printPlanningItemDetails(w io.Writer, item core.PlanningItemView) error {
+	if _, err := fmt.Fprintf(w, "%s (%s)\n", item.ShortID, item.ID); err != nil {
+		return err
+	}
+	lines := []string{
+		fmt.Sprintf("title: %s", item.Title),
+		fmt.Sprintf("status: %s", item.Status),
+		fmt.Sprintf("created: %s", item.CreatedAt.Format(timeLayout)),
+		fmt.Sprintf("updated: %s", item.UpdatedAt.Format(timeLayout)),
+	}
+	if item.Description != "" {
+		lines = append(lines, fmt.Sprintf("description: %s", item.Description))
+	}
+	if item.Priority != "" {
+		lines = append(lines, fmt.Sprintf("priority: %s", item.Priority))
+	}
+	if item.Estimate != "" {
+		lines = append(lines, fmt.Sprintf("estimate: %s", item.Estimate))
+	}
+	if item.Lane != "" {
+		lines = append(lines, fmt.Sprintf("lane: %s", item.Lane))
+	}
+	if item.Model != "" {
+		lines = append(lines, fmt.Sprintf("model: %s", item.Model))
+	}
+	if item.IssueID != "" {
+		lines = append(lines, fmt.Sprintf("issueId: %s", item.IssueID))
+	}
+	if item.Project != "" {
+		lines = append(lines, fmt.Sprintf("project: %s", item.Project))
+	}
+	if item.Milestone != "" {
+		lines = append(lines, fmt.Sprintf("milestone: %s", item.Milestone))
+	}
+	if item.Version != "" {
+		lines = append(lines, fmt.Sprintf("version: %s", item.Version))
+	}
+	if item.FeatureID != "" {
+		lines = append(lines, fmt.Sprintf("featureId: %s", item.FeatureID))
+	}
+	if item.Feature != "" {
+		lines = append(lines, fmt.Sprintf("feature: %s", item.Feature))
+	}
+	if item.GitRepo != "" {
+		lines = append(lines, fmt.Sprintf("gitRepo: %s", item.GitRepo))
+	}
+	if item.GitBranch != "" {
+		lines = append(lines, fmt.Sprintf("gitBranch: %s", item.GitBranch))
+	}
+	if item.WorktreeName != "" {
+		lines = append(lines, fmt.Sprintf("worktreeName: %s", item.WorktreeName))
+	}
+	if item.WorktreeDir != "" {
+		lines = append(lines, fmt.Sprintf("worktreeDir: %s", item.WorktreeDir))
+	}
+	if item.Assignee != "" {
+		lines = append(lines, fmt.Sprintf("assignee: %s", item.Assignee))
+	}
+	if len(item.Dependencies) > 0 {
+		lines = append(lines, fmt.Sprintf("dependencies: %s", strings.Join(item.Dependencies, ", ")))
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return err
+		}
+	}
+	if len(item.ReusableTasks) > 0 {
+		if err := printReusableAssignments(w, item.ReusableTasks); err != nil {
+			return err
+		}
+	}
+	if len(item.Comments) > 0 {
+		if _, err := fmt.Fprintln(w, "comments:"); err != nil {
+			return err
+		}
+		for _, comment := range item.Comments {
+			if _, err := fmt.Fprintf(w, "- %s [%s] %s\n", comment.Author, comment.CreatedAt.Format(timeLayout), comment.Message); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func printReusableTaskList(w io.Writer, definitions []core.ReusableTaskDefinition) error {
+	if len(definitions) == 0 {
+		_, err := fmt.Fprintln(w, "no reusable definitions found")
+		return err
+	}
+	for _, definition := range definitions {
+		if _, err := fmt.Fprintf(w, "%s\t%s\n", definition.Name, definition.Title); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printReusableTask(w io.Writer, definition core.ReusableTaskDefinition) error {
+	if err := printReusableTextField(w, "name", definition.Name); err != nil {
+		return err
+	}
+	if err := printReusableTextField(w, "id", definition.ID); err != nil {
+		return err
+	}
+	if err := printReusableTextField(w, "title", definition.Title); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "instructions:"); err != nil {
+		return err
+	}
+	if err := printIndentedText(w, definition.Instructions); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "created: %s\nupdated: %s\n", definition.CreatedAt.Format(timeLayout), definition.UpdatedAt.Format(timeLayout)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func printReusableTaskDeleteResult(w io.Writer, result provider.ReusableTaskDeleteResult) error {
+	noun := "tasks"
+	if result.DetachedTaskCount == 1 {
+		noun = "task"
+	}
+	_, err := fmt.Fprintf(w, "deleted reusable definition %q (%s); detached %d %s\n", result.Deleted.Name, result.Deleted.ID, result.DetachedTaskCount, noun)
+	return err
+}
+
+// printIndentedText keeps user-controlled multiline content below its field
+// label. Markdown markers and lines that resemble other fields therefore
+// cannot turn the concise human representation into ambiguous metadata.
+func printIndentedText(w io.Writer, value string) error {
+	for _, line := range strings.Split(value, "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		if _, err := fmt.Fprintf(w, "  %s\n", line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printReusableTextField(w io.Writer, name, value string) error {
+	if !strings.ContainsAny(value, "\r\n") {
+		_, err := fmt.Fprintf(w, "%s: %s\n", name, value)
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "%s:\n", name); err != nil {
+		return err
+	}
+	return printIndentedText(w, value)
 }
 
 func printTask(w io.Writer, task core.TaskView) error {
@@ -1689,6 +2708,11 @@ func printTask(w io.Writer, task core.TaskView) error {
 			return err
 		}
 	}
+	if len(task.ReusableTasks) > 0 {
+		if err := printReusableAssignments(w, task.ReusableTasks); err != nil {
+			return err
+		}
+	}
 	if len(task.Comments) > 0 {
 		if _, err := fmt.Fprintln(w, "comments:"); err != nil {
 			return err
@@ -1727,13 +2751,38 @@ func printTask(w io.Writer, task core.TaskView) error {
 	return nil
 }
 
+func printReusableAssignments(w io.Writer, definitions []core.ReusableTaskDefinition) error {
+	if _, err := fmt.Fprintln(w, "reusableTasks:"); err != nil {
+		return err
+	}
+	for _, definition := range definitions {
+		if _, err := fmt.Fprintf(w, "- name: %s\n  title: %s\n  instructions:\n", definition.Name, definition.Title); err != nil {
+			return err
+		}
+		for _, line := range strings.Split(definition.Instructions, "\n") {
+			line = strings.TrimSuffix(line, "\r")
+			if _, err := fmt.Fprintf(w, "    %s\n", line); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func help(w io.Writer) error {
 	_, err := io.WriteString(w, `wtp
 
 Commands:
 		`+taskCreateUsage[7:]+`
 		`+taskUpdateUsage[7:]+`
-		wtp task edit <task-id> [same options as update]
+	`+planningCreateUsage[7:]+`
+	`+planningListUsage[7:]+`
+	`+planningReportUsage[7:]+`
+	`+planningShowUsage[7:]+`
+	`+planningPromoteUsage[7:]+`
+	`+planningUpdateUsage[7:]+`
+	`+planningSetStatusUsage[7:]+`
+	wtp task edit <task-id> [same options as update]
 	  `+taskListUsage[7:]+`
   wtp task show <task-id> [--agent Tony]
   wtp task get <task-id> [--agent Tony]
@@ -1744,14 +2793,19 @@ Commands:
 	wtp task comment <task-id> [--agent Tony] --message "..."
 	  `+taskReadyUsage[7:]+`
 	  `+taskNextUsage[7:]+`
+	`+reusableCreateUsage[7:]+`
+	`+reusableListUsage[7:]+`
+	`+reusableShowUsage[7:]+`
+	`+reusableUpdateUsage[7:]+`
+	`+reusableDeleteUsage[7:]+`
 	wtp handoff write --message "..." [--agent Tony] [--task <task-id>] [--replace]
 	wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]
 	wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]
 	  `+graphUsage[7:]+`
-	  wtp stats [--chart] [STATUS]
-	  wtp stats [--chart] [status|model|lane|priority|estimate|assignee|comments|dependencies]
-	wtp stats [--chart] [STATUS] [status|model|lane|priority|estimate|assignee|comments|dependencies]
-	wtp stats [--chart] [created|progressed] STARTd-ENDd
+	  wtp stats [--chart] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [STATUS]
+	  wtp stats [--chart] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [status|model|lane|priority|estimate|assignee|issueId|project|milestone|version|featureId|feature|comments|dependencies]
+	  wtp stats [--chart] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [STATUS] [status|model|lane|priority|estimate|assignee|issueId|project|milestone|version|featureId|feature|comments|dependencies]
+	  wtp stats [--chart] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [created|progressed] STARTd-ENDd
 	wtp export --out .wtp-export
 	wtp batch export --out PATH|- [--format csv|json] [--status STATUS] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--task ID ...]
 	wtp batch import --in PATH|- [--format csv|json]
@@ -1772,11 +2826,43 @@ The retained collection is .wtp/handoffs.json with a {"handoffs":[...]} wrapper;
 With --json, handoff write returns {"handoff":...,"scopeCount":...}, get returns {"handoffs":...,"totalMatching":...,"hasMore":...,"otherScopesAvailable":...}, and purge returns {"purged":...}.
 When --agent is supplied, list/get/ready/next compute claimability using that same assignee-safety rule.
 task update edits mutable task fields in place; pass --model=, a grouping metadata option with =, or any Git/worktree metadata option with = to clear that field.
+Task create and update/edit accept repeatable --reusable NAME_OR_ID selectors. Provider resolution persists only ordered definition UUIDs; a single --reusable= on update clears all assignments, while mixed empty/non-empty and duplicate occurrences are rejected. Detailed task and claim output includes stored reusableTaskIds plus live reusableTasks with each name, title, and multiline instructions; compact list and graph output remain unchanged.
+Planning create accepts the same metadata and repeatable dependency/reusable selectors as task create, defaults status to toplan, and returns a typed planning view without execution readiness. Omitted Git/worktree origin fields use the current invocation context; explicit empty values suppress discovery.
+Planning list accepts one optional planning status and any combination of the six grouping selectors. Selectors are trimmed, case-insensitive exact AND matches, and list order is deterministic. Planning show accepts one UUID or complete short ID, reads only planning records, and renders stored metadata, dependencies, comments, and live reusable assignments.
+Planning statuses are fixed and revisable: toplan -> researched|rejected; researched -> toplan|planned|rejected; planned -> researched|rejected; rejected -> toplan. Same-state and other moves fail; rejected replaces planning deletion. Planning records retain the complete task metadata payload, always have null startedAt/completedAt, and share the global UUID/short-ID namespace and dependency graph with executable tasks.
+Planning storage is nested under planning/{toplan|researched|planned|rejected}/ in the flat-file store. Planning list, show, report, and promotion are store-wide across branch scopes; normal task list/show/ready/next/start, stats, batch, and graph exclude planning records. featureId is the stable feature key and feature is its independent display name.
+Planning promote requires at least one grouping selector and promotes the dependency-closed planned group; --dry-run previews the exact ordered planning records without changing storage.
+Planning report is a project -> version -> milestone tree with totalItems and fixed four-state statusCounts at every level. Promotion is atomic: planning-promote.json uses prepared/committed snapshots, and store recovery preflights and processes batch-update.json, then reusable-update.json, then planning-promote.json. Canonical export includes planning/<planning-UUID>.json, handoffs.json, and reusable.json; batch export remains planning-blind. See wtp schema for the full storage, journal, compatibility, and flag contract.
+Reusable definitions are store-global advisory instructions, not queue tasks: they have no status or completion state, do not affect ordering, readiness, claimability, dependencies, or stats, and WTP never executes them, enforces completion, or infers a group end. The UUID reference remains live after a definition rename.
+Reusable CRUD commands are: wtp reusable create --name NAME --title TITLE --instructions INSTRUCTIONS, list, show NAME_OR_ID, update NAME_OR_ID [--name NAME] [--title TITLE] [--instructions INSTRUCTIONS], and delete NAME_OR_ID. Names are trimmed and case-insensitive unique; UUID or exact name selects a definition. Update preserves ID/createdAt and a normalized no-op preserves updatedAt. Delete is an atomic no-confirmation detach from every status and branch scope, including done tasks, and reports detachedTaskCount.
+The reusable catalog is .wtp/reusable.json (version 1); it is shared by every branch, worktree, and project using the same wtpDir. A missing catalog is legacy-compatible empty storage and reads do not create it. Canonical export always includes it. The transient .wtp/meta/reusable-update.json journal is ignored beside .wtp/meta/wtp.lock and .wtp/meta/batch-update.json; store open rolls prepared journals back, committed journals forward, and retains a journal when recovery fails. Back up the store before manual recovery.
 On task create, omitted Git/worktree fields default independently from the current Git context; explicit empty values override those defaults.
 Configuration is read from .wtp.json at the current Git worktree root (or the invocation directory outside Git); wtpDir selects storage and is relative to that file when not absolute.
-The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
-Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
-graph prints dependency trees for matching tasks; it defaults to todo and accepts every configured status or all.
+	The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
+	Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
+	Grouping metadata:
+	  Tasks may have independent optional issueId, project, milestone, version,
+	  featureId, and feature fields. featureId is the stable machine-facing
+	  feature key; feature is the human-readable display name. Keep featureId
+	  stable when the feature is renamed; WTP never substitutes a key for a
+	  name or a name for a key. Create values cannot be blank after trimming.
+	  Update/edit preserves an omitted field; an explicit empty assignment such
+	  as --feature-id= or --project= clears only that field. Legacy task files
+	  omitting these properties remain valid and expose unset values.
+	Grouping selectors:
+	  task list, task ready, task next, graph, batch export, and stats accept
+	  --issue-id, --project, --milestone, --version, --feature-id, and --feature.
+	  Values are trimmed and compared case-insensitively as exact strings. Every
+	  supplied selector must match (AND); omitted selectors are unrestricted.
+	  Wildcards, substring matching, version interpretation, and feature key/name
+	  fallback are not supported. Selector flags precede positional stats
+	  selectors. Automatic ready/next claims must reuse the exact same scope.
+	Stats grouping:
+	  The six selectors apply before overview, focused, and created/progressed
+	  series aggregation, including model counts, comments, dependency metrics,
+	  and relevant grouped handoffs. Status remains before a focused attribute,
+	  so wtp stats --project Apollo done model remains compatible.
+	graph prints dependency trees for matching tasks; it defaults to todo and accepts every configured status or all.
 Shared dependencies are expanded once: text marks later occurrences as (already shown), while JSON emits {"ref":"<task UUID>"}.
 	stats accepts singular selectors: at most one configured STATUS and one ATTRIBUTE, with STATUS before ATTRIBUTE. status alone returns a filtered overview; an attribute alone returns its focused report; status itself is the focused status-count attribute. The status-before-model compatibility form wtp stats STATUS model remains supported. Configured statuses resolve before attributes and series metrics, so a status named model keeps status-first meaning. The created and progressed series each take one STARTd-ENDd rolling range and do not accept a status filter. Overview JSON has totalTasks, statusCounts, attributes, comments, dependencies, and handoffs, plus status when filtered. statusCounts includes every configured status in catalog order, including zero buckets. Focused JSON has totalTasks, attribute, and exactly one of buckets, comments, or dependencies, plus status when filtered. Categorical buckets use value and count; model, lane, and assignee are lexical, while priority and estimate use their canonical order. Empty categorical values are value "" in JSON and (unset) in text.
 	For agents and scripts, use root --json before stats, such as wtp --json stats model. Human users may request an optional chart with wtp stats --chart ATTRIBUTE or wtp stats --chart created|progressed STARTd-ENDd. --chart must appear immediately after stats and before selectors, may appear only once, requires a focused selector, and cannot be combined with root --json. Chart bars preserve bucket order, align labels, and are scaled to a fixed maximum width of 32 cells; the largest positive bucket gets 32 cells, smaller positive buckets get proportional bars of at least one cell, and zero buckets have no bar. Empty model values display as (unset).
@@ -1810,10 +2896,10 @@ Examples:
   wtp stats --chart model
   wtp stats --chart done model
   wtp stats --chart progressed 7d-0d
-export writes an exact canonical snapshot to a dedicated directory, including the retained handoffs.json collection; unmanaged entries and paths overlapping active .wtp storage are rejected. Root export is not an editable batch document.
+export writes an exact canonical snapshot to a dedicated directory, including the retained handoffs.json collection and the complete version-1 reusable.json catalog; unmanaged entries and paths overlapping active .wtp storage are rejected. Tasks, handoffs, and reusable definitions are captured from one store-locked snapshot. Root export is not an editable batch document.
 batch export writes an editable patch document. It accepts at most one selector kind for explicit task selection; --status STATUS may be combined with grouping selectors (--issue-id, --project, --milestone, --version, --feature-id, and --feature) to export matching tasks. Repeatable --task ID selects exact canonical UUIDs or short IDs in caller order; status and grouping selectors cannot be combined with --task. For an unfiltered export, omit both to export every task (status and grouping selectors, and --task, are all omitted). File .json/.csv suffixes infer format; --format is required for PATH with another suffix or for - (stdout). Batch export to stdout writes raw data and cannot be combined with --json. File export text reports destination, format, and taskCount; --json returns {"count":1,"format":"json","destination":"PATH"}.
-batch import reads PATH or - (stdin), using the same format inference and --format rules. JSON output is {"updated":[...],"unchanged":[...]}; human output reports updated and unchanged counts. Each row requires id or shortId and updatedAt plus at least one mutable field. The mutable fields are title, description, status, priority, estimate, lane, model, issueId, project, milestone, version, featureId, feature, gitRepo, gitBranch, worktreeName, worktreeDir, assignee, and dependencies.
-Batch JSON is version 1 with {"version":1,"tasks":[...]}; omitted patch fields preserve stored values and null clears optional fields. CSV blanks preserve stored values; _clear explicitly clears optional fields only. Title and status must be non-empty; priority is low|medium|high|urgent; estimate is xs|s|m|l|xl; statuses must be configured; gitRepo and worktreeDir must be absolute; dependencies must resolve and remain acyclic. Both identifiers, when supplied, must name the same task. Duplicate rows or identifiers, unknown fields or headers, malformed input, stale updatedAt, invalid transitions, lifecycle violations, and dependency errors reject the entire import before publication.
+batch import reads PATH or - (stdin), using the same format inference and --format rules. JSON output is {"updated":[...],"unchanged":[...]}; human output reports updated and unchanged counts. Each row requires id or shortId and updatedAt plus at least one mutable field. The mutable fields are title, description, status, priority, estimate, lane, model, issueId, project, milestone, version, featureId, feature, gitRepo, gitBranch, worktreeName, worktreeDir, assignee, dependencies, and reusableTasks. CSV reusableTasks cells contain ordered canonical definition UUIDs; blank preserves assignments and _clear explicitly clears them.
+Batch JSON is version 1 with {"version":1,"tasks":[...]}; omitted patch fields preserve stored values and null clears optional fields. CSV blanks preserve stored values; _clear explicitly clears optional fields only. Title and status must be non-empty; priority is low|medium|high|urgent; estimate is xs|s|m|l|xl; statuses must be configured; gitRepo and worktreeDir must be absolute; dependencies must resolve and remain acyclic. Both identifiers, when supplied, must name the same task. Duplicate rows or identifiers, unknown fields or headers, malformed input, stale updatedAt, invalid transitions, lifecycle violations, and dependency errors reject the entire import before publication. Reusable definition existence is validated by the provider.
 The flat-file batch transaction uses transient .wtp/meta/batch-update.json with version 1 and prepared/committed states. Store opening recovers that journal; a recovery failure retains it for diagnosis. Version-controlled stores should ignore it alongside .wtp/meta/wtp.lock.
 version reports the binary's version, commit, and build date; use wtp --json version for machine-readable output.
 update installs a newer checksum-verified GitHub release over the running executable; use wtp --json update for machine-readable output.
@@ -1857,7 +2943,8 @@ Task IDs and scoped storage:
   migration does not rename short IDs, alter task JSON, or migrate old branch
   scopes; conflicting or invalid files are rejected without partial migration.
   export remains canonical: it writes one UUID-named JSON snapshot per task,
-  plus handoffs.json, and does not export scoped short-ID filenames or indexes.
+  plus handoffs.json and reusable.json, and does not export scoped short-ID
+  filenames or indexes.
 
 Usage Guide:
 	1. Create tasks with title and optional metadata, including --model when a particular execution model is suggested.
@@ -1878,10 +2965,10 @@ Legacy Compatibility Mode:
   wtp --agent Tony --set-task-paused --task-id wtp-0001
   wtp --agent Tony --set-task-done --task-id wtp-0001
   wtp --agent Tony --add-comment --task-id wtp-0001 --comment "..."
-  wtp --agent Tony --create-task --title "..." --description "..." --model gpt-5 --dependencies wtp-0001
+  wtp --agent Tony --create-task --title "..." --description "..." --model gpt-5 --dependencies wtp-0001 --reusable Checks --reusable Review
   wtp --export-tasks=.wtp-export
 
-Legacy task action flags remain supported, and legacy --export-tasks is an alias for export; both export forms include handoffs.json.
+Legacy task action flags remain supported, and legacy --export-tasks is an alias for export; both export forms include handoffs.json, reusable.json, and the managed planning/ directory.
 `)
 	return err
 }
@@ -1900,11 +2987,14 @@ Storage layout:
 	 paused/
 	 done/
 	 handoffs.json
+	 reusable.json
 	 meta/
 			index.json
 			index-<branchId>.json
 			wtp.lock (transient global allocation lock)
 			batch-update.json (transient batch recovery journal)
+			reusable-update.json (transient reusable-delete recovery journal)
+			planning-promote.json (transient planning promotion journal)
 			locks/
 
 Configuration and discovery:
@@ -1921,6 +3011,126 @@ Configuration and discovery:
 	- The optional .wtp.json wtpDir property selects storage. Relative wtpDir values are resolved from the configuration file; absolute values are accepted.
 	- Adding, changing, or removing .wtp.json never moves or deletes an existing store.
 
+Versioned planning workflow:
+	- Planning is flat-file only and is nested below the store root:
+	  planning/toplan/<shortId>.json
+	  planning/researched/<shortId>.json
+	  planning/planned/<shortId>.json
+	  planning/rejected/<shortId>.json
+	  The planning root is a namespace, not an execution status directory. Direct
+	  records, unknown planning status directories containing records, nested
+	  record directories, and an execution status named planning are errors.
+	- Planning statuses are fixed, exact, and case-sensitive: toplan, researched,
+	  planned, rejected. Allowed direct moves are toplan -> researched|rejected,
+	  researched -> toplan|planned|rejected, planned -> researched|rejected, and
+	  rejected -> toplan. Same-state and all other moves fail. Rejected replaces
+	  deletion and remains revisable; there is no planning delete command.
+	- Every planning record repeats the complete task payload with planning status:
+	  id, shortId, title, description, priority, estimate, lane, model, issueId,
+	  project, milestone, version, featureId, feature, gitRepo, gitBranch,
+	  worktreeName, worktreeDir, status, assignee, dependencies, comments,
+	  createdAt, updatedAt, startedAt, completedAt, and reusableTaskIds. Planning
+	  records always require null startedAt and completedAt. Legacy files may omit
+	  optional fields. featureId is the stable feature key; feature is its
+	  independent display name, and neither substitutes for the other.
+	- One UUID/short-ID namespace and one dependency graph cover executable and
+	  planning records, across branches and shared stores. Validate identity,
+	  missing references, and cycles globally under wtp.lock. Planning uses the
+	  normal allocator/index rules but has no separate index. Planning list/show,
+	  report, and promote are store-wide across branch scopes.
+	- Normal task list/show/ready/next/start, stats, batch, and graph operate only
+	  on executable records. Planning is excluded from normal stats, batch,
+	  graph, ready, and next; execution graph nodes never include planning nodes.
+	  Readiness may report a planning dependency as a blocker. Reusable tasks are
+	  live advisory references and are not executed or completion-enforced.
+
+Planning command contract:
+	- Exact forms are:
+	  wtp planning create --title TITLE [--status toplan|researched|planned|rejected]
+	    [--description TEXT] [--priority low|medium|high|urgent]
+	    [--estimate xs|s|m|l|xl] [--lane LANE] [--model MODEL]
+	    [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE]
+	    [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE]
+	    [--git-repo ABSOLUTE-PATH] [--git-branch BRANCH]
+	    [--worktree-name NAME] [--worktree-dir ABSOLUTE-PATH]
+	    [--depends-on ID[,ID...]] [--reusable NAME_OR_ID] [--agent AGENT]
+	  wtp planning list [--status STATUS] [--issue-id ISSUE-ID] [--project PROJECT]
+	    [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID]
+	    [--feature FEATURE]
+	  wtp planning show PLANNING-ID
+	  wtp planning update PLANNING-ID [same metadata flags as create except --status]
+	  wtp planning set-status PLANNING-ID STATUS
+	  wtp planning report [same --status and six grouping selectors as list]
+	  wtp planning promote [--dry-run] [at least one grouping selector]
+	- Create requires --title and defaults an omitted status to toplan. Update
+	  accepts every mutable metadata field except status and requires a field;
+	  show/set-status accept exactly one UUID or complete short ID. --agent is
+	  create/update-only; there is no --assignee alias. --depends-on and
+	  --reusable are the only repeatable flags. Explicit empty optional values
+	  clear fields on update; a single --depends-on= or --reusable= clears its
+	  complete list. Empty and non-empty occurrences cannot be mixed and duplicate
+	  references are rejected. Dependencies accept comma-separated IDs and are
+	  stored as canonical UUIDs; reusable selectors preserve caller order and are
+	  not comma-split.
+	- List/report take one optional status and any combination of --issue-id,
+	  --project, --milestone, --version, --feature-id, and --feature. Every
+	  selector is trimmed and matched case-insensitively as an exact string; all
+	  supplied selectors must match (AND), omitted fields are unrestricted, and
+	  unset metadata never matches a non-empty selector. There is no wildcard,
+	  substring, semantic-version, or feature key/name fallback matching.
+	- Reports filter before aggregation into the fixed projects -> versions ->
+	  milestones hierarchy. Root and every node have totalItems and four
+	  statusCounts in toplan, researched, planned, rejected order, including
+	  zero buckets. Unset values are "" in JSON and (unset) in human output;
+	  arrays are non-nil, observed values only, and sorted unset first then Go
+	  lexical order. Milestones are leaves.
+	- Promote selects only planned records matching every grouping selector and
+	  requires at least one selector. No status, ID, agent, positional, or
+	  implicit-all selector is accepted. The selected group must be dependency
+	  closed through both planning and executable vertices: every encountered
+	  planning dependency must also be selected and planned. The entire group is
+	  rejected with a deterministic short-ID/status dependency chain otherwise.
+	  Executable dependencies remain unchanged. --dry-run returns planning views
+	  without durable writes; publish returns todo task views. Both JSON results
+	  are exactly {"dryRun":bool,"count":N,"items":[...]}, and promotion does
+	  not claim tasks, allocate IDs, create handoffs, or execute reusable work.
+
+Planning JSON, promotion, and recovery:
+	- Planning JSON uses the same field names and formatting as task JSON, with
+	  planning status and null lifecycle timestamps, for example:
+	  {"id":"<uuid>","shortId":"wtp-0001","title":"Search API",
+	   "project":"Apollo","milestone":"MVP","version":"v2",
+	   "featureId":"SEARCH-1","feature":"Search","status":"planned",
+	   "dependencies":[],"comments":[],"createdAt":"<RFC3339>",
+	   "updatedAt":"<RFC3339>","startedAt":null,"completedAt":null}
+	- .wtp/meta/planning-promote.json is a strict version-1 prepared/committed
+	  journal with selectedIds and ordered before/after byte snapshots. Before
+	  paths are planning/planned/<shortId-or-UUID>.json; after paths are
+	  todo/<shortId>.json. Paths are canonical store-relative slash paths and
+	  snapshots are exact non-empty base64 JSON bytes. The commit marker is the
+	  durability boundary; sources are never removed before it.
+	- Store open takes wtp.lock, preflights all pending journals, and recovers in
+	  this fixed order: batch-update.json, reusable-update.json,
+	  planning-promote.json. Prepared promotion rolls back to planning; committed
+	  promotion rolls forward to todo. Recovery is idempotent; a failed recovery
+	  retains its journal and reports the path for diagnosis. Do not blindly retry
+	  a failed promotion before recovery and show inspection.
+
+Canonical planning export and compatibility:
+	- wtp export and legacy --export-tasks write one global locked snapshot of
+	  executable UUID-named records, planning/<planning-UUID>.json records,
+	  handoffs.json, and reusable.json. Planning export is flat inside the
+	  managed planning directory, not subdivided by status or written at the
+	  export root. The empty planning directory is always present. Indexes,
+	  locks, journals, views, and batch wrappers are not exported. Normal batch
+	  export/import has no planning mode and remains planning-blind.
+	- Planning is compatible with legacy records that omit optional metadata or
+	  reusableTaskIds, and with stores missing reusable.json (empty catalog).
+	  Valid legacy UUID filenames can migrate to short-ID filenames; IDs, branch
+	  scopes, and payloads are unchanged. Shared wtpDir stores use one global
+	  planning namespace across projects, branches, and worktrees. Changing
+	  .wtp.json never moves data. The only supported backend is flat-file.
+
 Task file rules:
 	- Each task is stored as JSON in the directory matching its status.
 	- Flat-file task filenames use the exact short ID: .wtp/<status>/<shortId>.json.
@@ -1929,6 +3139,25 @@ Task file rules:
 	- The JSON payload includes both a canonical UUID id and a stable shortId.
 	- Dependencies are stored as canonical UUID strings, even when CLI input uses short IDs.
 	- Dependencies are stored as canonical UUID strings, even when CLI input uses short IDs.
+	- Reusable task assignments are stored as ordered canonical reusable-definition UUIDs in
+	  reusableTaskIds. Detailed task JSON views add reusableTasks, resolved live from the
+	  shared catalog in that same order; compact list and graph output do not add columns.
+	- Reusable definitions are store-global advisory instructions in reusable.json, not
+	  queue tasks. They have no status or completion state and do not affect ordering,
+	  readiness, claimability, dependencies, statistics, or execution. WTP does not
+	  infer a group's final task or automatically attach definitions.
+
+Reusable CLI contract:
+	- wtp reusable create requires --name, --title, and --instructions;
+	  list is sorted by lowercase name then UUID; show, update, and delete accept
+	  an exact case-insensitive name or canonical UUID. Update preserves ID and
+	  createdAt and a normalized no-op preserves updatedAt. Delete requires no
+	  confirmation and atomically detaches the selected definition everywhere.
+	- task create/update/edit accept repeatable --reusable NAME_OR_ID. Provider
+	  resolution stores ordered UUIDs; update replaces the full list, a single
+	  --reusable= clears it, and duplicates or mixed empty/non-empty occurrences
+	  are invalid. An assigned UUID missing from the catalog is an error; a
+	  missing catalog with no assignments remains compatible empty storage.
 	- With no additionalStatuses, the layout contains exactly the four built-in
 	  status directories. Configured statuses add one directory per definition.
 	- New tasks and status moves use the shortId filename in the destination
@@ -1990,6 +3219,11 @@ Compatibility rule:
 	- legacy task files named by canonical UUID are validated before migration to short-ID filenames.
 	- comments created without an agent remain valid with an empty author.
 	- a missing .wtp/handoffs.json is a legacy store with no retained handoffs; reads do not create it.
+	- task files from before reusable definitions remain valid when they omit
+	  reusableTaskIds; those tasks have no assignments. A missing .wtp/reusable.json
+	  is compatible empty storage and reads do not create it.
+	  Legacy task action flags remain supported, including --reusable on
+	  --create-task and --export-tasks still includes reusable.json.
 
 Task JSON schema:
 	{
@@ -2014,6 +3248,7 @@ Task JSON schema:
 		"status": "todo",
 		"assignee": "Tony",
 		"dependencies": ["7f13f5e2-6d9d-4630-84e1-7aef10c637e4"],
+		"reusableTaskIds": ["7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6"],
 		"comments": [
 			{
 				"id": "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
@@ -2027,6 +3262,47 @@ Task JSON schema:
 		"startedAt": "2026-04-21T12:10:00Z",
 		"completedAt": "2026-04-21T13:00:00Z"
 	}
+
+Reusable definition catalog schema (.wtp/reusable.json):
+	{
+		"version": 1,
+		"definitions": [
+			{
+				"id": "7a6e05a5-b5db-4d36-a1cf-4928cc5fd3e6",
+				"name": "Tests",
+				"title": "Run focused tests",
+				"instructions": "Run the focused test suite.",
+				"createdAt": "2026-04-21T12:00:00Z",
+				"updatedAt": "2026-04-21T12:00:00Z"
+			}
+		]
+	}
+	- version is exactly 1 and definitions is a non-null array. Each definition
+	  has a canonical lowercase UUID, trimmed non-empty name/title/instructions,
+	  and UTC createdAt/updatedAt with updatedAt no earlier than createdAt.
+	- Names are unique with case-insensitive exact comparison. list sorts by
+	  lowercase name and UUID; show/update/delete accept a UUID or exact name,
+	  with an exact UUID match taking precedence. Create assigns the UUID and
+	  timestamps. Update preserves ID and createdAt, keeps updatedAt on a
+	  normalized no-op, and advances it on actual changes.
+	- Task references use reusableTaskIds, an ordered array of canonical
+	  definition UUIDs. Detailed TaskView and claim JSON resolves the live
+	  definitions into reusableTasks in that order; human detailed output shows
+	  name, title, and indented instructions. Missing or malformed definitions
+	  are errors, not silently omitted references.
+
+Reusable claim response shapes:
+	- A task start or task next claim returns the normal TaskView. Its JSON
+	  keeps the stored reusableTaskIds and adds the resolved reusableTasks array;
+	  task-scoped retained handoffs may be added as the existing handoffs array.
+	  Human detailed output has a reusableTasks section. Compact task list and
+	  graph output remain unchanged. Claims and reads do not execute or consume
+	  reusable instructions.
+	- reusable delete returns {"deleted":<definition>,"detachedTaskCount":N}
+	  in JSON and reports the deleted name/UUID and count in human output. It
+	  atomically detaches the UUID from every status and branch scope, including
+	  done tasks, preserving other assignment order and changing no lifecycle or
+	  comment data.
 
 Retained handoff JSON schema (.wtp/handoffs.json):
 	{
@@ -2075,9 +3351,11 @@ Field semantics:
 	- model: optional free-form string naming the suggested model for completing the task.
 	  Set it with --model VALUE on task create/update/edit, or clear it with --model=.
 	- issueId, project, milestone, version, featureId, feature: optional grouping metadata.
-	  featureId is a stable grouping key and feature is its human-readable display name.
+	  featureId is the stable machine-facing feature key and feature is its human-readable
+	  display name; they are independent and are never substituted for one another.
 	  Set grouping metadata with the corresponding option on task create/update/edit;
-	  pass an empty assignment (for example --project=) to clear it during update/edit.
+	  pass an empty assignment (for example --project=) to clear only that field.
+	  Legacy files may omit these properties and remain valid with unset values.
 	- gitRepo: optional absolute path to the primary Git worktree root where the task was created.
 	- gitBranch: optional branch name where the task was created; empty for a detached HEAD unless explicitly overridden.
 	- worktreeName: optional name of the current Git worktree where the task was created.
@@ -2112,13 +3390,19 @@ Behavioral rules:
 	- task create discovers each Git/worktree field independently when it is omitted; an explicit value, including an empty value, overrides only that field.
 	- task update and task edit preserve origin fields unless their corresponding option is supplied; pass --git-repo=, --git-branch=, --worktree-name=, or --worktree-dir= to clear one.
 	- Handoff IDs are unique within .wtp/handoffs.json; malformed or corrupt handoff storage is rejected.
+	- Grouping selectors are trimmed, case-insensitive exact matches joined with AND;
+	  omitted selectors are unrestricted, and a task missing a selected field does not match.
+	  They do not support wildcards, substring matching, version parsing, or feature
+	  key/name fallback. The six selector flags are accepted by task list/ready/next,
+	  graph, batch export, and stats.
 
 Export rules:
-	- A successful export directory contains exactly one canonical UUID-named JSON file per current task and a handoffs.json collection; scoped short-ID filenames and allocation indexes are not exported.
+	- A successful export directory contains exactly one canonical UUID-named JSON file per current task, a handoffs.json collection, and a reusable.json version-1 catalog; scoped short-ID filenames and allocation indexes are not exported.
 	- handoffs.json has the same {"handoffs":[...]} shape as .wtp/handoffs.json and contains the exact retained collection, including an empty array when no handoffs exist.
-	- Current task and handoff snapshot files are atomically replaced; stale canonical UUID-named task files are removed.
+	- reusable.json has the same version-1 catalog shape as .wtp/reusable.json and always contains an array, including when empty.
+	- Current task, handoff, and reusable catalog snapshot files are atomically replaced; stale canonical UUID-named task and reusable catalog files are removed.
 	- Unmanaged entries are reported before changes, and export paths overlapping active .wtp storage are rejected.
-	- Legacy --export-tasks=<directory> remains an alias for export and includes handoffs.json too.
+	- Legacy --export-tasks=<directory> remains an alias for export and includes handoffs.json, reusable.json, and the managed planning/ directory too.
 
 Editable batch task contract:
 	- Commands are:
@@ -2138,22 +3422,27 @@ Editable batch task contract:
 	  Each task row may contain id, shortId, updatedAt, title, description, status,
 	  priority, estimate, lane, model, issueId, project, milestone, version,
 	  featureId, feature, gitRepo, gitBranch, worktreeName, worktreeDir, assignee,
-	  and dependencies. id or shortId and updatedAt are
+	  dependencies, and reusableTasks. id or shortId and updatedAt are
 	  required; at least one mutable field is required. Omitted patch fields
-	  preserve stored values. JSON null clears an optional field, including all
-	  dependencies when dependencies is null. Title and status cannot be empty.
+	  preserve stored values. A reusableTasks array replaces the complete
+	  assignment list, including [] to clear it; JSON null also clears an
+	  optional field. Title and status cannot be empty.
 	- CSV uses the header:
-	    id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,issueId,project,milestone,version,featureId,feature,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear
+	    id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,issueId,project,milestone,version,featureId,feature,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,reusableTasks,_clear
 	  The header must include updatedAt and id or shortId, and may contain a subset
 	  of known columns. Blank editable cells preserve stored values. _clear is a
 	  comma-separated list of optional fields to clear: description, priority,
 	  estimate, lane, model, issueId, project, milestone, version, featureId,
-	  feature, gitRepo, gitBranch, worktreeName, worktreeDir, assignee, or
-	  dependencies. Required identifiers, updatedAt, title, and
+	  feature, gitRepo, gitBranch, worktreeName, worktreeDir, assignee,
+	  dependencies, or reusableTasks. Required identifiers, updatedAt, title, and
 	  status cannot be cleared. CSV is UTF-8 and may have a BOM.
 	- Mutable fields are title, description, status, priority, estimate, lane, model,
 	  issueId, project, milestone, version, featureId, feature, gitRepo, gitBranch,
-	  worktreeName, worktreeDir, assignee, and dependencies.
+	  worktreeName, worktreeDir, assignee, dependencies, and reusableTasks.
+	  CSV reusableTasks values are ordered canonical definition UUIDs; blank cells
+	  preserve assignments, populated cells replace them, and _clear clears them.
+	  Reusable selectors are resolved by name or UUID on import; batch export
+	  emits canonical definition UUIDs.
 	  Priority accepts low|medium|high|urgent; estimate accepts xs|s|m|l|xl;
 	  status must be configured; gitRepo and worktreeDir must be absolute paths;
 	  dependencies must resolve to existing tasks, cannot include the task itself,
@@ -2168,16 +3457,41 @@ Editable batch task contract:
 	    {"updated":[<task view>],"unchanged":[<task view>]}
 	  and file export with --json returns
 	    {"count":<positive integer>,"format":"json|csv","destination":"PATH"}.
-	- The flat-file provider writes .wtp/meta/batch-update.json only for changed
-	  batches. It is a version-1 journal with prepared or committed state and
-	  before/after task-file snapshots. Store open rolls back prepared journals,
-	  rolls forward committed journals, and removes a recovered journal; if
-	  recovery fails, the journal is retained and the error is reported. Ignore
-	  this transient file alongside .wtp/meta/wtp.lock in version-controlled stores.
-	- Batch export is separate from canonical export. Root export and legacy
-	  --export-tasks=<directory> write canonical UUID-named task snapshots plus
-	  handoffs.json; they do not write the batch version wrapper or editable patch
-	  representation.
+		- The flat-file provider writes .wtp/meta/batch-update.json only for changed
+		  batches. It is a version-1 journal with prepared or committed state and
+		  before/after task-file snapshots. Store open rolls back prepared journals,
+		  rolls forward committed journals, and removes a recovered journal; if
+		  recovery fails, the journal is retained and the error is reported. Ignore
+		  this transient file alongside .wtp/meta/wtp.lock in version-controlled stores.
+		- Reusable-definition deletion writes .wtp/meta/reusable-update.json, a
+		  version-1 prepared/committed journal containing byte-exact before/after
+		  snapshots for reusable.json and affected task files. Store open recovers
+		  prepared journals by rollback and committed journals by roll-forward,
+		  then removes the journal only after all endpoints succeed. If recovery
+		  fails it is retained for diagnosis; back up before manual intervention.
+		  Ignore it alongside wtp.lock and batch-update.json, but keep reusable.json
+		  and task directories tracked. The store-wide lock and one transaction
+		  cover all statuses and branch scopes.
+		- Batch export is separate from canonical export. Root export and legacy
+		  --export-tasks=<directory> write canonical UUID-named task snapshots plus
+		  planning/<canonical-UUID>.json records, handoffs.json, and reusable.json;
+		  they do not write the batch version wrapper or editable patch representation.
+
+	Stats and grouping query contract:
+		- stats accepts the six grouping flags --issue-id, --project, --milestone,
+		  --version, --feature-id, and --feature before its positional selectors.
+		  A query may provide any combination; every supplied field must match as a
+		  trimmed, case-insensitive exact value. Omitted fields are unrestricted.
+		- Grouping is applied before overview and focused aggregation, including
+		  model and grouping-attribute buckets, comments, dependency metrics, and
+		  created/progressed series. Grouped overview handoffs retain global records
+		  and task-scoped records belonging to the selected group.
+		- Positional status remains before a focused attribute, and the status-first
+		  compatibility form wtp stats --project Apollo done model remains supported.
+		  A configured status named model still wins over the attribute name.
+		- A targeted automatic loop should establish one optional grouping scope and
+		  pass the same flags to scoped model stats and every task ready/task next
+		  claim. It must not inspect one group and claim from an unrestricted queue.
 
 Legacy task compatibility:
 	- The legacy task action flags remain supported: --get-next-task, --get-tasks, --get-task, --set-task-in-progress, --set-task-paused, --set-task-done, --add-comment, and --create-task.
@@ -2199,9 +3513,11 @@ Interoperability guidance:
 	- Writers migrating UUID-named files should validate every file and its
 	  target before changing paths, preserving the task payload and unknown
 	  fields. Do not migrate old short IDs when a branch is renamed.
-	- Canonical export is unchanged: export task records under canonical UUID
-	  filenames and preserve the task JSON shape; short-ID indexes stay in active
-	  storage only.
+	- Canonical export is unchanged in its task-record shape: it writes task
+	  records under canonical UUID filenames and
+	  preserves the task JSON shape, plus the retained handoffs.json collection
+	  and version-1 reusable.json catalog; short-ID indexes stay in active storage
+	  only.
 `)
 	return err
 }
@@ -2356,6 +3672,51 @@ func (values *stringList) Set(value string) error {
 	return nil
 }
 
+// repeatableOption retains every occurrence, including an explicit empty
+// assignment. The caller decides whether empty is valid because create and
+// update use different clear semantics.
+type repeatableOption struct {
+	values []string
+	set    bool
+}
+
+func (values *repeatableOption) String() string {
+	return strings.Join(values.values, ",")
+}
+
+func (values *repeatableOption) Set(value string) error {
+	values.set = true
+	values.values = append(values.values, value)
+	return nil
+}
+
+func validateReusableTaskAssignments(values []string, update bool) error {
+	seen := make(map[string]struct{}, len(values))
+	emptyCount := 0
+	for index, value := range values {
+		selector := strings.TrimSpace(value)
+		if selector == "" {
+			emptyCount++
+			continue
+		}
+		key := strings.ToLower(selector)
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("task --reusable occurrence %d %q duplicates an earlier occurrence", index+1, selector)
+		}
+		seen[key] = struct{}{}
+	}
+	if emptyCount == 0 {
+		return nil
+	}
+	if update && len(values) == 1 {
+		return nil
+	}
+	if update {
+		return errors.New("task update --reusable cannot mix empty and non-empty occurrences; use a single --reusable= to clear")
+	}
+	return errors.New("task create --reusable cannot be empty")
+}
+
 func (o *optionString) String() string {
 	return o.value
 }
@@ -2363,6 +3724,36 @@ func (o *optionString) String() string {
 func (o *optionString) Set(value string) error {
 	o.set = true
 	o.value = value
+	return nil
+}
+
+// rejectDuplicateFlags preserves the planning command contract that every
+// singleton flag is supplied at most once while allowing the explicitly
+// repeatable dependency and reusable selectors.
+func rejectDuplicateFlags(command string, args []string, singleton, repeatable map[string]struct{}) error {
+	seen := make(map[string]struct{}, len(singleton))
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			continue
+		}
+		name := strings.TrimLeft(arg, "-")
+		if name == "" {
+			continue
+		}
+		if nameAndValue, _, hasValue := strings.Cut(name, "="); hasValue {
+			name = nameAndValue
+		}
+		if _, ok := repeatable[name]; ok {
+			continue
+		}
+		if _, ok := singleton[name]; !ok {
+			continue
+		}
+		if _, duplicate := seen[name]; duplicate {
+			return fmt.Errorf("%s --%s may only be specified once", command, name)
+		}
+		seen[name] = struct{}{}
+	}
 	return nil
 }
 
@@ -2374,6 +3765,25 @@ func defaultedOption(option optionString, fallback string) string {
 }
 
 func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
+	if modernCommandPresent(args) {
+		return legacyParseResult{args: args, found: false}, nil
+	}
+	legacyRequested := false
+	for _, arg := range args {
+		switch {
+		case arg == "--get-next-task", arg == "--get-tasks", arg == "--get-task",
+			arg == "--set-task-in-progress", arg == "--set-task-paused", arg == "--set-task-done",
+			arg == "--add-comment", arg == "--create-task", strings.HasPrefix(arg, "--export-tasks="):
+			legacyRequested = true
+		}
+		if legacyRequested {
+			break
+		}
+	}
+	if !legacyRequested {
+		return legacyParseResult{args: args, found: false}, nil
+	}
+
 	actions := []string{}
 	agent := ""
 	taskID := ""
@@ -2390,6 +3800,7 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 	var worktreeName optionString
 	var worktreeDir optionString
 	dependencies := ""
+	var reusableTasks repeatableOption
 	status := ""
 	exportOut := ""
 
@@ -2496,6 +3907,14 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 			if i < len(args) {
 				dependencies = args[i]
 			}
+		case "--reusable":
+			value, err := consumeLegacyOptionValue(args, &i, arg)
+			if err != nil {
+				return legacyParseResult{}, err
+			}
+			if err := reusableTasks.Set(value); err != nil {
+				return legacyParseResult{}, err
+			}
 		case "--status":
 			i++
 			if i < len(args) {
@@ -2527,6 +3946,12 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 			if strings.HasPrefix(arg, "--export-tasks=") {
 				exportOut = strings.TrimPrefix(arg, "--export-tasks=")
 				actions = append(actions, "export")
+				continue
+			}
+			if value, found := strings.CutPrefix(arg, "--reusable="); found {
+				if err := reusableTasks.Set(value); err != nil {
+					return legacyParseResult{}, err
+				}
 				continue
 			}
 			rest = append(rest, arg)
@@ -2601,6 +4026,7 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 		out = append(out, withOptionalValue("--worktree-name", worktreeName)...)
 		out = append(out, withOptionalValue("--worktree-dir", worktreeDir)...)
 		out = append(out, withValue("--depends-on", dependencies)...)
+		out = append(out, withRepeatedValues("--reusable", reusableTasks.values...)...)
 		return legacyParseResult{
 			args:  append(out, withValue("--agent", agent)...),
 			found: true,
@@ -2613,6 +4039,27 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 	default:
 		return legacyParseResult{args: args, found: false}, nil
 	}
+}
+
+func modernCommandPresent(args []string) bool {
+	for index, arg := range args {
+		if index == 0 && arg == "--json" {
+			continue
+		}
+		if index == 0 && strings.HasPrefix(arg, "--json=") {
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		switch arg {
+		case "task", "planning", "reusable", "batch", "handoff", "graph", "stats", "export", "help", "schema", "version", "update":
+			return true
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 func withValue(flagName, value string) []string {
@@ -2630,6 +4077,18 @@ func withOptionalValue(flagName string, option optionString) []string {
 		return []string{flagName + "="}
 	}
 	return []string{flagName, option.value}
+}
+
+func withRepeatedValues(flagName string, values ...string) []string {
+	var out []string
+	for _, value := range values {
+		if value == "" {
+			out = append(out, flagName+"=")
+			continue
+		}
+		out = append(out, flagName, value)
+	}
+	return out
 }
 
 func splitCSV(value string) []string {

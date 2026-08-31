@@ -1,0 +1,37 @@
+{
+  "id": "0268b202-70dc-4403-8da0-9848daa94244",
+  "shortId": "wtp-0d6e4079-0056",
+  "title": "Expose reusable create list and show commands",
+  "description": "Add the wtp reusable command family with create, list, and show subcommands. Implement exact usage and validation for create --name --title --instructions, and show NAME_OR_ID; list takes no selectors. Support root --json with typed definition objects and deterministic arrays, plus concise human output that preserves multiline instructions safely. Return clear errors for missing arguments, extra positionals, empty required values, unknown definitions, duplicate names, and unsupported subcommands. Add CLI tests for argument order, Unicode and Markdown-capable instructions, JSON stability, human rendering, empty catalogs, and error text. Update only immediate command registration/help stubs needed for compilation; comprehensive help/schema documentation is a later task.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a"
+  ],
+  "comments": [
+    {
+      "id": "e49dc05e-bc32-4401-8fe3-bb6a8b8ac0b3",
+      "author": "codex-wtp-loop",
+      "message": "Implementation pass started: existing core/provider reusable catalog contracts and flat-file create/list/get APIs are present and verified. I am wiring only the CLI reusable create/list/show family, typed JSON output, safe multiline human rendering, focused CLI coverage, and the minimal command/help registration; unrelated shared-worktree edits will remain untouched.",
+      "createdAt": "2026-08-31T10:42:33.806689876Z"
+    },
+    {
+      "id": "8a948b16-5671-4dc4-b957-16db85fe5b5c",
+      "author": "codex-wtp-loop",
+      "message": "CLI implementation verified: registered reusable at root; create accepts --name/--title/--instructions in any order, distinguishes missing versus blank required values, rejects positionals, delegates duplicate-name validation, and returns core.ReusableTaskDefinition JSON. list rejects all selectors and normalizes empty JSON output to []; show accepts exactly one name/UUID selector and propagates unknown-definition errors. Human list is concise name/title TSV; human show renders title safely and instructions as an indented multiline block preserving Unicode and Markdown markers. Added focused tests for ordering, Unicode/Markdown, JSON stability and deterministic sorting, human rendering, empty catalog, argument errors, duplicate names, and unknown definitions.",
+      "createdAt": "2026-08-31T10:49:03.753407636Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.937582921Z",
+  "updatedAt": "2026-08-31T10:49:07.444416025Z",
+  "startedAt": "2026-08-31T10:40:59.157112203Z",
+  "completedAt": "2026-08-31T10:49:07.444416025Z"
+}

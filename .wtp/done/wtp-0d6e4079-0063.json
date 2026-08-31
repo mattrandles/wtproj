@@ -1,0 +1,40 @@
+{
+  "id": "f2f880d5-2c8e-498f-a1d2-d590d326e2d7",
+  "shortId": "wtp-0d6e4079-0063",
+  "title": "Document reusable advisory tasks and storage contract",
+  "description": "Update README, wtp help, wtp schema, CHANGELOG, and CONTRIBUTING after CLI and wire behavior is final. Document definition CRUD, task create/update assignment flags, ordered live-reference semantics, advisory non-enforcement, rename behavior, detach-everywhere deletion, human and JSON claim shapes, batch JSON/CSV preserve/replace/clear rules, canonical export inclusion, shared-store scope, legacy compatibility, and explicit exclusions such as automatic execution or group-end inference. Add a complete example defining tests, code review, version update, and commit items and attaching them in order to the intentionally selected last task in a group. Document .wtp/reusable.json and .wtp/meta/reusable-update.json, including backup, recovery, and ignore guidance. Add documentation contract tests and run diff checks.",
+  "priority": "medium",
+  "estimate": "l",
+  "lane": "reusable-docs",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "0a238a49-9373-43d7-bd18-6609386b7b2f",
+    "210ec169-d247-44ae-b419-ef6b4b487a79",
+    "3230f122-a083-4ae3-b643-ffbfec17e108",
+    "ae50a1fd-11d8-4493-82f4-941f0dbe8036"
+  ],
+  "comments": [
+    {
+      "id": "3d6c5d93-12d0-47be-8f9c-60b77084d686",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the finalized reusable CLI/provider behavior and existing partial documentation. I am adding the complete reusable definition, assignment, claim-shape, batch, export, shared-store, legacy, exclusion, backup/recovery, and ignore contracts plus documentation tests.",
+      "createdAt": "2026-08-31T11:37:33.17429976Z"
+    },
+    {
+      "id": "656b0796-1765-4197-8168-0100dd592f00",
+      "author": "codex-wtp-loop",
+      "message": "Completed reusable documentation and contract tests: README, CLI help/schema, CHANGELOG, CONTRIBUTING, .gitignore, internal/cli help-schema assertions, and release documentation assertions. Corrected batch JSON to use reusableTasks and documented preserve/replace/clear, live ordered references, CRUD/rename/detach, claim shapes, shared catalog/journal recovery, legacy compatibility, exclusions, and the explicit grouped example. Focused tests, full go test ./..., and git diff --check all pass.",
+      "createdAt": "2026-08-31T11:46:01.268491105Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:57.132206705Z",
+  "updatedAt": "2026-08-31T11:46:01.3172581Z",
+  "startedAt": "2026-08-31T11:36:13.498007343Z",
+  "completedAt": "2026-08-31T11:46:01.3172581Z"
+}

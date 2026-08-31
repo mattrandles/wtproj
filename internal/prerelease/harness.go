@@ -25,10 +25,13 @@ import (
 
 	"github.com/mattrandles/wtproj/internal/config"
 	"github.com/mattrandles/wtproj/internal/core"
+	"github.com/mattrandles/wtproj/internal/planningjson"
 	"github.com/mattrandles/wtproj/internal/stats"
 )
 
 const ReportVersion = "wtp-prerelease/v1"
+
+const planningExportDirectory = "planning"
 
 type Options struct {
 	Candidate      string
@@ -252,6 +255,7 @@ func Run(options Options) (Report, error) {
 		fn   func(*scenarioRunner) error
 	}{
 		{"lifecycle", scenarioLifecycle},
+		{"grouping-end-to-end", scenarioGroupingEndToEnd},
 		{"stats-and-custom-statuses", scenarioStatsAndCustomStatuses},
 		{"bounded-shared-dependency-graph", scenarioBoundedSharedDependencyGraph},
 		{"dependencies-and-ownership", scenarioDependenciesAndOwnership},
@@ -1455,7 +1459,7 @@ func validateReport(report Report) error {
 		return fmt.Errorf("race result %q is not explicit", report.Race.Status)
 	}
 	required := []string{
-		"lifecycle", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
+		"lifecycle", "grouping-end-to-end", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
 		"git-and-storage-topology", "configuration-failures",
 		"nested-invocation-and-hermeticity", "contention-creates", "contention-next",
 		"contention-handoffs", "contention-readers-and-writers", "failure-recovery",
@@ -1711,7 +1715,17 @@ func validateExport(path string, taskCount int) error {
 		return err
 	}
 	got := 0
+	seen := map[string]bool{}
 	for _, entry := range entries {
+		if entry.Name() == planningExportDirectory {
+			if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+				return fmt.Errorf("export planning entry is not a directory")
+			}
+			if err := validatePlanningExport(filepath.Join(path, entry.Name()), seen); err != nil {
+				return err
+			}
+			continue
+		}
 		if entry.IsDir() {
 			return fmt.Errorf("export contains directory %s", entry.Name())
 		}
@@ -1731,6 +1745,16 @@ func validateExport(path string, taskCount int) error {
 			}
 			continue
 		}
+		if entry.Name() == "reusable.json" {
+			var catalog core.ReusableTaskCatalog
+			if err = json.Unmarshal(data, &catalog); err != nil {
+				return err
+			}
+			if err = catalog.Validate(); err != nil {
+				return err
+			}
+			continue
+		}
 		var task core.Task
 		if err = json.Unmarshal(data, &task); err != nil {
 			return err
@@ -1738,10 +1762,42 @@ func validateExport(path string, taskCount int) error {
 		if err = task.Validate(); err != nil {
 			return err
 		}
+		if seen[task.ID] {
+			return fmt.Errorf("duplicate logical task %s in export", task.ID)
+		}
+		seen[task.ID] = true
 		got++
 	}
 	if got != taskCount {
 		return fmt.Errorf("export contains %d tasks, want %d", got, taskCount)
+	}
+	return nil
+}
+
+func validatePlanningExport(path string, seen map[string]bool) error {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("planning export contains unmanaged entry %s", entry.Name())
+		}
+		data, err := os.ReadFile(filepath.Join(path, entry.Name()))
+		if err != nil {
+			return err
+		}
+		item, err := planningjson.Decode(data)
+		if err != nil {
+			return err
+		}
+		if entry.Name() != item.ID+".json" {
+			return fmt.Errorf("planning export filename %s does not match canonical ID %s", entry.Name(), item.ID)
+		}
+		if seen[item.ID] {
+			return fmt.Errorf("duplicate logical task %s in export", item.ID)
+		}
+		seen[item.ID] = true
 	}
 	return nil
 }

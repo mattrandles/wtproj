@@ -1,0 +1,48 @@
+{
+  "id": "aac52ba8-b7c3-44ab-b6b0-303dcc44a0d4",
+  "shortId": "wtp-0d6e4079-0045",
+  "title": "Verify grouping end to end and dogfood the feature",
+  "description": "Expand lifecycle and prerelease coverage for create/edit/clear/export/import/list/graph/stats/ready/next with issueId, project, milestone, version, featureId, and feature metadata. Verify legacy files and version-1 batches, branch and assignee rules, mixed-case AND matching, unmatched filters, ordering, and atomic claims. Run formatting, go test, go vet, diff checks, repository verification, and Unix/Windows smoke coverage; then dogfood stable featureId plus display feature on this queue using captured IDs.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "featureId": "FEAT-7",
+  "feature": "Grouping end-to-end",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "012638c3-846a-4747-9d7a-364908cd3991",
+    "2fd09cb3-9938-4d4a-851a-63ee3df29c4a",
+    "e3fedecb-23f0-4a23-8010-e75b151608e0",
+    "ef977840-ab3e-45e8-8043-3ea95bef07a1"
+  ],
+  "comments": [
+    {
+      "id": "6f5d8ba2-b335-441a-a8e3-772c99c81a0a",
+      "author": "codex-wtp-loop",
+      "message": "Verification started in the existing main worktree. I am adding lifecycle/prerelease grouping coverage across the six fields, then will run the full repository and cross-platform gates before dogfooding captured featureId/feature values on wtp-0d6e4079-0045.",
+      "createdAt": "2026-08-31T09:09:36.661392188Z"
+    },
+    {
+      "id": "d52941b8-ef23-42b2-8251-84ed229f3514",
+      "author": "codex-wtp-loop",
+      "message": "Added grouping-end-to-end prerelease coverage: all six fields through create/edit/clear/list/graph/stats/batch JSON v1 and CSV export/import, legacy UUID filename migration, mixed-case trimmed AND filters, feature key/name non-alias behavior, deterministic ordering, foreign-branch exclusion, assignee safety, and concurrent scoped next claims. Updated Unix/PowerShell smoke fixtures and fixed canonical empty grouping updates being intercepted by legacy argument rewriting. Candidate prerelease, full tests, vet, diff check, Windows cross-build/test compilation, PowerShell syntax, Unix smoke, and scripts/verify.sh commit are green.",
+      "createdAt": "2026-08-31T09:24:02.229146453Z"
+    },
+    {
+      "id": "d13da852-48bd-495a-8123-bba969210bdc",
+      "author": "codex-wtp-loop",
+      "message": "Final verification complete for wtp-0d6e4079-0045. Added and passed the 14-scenario candidate prerelease matrix with grouping-end-to-end plus race: create/edit/clear/list/graph/stats/ready/next, JSON v1 and CSV batch export/import, legacy UUID filename migration, mixed-case trimmed AND/unmatched filters, ordering, foreign branch scope, assignee safety, and concurrent atomic claims. Unix and PowerShell smoke passed; PowerShell syntax passed; GOOS=windows amd64 candidate and prerelease/CLI test binaries cross-compiled; gofmt -l, go test -count=1 ./..., go vet ./..., git diff --check, and scripts/verify.sh commit passed. Dogfood captured canonical ID aac52ba8-b7c3-44ab-b6b0-303dcc44a0d4 / short ID wtp-0d6e4079-0045, set featureId FEAT-7 and feature Grouping end-to-end, and verified scoped list/stats/ready/next. Only this exact task is being completed; unrelated worktree changes remain preserved.",
+      "createdAt": "2026-08-31T09:25:09.358284539Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:56.466885315Z",
+  "updatedAt": "2026-08-31T09:25:13.871580303Z",
+  "startedAt": "2026-08-31T09:07:41.80015123Z",
+  "completedAt": "2026-08-31T09:25:13.871580303Z"
+}

@@ -1,0 +1,38 @@
+{
+  "id": "fb47f310-2259-4823-b580-41be699f2f9e",
+  "shortId": "wtp-0d6e4079-0055",
+  "title": "Resolve live reusable items in task views and claims",
+  "description": "Populate TaskView.reusableTasks from each task ordered reusableTaskIds using the current catalog on every read. Apply the same resolution to create/update results, show/get, JSON list views, explicit task start, task ready previews, and atomic task next claims without consuming or snapshotting definitions. Confirm that definition title/instructions edits and renames appear on subsequent reads while task IDs and order remain unchanged. Keep compact human task lists unaffected and preserve handoff attachment semantics on claims. Add tests for live edits, zero/one/many assignments, ordering, branch-scoped ready/next, assignee filtering, handoffs plus reusable items in one claim, and corruption rejection. Do not add CLI formatting in this task.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-views",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "998e7dc0-2588-41f2-825b-77c47d70a79d",
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a"
+  ],
+  "comments": [
+    {
+      "id": "c211e7f3-c67b-4008-8ee4-bd47e9e26c1e",
+      "author": "codex-wtp-loop",
+      "message": "Continuing the existing inProgress claim. I will centralize live reusable-definition resolution at provider read boundaries so ordered reusableTaskIds remain the persisted source, then cover create/update, show/list, start/ready/next, scoped filtering, handoff attachment, and corruption errors without changing compact human lists or CLI formatting. I am preserving all unrelated worktree changes and will verify focused plus full Go tests before completion.",
+      "createdAt": "2026-08-31T10:33:41.88870672Z"
+    },
+    {
+      "id": "fc728896-a12c-4273-b6e4-e0122beb06aa",
+      "author": "codex-wtp-loop",
+      "message": "Implemented live reusable view resolution at the provider decoration boundary. Every TaskView-producing path now resolves the current catalog under the existing global lock in reusableTaskIds order: create/update/batch results, show/get, list/JSON views, explicit start, ready previews, and atomic next claims. Persisted tasks retain only stable ordered IDs; definition renames/title/instruction edits are visible on later reads; handoff attachment remains claim-scoped and non-consuming. Added coverage for zero/one/many assignments, live edits, ordering, branch-scoped ready/next, assignee filtering, handoffs plus reusable items, JSON round-trip, and corrupt references. Verified with go test ./... and go test -race -count=1 ./internal/provider/flatfile.",
+      "createdAt": "2026-08-31T10:40:40.201296542Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:41:56.910270556Z",
+  "updatedAt": "2026-08-31T10:40:44.173885739Z",
+  "startedAt": "2026-08-31T10:32:41.078488914Z",
+  "completedAt": "2026-08-31T10:40:44.173885739Z"
+}
