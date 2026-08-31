@@ -125,6 +125,12 @@ type taskDTO struct {
 	Estimate     json.RawMessage `json:"estimate,omitempty"`
 	Lane         json.RawMessage `json:"lane,omitempty"`
 	Model        json.RawMessage `json:"model,omitempty"`
+	IssueID      json.RawMessage `json:"issueId,omitempty"`
+	Project      json.RawMessage `json:"project,omitempty"`
+	Milestone    json.RawMessage `json:"milestone,omitempty"`
+	Version      json.RawMessage `json:"version,omitempty"`
+	FeatureID    json.RawMessage `json:"featureId,omitempty"`
+	Feature      json.RawMessage `json:"feature,omitempty"`
 	GitRepo      json.RawMessage `json:"gitRepo,omitempty"`
 	GitBranch    json.RawMessage `json:"gitBranch,omitempty"`
 	WorktreeName json.RawMessage `json:"worktreeName,omitempty"`
@@ -180,6 +186,24 @@ func encodeTask(index int, input core.BatchTaskUpdateInput, seen map[string]int)
 	if input.Model.Set {
 		row.Model = stringValue(input.Model.Value)
 	}
+	if input.IssueID.Set {
+		row.IssueID = stringValue(input.IssueID.Value)
+	}
+	if input.Project.Set {
+		row.Project = stringValue(input.Project.Value)
+	}
+	if input.Milestone.Set {
+		row.Milestone = stringValue(input.Milestone.Value)
+	}
+	if input.Version.Set {
+		row.Version = stringValue(input.Version.Value)
+	}
+	if input.FeatureID.Set {
+		row.FeatureID = stringValue(input.FeatureID.Value)
+	}
+	if input.Feature.Set {
+		row.Feature = stringValue(input.Feature.Value)
+	}
 	if input.GitRepo.Set {
 		row.GitRepo = stringValue(input.GitRepo.Value)
 	}
@@ -215,7 +239,8 @@ func decodeTask(index int, raw json.RawMessage, seen map[string]int) (core.Batch
 	}
 	if err := requireOnly(object,
 		"id", "shortId", "updatedAt", "title", "description", "status", "priority", "estimate",
-		"lane", "model", "gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies",
+		"lane", "model", "issueId", "project", "milestone", "version", "featureId", "feature",
+		"gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies",
 	); err != nil {
 		return core.BatchTaskUpdateInput{}, rowError(index, err.Error())
 	}
@@ -260,8 +285,10 @@ func decodeTask(index int, raw json.RawMessage, seen map[string]int) (core.Batch
 		return core.BatchTaskUpdateInput{}, rowError(index, err.Error())
 	}
 	for name, target := range map[string]*core.OptionalString{
-		"lane": &input.Lane, "model": &input.Model, "gitRepo": &input.GitRepo, "gitBranch": &input.GitBranch,
-		"worktreeName": &input.WorktreeName, "worktreeDir": &input.WorktreeDir, "assignee": &input.Assignee,
+		"lane": &input.Lane, "model": &input.Model, "issueId": &input.IssueID, "project": &input.Project,
+		"milestone": &input.Milestone, "version": &input.Version, "featureId": &input.FeatureID, "feature": &input.Feature,
+		"gitRepo": &input.GitRepo, "gitBranch": &input.GitBranch, "worktreeName": &input.WorktreeName,
+		"worktreeDir": &input.WorktreeDir, "assignee": &input.Assignee,
 	} {
 		if err := decodeOptionalStringPatch(object, name, target, true); err != nil {
 			return core.BatchTaskUpdateInput{}, rowError(index, err.Error())
@@ -455,9 +482,13 @@ func requireOnly(object map[string]json.RawMessage, allowed ...string) error {
 			return fmt.Errorf("unknown property %q", name)
 		}
 	}
-	for _, name := range allowed {
-		if _, ok := object[name]; !ok && (name == "version" || name == "tasks") {
-			return fmt.Errorf("missing required property %q", name)
+	_, hasVersion := set["version"]
+	_, hasTasks := set["tasks"]
+	if hasVersion && hasTasks {
+		for _, name := range []string{"version", "tasks"} {
+			if _, ok := object[name]; !ok {
+				return fmt.Errorf("missing required property %q", name)
+			}
 		}
 	}
 	return nil
@@ -480,7 +511,8 @@ func recordIdentifiers(index int, id, shortID string, seen map[string]int) error
 
 func hasPatch(input core.BatchTaskUpdateInput) bool {
 	return input.Title.Set || input.Description.Set || input.Status.Set || input.Priority.Set || input.Estimate.Set ||
-		input.Lane.Set || input.Model.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
+		input.Lane.Set || input.Model.Set || input.IssueID.Set || input.Project.Set || input.Milestone.Set || input.Version.Set ||
+		input.FeatureID.Set || input.Feature.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
 		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set
 }
 

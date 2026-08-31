@@ -258,6 +258,24 @@ func (p *Provider) applyBatchPatch(task *core.Task, input core.BatchTaskUpdateIn
 	if input.Model.Set {
 		task.Model = strings.TrimSpace(input.Model.Value)
 	}
+	if input.IssueID.Set {
+		task.IssueID = strings.TrimSpace(input.IssueID.Value)
+	}
+	if input.Project.Set {
+		task.Project = strings.TrimSpace(input.Project.Value)
+	}
+	if input.Milestone.Set {
+		task.Milestone = strings.TrimSpace(input.Milestone.Value)
+	}
+	if input.Version.Set {
+		task.Version = strings.TrimSpace(input.Version.Value)
+	}
+	if input.FeatureID.Set {
+		task.FeatureID = strings.TrimSpace(input.FeatureID.Value)
+	}
+	if input.Feature.Set {
+		task.Feature = strings.TrimSpace(input.Feature.Value)
+	}
 	if input.GitRepo.Set {
 		task.GitRepo = strings.TrimSpace(input.GitRepo.Value)
 	}
@@ -285,7 +303,8 @@ func (p *Provider) applyBatchPatch(task *core.Task, input core.BatchTaskUpdateIn
 
 func hasBatchPatch(input core.BatchTaskUpdateInput) bool {
 	return input.Title.Set || input.Description.Set || input.Status.Set || input.Priority.Set || input.Estimate.Set ||
-		input.Lane.Set || input.Model.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
+		input.Lane.Set || input.Model.Set || input.IssueID.Set || input.Project.Set || input.Milestone.Set || input.Version.Set ||
+		input.FeatureID.Set || input.Feature.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
 		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set
 }
 
@@ -297,6 +316,12 @@ func mutableTaskFieldsEqual(left, right core.Task) bool {
 		left.Estimate == right.Estimate &&
 		left.Lane == right.Lane &&
 		left.Model == right.Model &&
+		left.IssueID == right.IssueID &&
+		left.Project == right.Project &&
+		left.Milestone == right.Milestone &&
+		left.Version == right.Version &&
+		left.FeatureID == right.FeatureID &&
+		left.Feature == right.Feature &&
 		left.GitRepo == right.GitRepo &&
 		left.GitBranch == right.GitBranch &&
 		left.WorktreeName == right.WorktreeName &&

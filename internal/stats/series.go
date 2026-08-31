@@ -148,9 +148,10 @@ type SeriesReport struct {
 // AsOf is mandatory so callers capture the clock once and tests can inject a
 // deterministic instant.
 type SeriesOptions struct {
-	Metric SeriesMetric
-	Range  RollingRange
-	AsOf   time.Time
+	Metric   SeriesMetric
+	Range    RollingRange
+	AsOf     time.Time
+	Grouping core.GroupingFilter
 }
 
 // ResolveRange validates the metric and resolves this query's exact window.
@@ -175,7 +176,7 @@ func AggregateSeries(p provider.Provider, options SeriesOptions) (SeriesReport, 
 	if err != nil {
 		return SeriesReport{}, err
 	}
-	tasks, err := p.ListTasks(provider.TaskFilter{})
+	tasks, err := p.ListTasks(provider.TaskFilter{Grouping: core.NormalizeGroupingFilter(options.Grouping)})
 	if err != nil {
 		return SeriesReport{}, fmt.Errorf("list tasks for stats series: %w", err)
 	}

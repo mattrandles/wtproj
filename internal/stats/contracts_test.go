@@ -16,18 +16,24 @@ func TestExistingReportJSONFieldOrderContract(t *testing.T) {
 		TotalTasks:   1,
 		StatusCounts: []Bucket{{Value: "done", Count: 1}},
 		Attributes: Attributes{
-			Model:    []Bucket{},
-			Lane:     []Bucket{},
-			Priority: []Bucket{},
-			Estimate: []Bucket{},
-			Assignee: []Bucket{},
+			Model:     []Bucket{},
+			Lane:      []Bucket{},
+			Priority:  []Bucket{},
+			Estimate:  []Bucket{},
+			Assignee:  []Bucket{},
+			IssueID:   []Bucket{},
+			Project:   []Bucket{},
+			Milestone: []Bucket{},
+			Version:   []Bucket{},
+			FeatureID: []Bucket{},
+			Feature:   []Bucket{},
 		},
 		Comments:     CommentMetrics{TasksWithComments: 1, TotalRecords: 2},
 		Dependencies: DependencyMetrics{TasksWithDependencies: 1, IndependentTasks: 0, DirectDependencyTotal: 3},
 		Handoffs:     HandoffMetrics{Total: 4, AllStatusTotal: 5, Global: 1, TaskScoped: 3},
 	}
 
-	assertJSONContract(t, report, `{"status":"done","totalTasks":1,"statusCounts":[{"value":"done","count":1}],"attributes":{"model":[],"lane":[],"priority":[],"estimate":[],"assignee":[]},"comments":{"tasksWithComments":1,"totalRecords":2},"dependencies":{"tasksWithDependencies":1,"independentTasks":0,"directDependencyTotal":3},"handoffs":{"total":4,"allStatusTotal":5,"global":1,"taskScoped":3}}`)
+	assertJSONContract(t, report, `{"status":"done","totalTasks":1,"statusCounts":[{"value":"done","count":1}],"attributes":{"model":[],"lane":[],"priority":[],"estimate":[],"assignee":[],"issueId":[],"project":[],"milestone":[],"version":[],"featureId":[],"feature":[]},"comments":{"tasksWithComments":1,"totalRecords":2},"dependencies":{"tasksWithDependencies":1,"independentTasks":0,"directDependencyTotal":3},"handoffs":{"total":4,"allStatusTotal":5,"global":1,"taskScoped":3}}`)
 }
 
 func TestExistingFocusedReportJSONFieldOrderContracts(t *testing.T) {

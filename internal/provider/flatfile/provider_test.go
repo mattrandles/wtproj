@@ -1235,6 +1235,185 @@ func TestListTasksUsesAgentContextForClaimability(t *testing.T) {
 	}
 }
 
+func TestGroupingFiltersConstrainListPreviewAndClaim(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root, nil)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	dependency, err := p.CreateTask(core.CreateTaskInput{Title: "Unresolved dependency"})
+	if err != nil {
+		t.Fatalf("CreateTask(dependency) error = %v", err)
+	}
+	blocked, err := p.CreateTask(core.CreateTaskInput{Title: "Matching but blocked", Priority: core.PriorityUrgent, Dependencies: []string{dependency.ShortID}})
+	if err != nil {
+		t.Fatalf("CreateTask(blocked) error = %v", err)
+	}
+	ready, err := p.CreateTask(core.CreateTaskInput{Title: "Matching and ready", Priority: core.PriorityLow})
+	if err != nil {
+		t.Fatalf("CreateTask(ready) error = %v", err)
+	}
+	outside, err := p.CreateTask(core.CreateTaskInput{Title: "Outside grouping", Priority: core.PriorityUrgent})
+	if err != nil {
+		t.Fatalf("CreateTask(outside) error = %v", err)
+	}
+	matching := core.GroupingFilter{IssueID: "ISSUE-42", Project: "Apollo", Milestone: "MVP", Version: "V1.0", FeatureID: "FEAT-7", Feature: "Search"}
+	setTaskGroupingForTest(t, root, blocked, matching)
+	setTaskGroupingForTest(t, root, ready, matching)
+	setTaskGroupingForTest(t, root, outside, core.GroupingFilter{Project: "Other"})
+	filter := provider.SelectionFilter{Agent: "Tony", Grouping: core.GroupingFilter{IssueID: " issue-42 ", Project: "apollo", Milestone: "mvp", Version: "v1.0", FeatureID: "feat-7", Feature: "search"}}
+
+	listed, err := p.ListTasks(provider.TaskFilter{Grouping: filter.Grouping})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if got, want := taskViewIDs(listed), []string{blocked.ID, ready.ID}; !slices.Equal(got, want) {
+		t.Fatalf("ListTasks() IDs = %v, want %v", got, want)
+	}
+	peeked, err := p.PeekNextTaskWithFilter(filter)
+	if err != nil {
+		t.Fatalf("PeekNextTaskWithFilter() error = %v", err)
+	}
+	if peeked.ID != ready.ID {
+		t.Fatalf("PeekNextTaskWithFilter() = %s, want ready task %s", peeked.ID, ready.ID)
+	}
+	claimed, err := p.GetNextTaskWithFilter(filter)
+	if err != nil {
+		t.Fatalf("GetNextTaskWithFilter() error = %v", err)
+	}
+	if claimed.ID != peeked.ID || claimed.Status != core.StatusInProgress || claimed.Assignee != "Tony" {
+		t.Fatalf("claim = %#v, want previewed task in progress for Tony", claimed)
+	}
+
+	unmatched := provider.SelectionFilter{Grouping: core.GroupingFilter{Project: "does-not-exist"}}
+	if tasks, err := p.ListTasks(provider.TaskFilter{Grouping: unmatched.Grouping}); err != nil || len(tasks) != 0 {
+		t.Fatalf("unmatched ListTasks() = %#v, %v; want empty list", tasks, err)
+	}
+	if _, err := p.PeekNextTaskWithFilter(unmatched); !errors.Is(err, provider.ErrNoEligibleTask) {
+		t.Fatalf("unmatched PeekNextTaskWithFilter() error = %v, want no eligible task", err)
+	}
+	if _, err := p.GetNextTaskWithFilter(unmatched); !errors.Is(err, provider.ErrNoEligibleTask) {
+		t.Fatalf("unmatched GetNextTaskWithFilter() error = %v, want no eligible task", err)
+	}
+	if stored := readStoredTask(t, root, outside); stored.Status != core.StatusTodo {
+		t.Fatalf("unmatched claim changed outside task status to %s", stored.Status)
+	}
+}
+
+func TestGroupingSelectionPreservesBranchIsolationAndAtomicClaims(t *testing.T) {
+	root := t.TempDir()
+	current, err := flatfile.New(root, core.NewBranchScope("feature/current"))
+	if err != nil {
+		t.Fatalf("flatfile.New(current) error = %v", err)
+	}
+	legacy, err := flatfile.New(root, nil)
+	if err != nil {
+		t.Fatalf("flatfile.New(legacy) error = %v", err)
+	}
+	foreign, err := flatfile.New(root, core.NewBranchScope("feature/foreign"))
+	if err != nil {
+		t.Fatalf("flatfile.New(foreign) error = %v", err)
+	}
+	currentTask, err := current.CreateTask(core.CreateTaskInput{Title: "Current", Priority: core.PriorityLow})
+	if err != nil {
+		t.Fatalf("CreateTask(current) error = %v", err)
+	}
+	legacyTask, err := legacy.CreateTask(core.CreateTaskInput{Title: "Legacy", Priority: core.PriorityUrgent})
+	if err != nil {
+		t.Fatalf("CreateTask(legacy) error = %v", err)
+	}
+	foreignTask, err := foreign.CreateTask(core.CreateTaskInput{Title: "Foreign", Priority: core.PriorityUrgent})
+	if err != nil {
+		t.Fatalf("CreateTask(foreign) error = %v", err)
+	}
+	grouping := core.GroupingFilter{Project: "Release Train"}
+	setTaskGroupingForTest(t, root, currentTask, grouping)
+	setTaskGroupingForTest(t, root, legacyTask, grouping)
+	setTaskGroupingForTest(t, root, foreignTask, grouping)
+	filter := provider.SelectionFilter{Agent: "Tony", Grouping: core.GroupingFilter{Project: "release train"}}
+
+	peeked, err := current.PeekNextTaskWithFilter(filter)
+	if err != nil {
+		t.Fatalf("PeekNextTaskWithFilter() error = %v", err)
+	}
+	if peeked.ID != currentTask.ID {
+		t.Fatalf("PeekNextTaskWithFilter() = %s, want current task %s", peeked.ID, currentTask.ID)
+	}
+	batch, err := current.PeekNextTasksWithFilter(filter, 3)
+	if err != nil {
+		t.Fatalf("PeekNextTasksWithFilter() error = %v", err)
+	}
+	if got, want := taskViewIDs(batch), []string{currentTask.ID, legacyTask.ID}; !slices.Equal(got, want) {
+		t.Fatalf("PeekNextTasksWithFilter() IDs = %v, want %v", got, want)
+	}
+
+	claimed, err := current.GetNextTaskWithFilter(filter)
+	if err != nil {
+		t.Fatalf("GetNextTaskWithFilter() error = %v", err)
+	}
+	if claimed.ID != currentTask.ID {
+		t.Fatalf("GetNextTaskWithFilter() = %s, want previewed current task %s", claimed.ID, currentTask.ID)
+	}
+	if stored := readStoredTask(t, root, foreignTask); stored.Status != core.StatusTodo {
+		t.Fatalf("filtered claims changed foreign task status to %s", stored.Status)
+	}
+}
+
+func TestConcurrentFilteredClaimsRemainAtomic(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root, nil)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	matching, err := p.CreateTask(core.CreateTaskInput{Title: "Matching claim"})
+	if err != nil {
+		t.Fatalf("CreateTask(matching) error = %v", err)
+	}
+	outside, err := p.CreateTask(core.CreateTaskInput{Title: "Outside claim"})
+	if err != nil {
+		t.Fatalf("CreateTask(outside) error = %v", err)
+	}
+	setTaskGroupingForTest(t, root, matching, core.GroupingFilter{FeatureID: "Feature-Alpha"})
+	setTaskGroupingForTest(t, root, outside, core.GroupingFilter{FeatureID: "Feature-Beta"})
+	filter := provider.SelectionFilter{Agent: "Tony", Grouping: core.GroupingFilter{FeatureID: "feature-alpha"}}
+
+	type result struct {
+		task core.TaskView
+		err  error
+	}
+	results := make(chan result, 2)
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			task, err := p.GetNextTaskWithFilter(filter)
+			results <- result{task: task, err: err}
+		}()
+	}
+	wg.Wait()
+	close(results)
+	successes := 0
+	for result := range results {
+		if result.err != nil {
+			if !errors.Is(result.err, provider.ErrNoEligibleTask) {
+				t.Fatalf("GetNextTaskWithFilter() error = %v, want no eligible task", result.err)
+			}
+			continue
+		}
+		successes++
+		if result.task.ID != matching.ID {
+			t.Fatalf("claimed task = %s, want matching task %s", result.task.ID, matching.ID)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("filtered claim successes = %d, want 1", successes)
+	}
+	if stored := readStoredTask(t, root, outside); stored.Status != core.StatusTodo {
+		t.Fatalf("filtered claims changed outside task status to %s", stored.Status)
+	}
+}
+
 func TestAddCommentPersists(t *testing.T) {
 	p := newProvider(t)
 
@@ -1342,6 +1521,51 @@ func TestUpdateTaskPersistsDependenciesAndMetadata(t *testing.T) {
 	}
 	if len(stored.Dependencies) != 1 || stored.Dependencies[0] != dependency.ID {
 		t.Fatalf("stored dependencies = %v, want [%s]", stored.Dependencies, dependency.ID)
+	}
+}
+
+func TestCreateAndUpdateTaskPersistsGroupingMetadata(t *testing.T) {
+	p := newProvider(t)
+	created, err := p.CreateTask(core.CreateTaskInput{
+		Title:     "Grouped task",
+		IssueID:   " ISSUE-42 ",
+		Project:   " Apollo ",
+		Milestone: " MVP ",
+		Version:   " v1.0 ",
+		FeatureID: " FEAT-7 ",
+		Feature:   " Search ",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if created.IssueID != "ISSUE-42" || created.Project != "Apollo" || created.Milestone != "MVP" ||
+		created.Version != "v1.0" || created.FeatureID != "FEAT-7" || created.Feature != "Search" {
+		t.Fatalf("created grouping metadata = %#v", created.Task)
+	}
+
+	updated, err := p.UpdateTask(created.ShortID, core.UpdateTaskInput{
+		IssueID:   core.OptionalString{Set: true, Value: " ISSUE-43 "},
+		Project:   core.OptionalString{Set: true, Value: ""},
+		Milestone: core.OptionalString{Set: true, Value: "Release"},
+		Version:   core.OptionalString{Set: true, Value: ""},
+		FeatureID: core.OptionalString{Set: true, Value: "FEAT-8"},
+		Feature:   core.OptionalString{Set: true, Value: "Results"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateTask() error = %v", err)
+	}
+	if updated.IssueID != "ISSUE-43" || updated.Project != "" || updated.Milestone != "Release" ||
+		updated.Version != "" || updated.FeatureID != "FEAT-8" || updated.Feature != "Results" {
+		t.Fatalf("updated grouping metadata = %#v", updated.Task)
+	}
+
+	stored, err := p.GetTask(created.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if stored.IssueID != updated.IssueID || stored.Project != updated.Project || stored.Milestone != updated.Milestone ||
+		stored.Version != updated.Version || stored.FeatureID != updated.FeatureID || stored.Feature != updated.Feature {
+		t.Fatalf("stored grouping metadata = %#v, want %#v", stored.Task, updated.Task)
 	}
 }
 
@@ -2718,6 +2942,20 @@ func newProvider(t *testing.T) provider.Provider {
 		t.Fatalf("flatfile.New() error = %v", err)
 	}
 	return p
+}
+
+func setTaskGroupingForTest(t *testing.T, root string, view core.TaskView, grouping core.GroupingFilter) {
+	t.Helper()
+	task := view.Task
+	task.IssueID = grouping.IssueID
+	task.Project = grouping.Project
+	task.Milestone = grouping.Milestone
+	task.Version = grouping.Version
+	task.FeatureID = grouping.FeatureID
+	task.Feature = grouping.Feature
+	if err := writeTaskJSONForTest(root, task); err != nil {
+		t.Fatalf("write grouped task %s: %v", task.ShortID, err)
+	}
 }
 
 func mustTime(t *testing.T, value string) (outTime time.Time) {

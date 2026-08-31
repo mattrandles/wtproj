@@ -282,6 +282,7 @@ func TestRunBatchExportValidatesRequiredAndExclusiveSelectors(t *testing.T) {
 		{name: "missing destination", args: []string{"--format", "json"}, want: "--out is required"},
 		{name: "missing stdout format", args: []string{"--out", "-"}, want: "format is required for stdout"},
 		{name: "both selectors", args: []string{"--out", "tasks.json", "--status", "todo", "--task", "wtp-0001"}, want: "either --status or --task"},
+		{name: "grouping and task", args: []string{"--out", "tasks.json", "--project", "Apollo", "--task", "wtp-0001"}, want: "cannot be combined with --task"},
 		{name: "extra argument", args: []string{"--out", "tasks.json", "extra"}, want: batchExportUsage},
 	}
 	for _, test := range tests {
@@ -291,6 +292,35 @@ func TestRunBatchExportValidatesRequiredAndExclusiveSelectors(t *testing.T) {
 				t.Fatalf("runBatchExport(%v) error = %v, want %q", test.args, err, test.want)
 			}
 		})
+	}
+}
+
+func TestRunBatchExportPassesAllGroupingSelectorsWithStatus(t *testing.T) {
+	task := graphTaskView("00000000-0000-4000-8000-000000000001", "wtp-0001", "Export me", core.StatusTodo, nil, "2026-04-21T10:00:00Z")
+	task.IssueID, task.Project, task.Milestone, task.Version = "ISSUE-42", "Apollo", "MVP", "v1"
+	task.FeatureID, task.Feature = "FEAT-7", "Search"
+	p := &batchCLITestProvider{statsTestProvider: statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{task}}}}
+	path := filepath.Join(t.TempDir(), "tasks.json")
+	var stdout, stderr bytes.Buffer
+	if err := runBatchExport(context{provider: p, stdout: &stdout, stderr: &stderr}, []string{
+		"--out", path, "--status", "todo", "--issue-id", "ISSUE-42", "--project", "Apollo",
+		"--milestone", "MVP", "--version", "v1", "--feature-id", "FEAT-7", "--feature", "Search",
+	}); err != nil {
+		t.Fatalf("runBatchExport() error = %v", err)
+	}
+	if len(p.filters) != 2 {
+		t.Fatalf("ListTasks filters = %#v, want selection plus complete graph", p.filters)
+	}
+	want := provider.TaskFilter{Grouping: core.GroupingFilter{
+		IssueID: "ISSUE-42", Project: "Apollo", Milestone: "MVP", Version: "v1", FeatureID: "FEAT-7", Feature: "Search",
+	}}
+	status := core.StatusTodo
+	want.Status = &status
+	if !reflect.DeepEqual(p.filters[0], want) {
+		t.Fatalf("selection filter = %#v, want %#v", p.filters[0], want)
+	}
+	if p.filters[1] != (provider.TaskFilter{}) {
+		t.Fatalf("complete graph filter = %#v", p.filters[1])
 	}
 }
 
@@ -438,6 +468,12 @@ func TestRewriteLegacyArgsCreatePreservesTaskMetadata(t *testing.T) {
 		"--estimate", "m",
 		"--lane", "backend",
 		"--model", "gpt-5",
+		"--issue-id", "ISSUE-42",
+		"--project", "Apollo",
+		"--milestone", "MVP",
+		"--version", "v1.0",
+		"--feature-id", "FEAT-7",
+		"--feature", "Search",
 		"--git-repo", "/workspace/repo",
 		"--git-branch", "feature/task-metadata",
 		"--worktree-name", "task-metadata",
@@ -456,6 +492,12 @@ func TestRewriteLegacyArgsCreatePreservesTaskMetadata(t *testing.T) {
 		"--estimate", "m",
 		"--lane", "backend",
 		"--model", "gpt-5",
+		"--issue-id", "ISSUE-42",
+		"--project", "Apollo",
+		"--milestone", "MVP",
+		"--version", "v1.0",
+		"--feature-id", "FEAT-7",
+		"--feature", "Search",
 		"--git-repo", "/workspace/repo",
 		"--git-branch", "feature/task-metadata",
 		"--worktree-name", "task-metadata",
@@ -522,6 +564,45 @@ func TestRunTaskCreatePassesTaskMetadataToProvider(t *testing.T) {
 	}
 	if provider.createCalls != 1 {
 		t.Fatalf("createCalls = %d, want 1", provider.createCalls)
+	}
+}
+
+func TestRunTaskCreatePassesGroupingMetadataToProvider(t *testing.T) {
+	provider := &updateTestProvider{}
+	ctx := context{provider: provider, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+
+	err := runTaskCreate(ctx, []string{
+		"--title", "Grouped task",
+		"--issue-id", "ISSUE-42",
+		"--project", "Apollo",
+		"--milestone", "MVP",
+		"--version", "v1.0",
+		"--feature-id", "FEAT-7",
+		"--feature", "Search",
+	})
+	if err != nil {
+		t.Fatalf("runTaskCreate() error = %v", err)
+	}
+	got := provider.gotCreateInput
+	if got.IssueID != "ISSUE-42" || got.Project != "Apollo" || got.Milestone != "MVP" ||
+		got.Version != "v1.0" || got.FeatureID != "FEAT-7" || got.Feature != "Search" {
+		t.Fatalf("grouping input = %#v", got)
+	}
+}
+
+func TestRunTaskCreateRejectsBlankGroupingMetadata(t *testing.T) {
+	for _, name := range []string{"issue-id", "project", "milestone", "version", "feature-id", "feature"} {
+		t.Run(name, func(t *testing.T) {
+			provider := &updateTestProvider{}
+			ctx := context{provider: provider, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+			err := runTaskCreate(ctx, []string{"--title", "Grouped task", "--" + name, " \t"})
+			if err == nil || !strings.Contains(err.Error(), "cannot be blank") {
+				t.Fatalf("runTaskCreate() error = %v, want blank-value error", err)
+			}
+			if provider.createCalls != 0 {
+				t.Fatal("blank grouping value reached provider")
+			}
+		})
 	}
 }
 
@@ -863,6 +944,32 @@ func TestRunTaskUpdateCanClearMetadataFields(t *testing.T) {
 		!provider.gotInput.WorktreeName.Set || provider.gotInput.WorktreeName.Value != "" ||
 		!provider.gotInput.WorktreeDir.Set || provider.gotInput.WorktreeDir.Value != "" {
 		t.Fatalf("Git/worktree clear input = %#v", provider.gotInput)
+	}
+}
+
+func TestRunTaskUpdatePassesAndClearsGroupingMetadata(t *testing.T) {
+	provider := &updateTestProvider{}
+	ctx := context{provider: provider, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+
+	if err := runTaskUpdate(ctx, []string{
+		"wtp-0028",
+		"--issue-id", "ISSUE-42",
+		"--project=",
+		"--milestone", "MVP",
+		"--version=",
+		"--feature-id", "FEAT-7",
+		"--feature=",
+	}); err != nil {
+		t.Fatalf("runTaskUpdate() error = %v", err)
+	}
+	got := provider.gotInput
+	if !got.IssueID.Set || got.IssueID.Value != "ISSUE-42" ||
+		!got.Project.Set || got.Project.Value != "" ||
+		!got.Milestone.Set || got.Milestone.Value != "MVP" ||
+		!got.Version.Set || got.Version.Value != "" ||
+		!got.FeatureID.Set || got.FeatureID.Value != "FEAT-7" ||
+		!got.Feature.Set || got.Feature.Value != "" {
+		t.Fatalf("grouping update input = %#v", got)
 	}
 }
 
@@ -1907,7 +2014,9 @@ func TestRunStatsEmptyStoreHumanAndJSON(t *testing.T) {
 		StatusCounts: wantStatusCounts,
 		Attributes: stats.Attributes{
 			Model: []stats.Bucket{}, Lane: []stats.Bucket{}, Priority: []stats.Bucket{},
-			Estimate: []stats.Bucket{}, Assignee: []stats.Bucket{},
+			Estimate: []stats.Bucket{}, Assignee: []stats.Bucket{}, IssueID: []stats.Bucket{},
+			Project: []stats.Bucket{}, Milestone: []stats.Bucket{}, Version: []stats.Bucket{},
+			FeatureID: []stats.Bucket{}, Feature: []stats.Bucket{},
 		},
 	}
 
@@ -1929,6 +2038,12 @@ lane:
 priority:
 estimate:
 assignee:
+issueId:
+project:
+milestone:
+version:
+featureId:
+feature:
 comments.tasksWithComments: 0
 comments.totalRecords: 0
 dependencies.tasksWithDependencies: 0
@@ -1995,11 +2110,17 @@ func TestRunStatsMixedStoreHumanAndJSON(t *testing.T) {
 		TotalTasks:   4,
 		StatusCounts: []stats.Bucket{{Value: "todo", Count: 1}, {Value: "inProgress", Count: 1}, {Value: "paused", Count: 1}, {Value: "done", Count: 1}},
 		Attributes: stats.Attributes{
-			Model:    []stats.Bucket{{Value: "", Count: 1}, {Value: "alpha", Count: 1}, {Value: "beta", Count: 1}, {Value: "zeta", Count: 1}},
-			Lane:     []stats.Bucket{{Value: "", Count: 1}, {Value: "alpha", Count: 1}, {Value: "beta", Count: 1}, {Value: "zeta", Count: 1}},
-			Priority: []stats.Bucket{{Value: "low", Count: 1}, {Value: "medium", Count: 1}, {Value: "high", Count: 1}, {Value: "urgent", Count: 1}},
-			Estimate: []stats.Bucket{{Value: "", Count: 1}, {Value: "xs", Count: 1}, {Value: "m", Count: 1}, {Value: "xl", Count: 1}},
-			Assignee: []stats.Bucket{{Value: "", Count: 1}, {Value: "Amy", Count: 1}, {Value: "Bob", Count: 1}, {Value: "Zed", Count: 1}},
+			Model:     []stats.Bucket{{Value: "", Count: 1}, {Value: "alpha", Count: 1}, {Value: "beta", Count: 1}, {Value: "zeta", Count: 1}},
+			Lane:      []stats.Bucket{{Value: "", Count: 1}, {Value: "alpha", Count: 1}, {Value: "beta", Count: 1}, {Value: "zeta", Count: 1}},
+			Priority:  []stats.Bucket{{Value: "low", Count: 1}, {Value: "medium", Count: 1}, {Value: "high", Count: 1}, {Value: "urgent", Count: 1}},
+			Estimate:  []stats.Bucket{{Value: "", Count: 1}, {Value: "xs", Count: 1}, {Value: "m", Count: 1}, {Value: "xl", Count: 1}},
+			Assignee:  []stats.Bucket{{Value: "", Count: 1}, {Value: "Amy", Count: 1}, {Value: "Bob", Count: 1}, {Value: "Zed", Count: 1}},
+			IssueID:   []stats.Bucket{{Value: "", Count: 4}},
+			Project:   []stats.Bucket{{Value: "", Count: 4}},
+			Milestone: []stats.Bucket{{Value: "", Count: 4}},
+			Version:   []stats.Bucket{{Value: "", Count: 4}},
+			FeatureID: []stats.Bucket{{Value: "", Count: 4}},
+			Feature:   []stats.Bucket{{Value: "", Count: 4}},
 		},
 		Comments:     stats.CommentMetrics{TasksWithComments: 2, TotalRecords: 3},
 		Dependencies: stats.DependencyMetrics{TasksWithDependencies: 2, IndependentTasks: 2, DirectDependencyTotal: 3},
@@ -2208,6 +2329,12 @@ func TestPrintValueIncludesTaskMetadataInHumanAndJSONOutput(t *testing.T) {
 		GitBranch:    "feature/task-metadata",
 		WorktreeName: "task-metadata",
 		WorktreeDir:  "/workspace/task-metadata",
+		IssueID:      "ISSUE-42",
+		Project:      "Apollo",
+		Milestone:    "MVP",
+		Version:      "v1.0",
+		FeatureID:    "FEAT-7",
+		Feature:      "Search",
 		Status:       core.StatusTodo,
 		Dependencies: []string{},
 		Comments:     []core.Comment{},
@@ -2221,6 +2348,12 @@ func TestPrintValueIncludesTaskMetadataInHumanAndJSONOutput(t *testing.T) {
 	}
 	for _, needle := range []string{
 		"model: gpt-5.2-codex",
+		"issueId: ISSUE-42",
+		"project: Apollo",
+		"milestone: MVP",
+		"version: v1.0",
+		"featureId: FEAT-7",
+		"feature: Search",
 		"gitRepo: /workspace/repo",
 		"gitBranch: feature/task-metadata",
 		"worktreeName: task-metadata",
@@ -2247,6 +2380,12 @@ func TestPrintValueIncludesTaskMetadataInHumanAndJSONOutput(t *testing.T) {
 	}
 	for _, needle := range []string{
 		`"model": "gpt-5.2-codex"`,
+		`"issueId": "ISSUE-42"`,
+		`"project": "Apollo"`,
+		`"milestone": "MVP"`,
+		`"version": "v1.0"`,
+		`"featureId": "FEAT-7"`,
+		`"feature": "Search"`,
 		`"gitRepo": "/workspace/repo"`,
 		`"gitBranch": "feature/task-metadata"`,
 		`"worktreeName": "task-metadata"`,
@@ -2581,6 +2720,11 @@ func (p *claimOutputTestProvider) GetNextTask(agent string) (core.TaskView, erro
 	return p.task, nil
 }
 
+func (p *claimOutputTestProvider) GetNextTaskWithFilter(filter provider.SelectionFilter) (core.TaskView, error) {
+	p.nextAgent = filter.Agent
+	return p.task, nil
+}
+
 type handoffTestProvider struct {
 	updateTestProvider
 	writeRequest provider.HandoffWriteRequest
@@ -2629,6 +2773,7 @@ type graphTestProvider struct {
 	catalog    core.StatusCatalog
 	tasks      []core.TaskView
 	lastFilter provider.TaskFilter
+	filters    []provider.TaskFilter
 	listCalls  int
 }
 
@@ -2669,15 +2814,17 @@ func (getTestProvider) StatusCatalog() core.StatusCatalog   { return core.Defaul
 
 func (p *statsTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
 	p.lastFilter = filter
+	p.filters = append(p.filters, filter)
 	p.listCalls++
-	if filter.Status == nil {
-		return p.tasks, nil
-	}
 	filtered := make([]core.TaskView, 0, len(p.tasks))
 	for _, task := range p.tasks {
-		if task.Status == *filter.Status {
-			filtered = append(filtered, task)
+		if filter.Status != nil && task.Status != *filter.Status {
+			continue
 		}
+		if !core.MatchesGroupingFilter(task.Task, filter.Grouping) {
+			continue
+		}
+		filtered = append(filtered, task)
 	}
 	return filtered, nil
 }
@@ -2776,6 +2923,18 @@ func (p *updateTestProvider) GetNextTask(agent string) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
 }
 
+func (p *updateTestProvider) PeekNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *updateTestProvider) PeekNextTasksWithFilter(provider.SelectionFilter, int) ([]core.TaskView, error) {
+	return nil, errors.New("unexpected call")
+}
+
+func (p *updateTestProvider) GetNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
 func (p *updateTestProvider) ExportCanonical(outDir string) error {
 	return errors.New("unexpected call")
 }
@@ -2831,6 +2990,18 @@ func (p graphTestProvider) PeekNextTasks(agent string, limit int) ([]core.TaskVi
 }
 
 func (p graphTestProvider) GetNextTask(agent string) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p graphTestProvider) PeekNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p graphTestProvider) PeekNextTasksWithFilter(provider.SelectionFilter, int) ([]core.TaskView, error) {
+	return nil, errors.New("unexpected call")
+}
+
+func (p graphTestProvider) GetNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
 }
 
@@ -2906,6 +3077,18 @@ func (p readyTestProvider) GetNextTask(agent string) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
 }
 
+func (p readyTestProvider) PeekNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	return core.TaskView{}, p.peekErr
+}
+
+func (p readyTestProvider) PeekNextTasksWithFilter(provider.SelectionFilter, int) ([]core.TaskView, error) {
+	return nil, p.peekManyErr
+}
+
+func (p readyTestProvider) GetNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
 func (p readyTestProvider) ExportCanonical(outDir string) error {
 	return errors.New("unexpected call")
 }
@@ -2975,6 +3158,18 @@ func (p *getTestProvider) PeekNextTasks(agent string, limit int) ([]core.TaskVie
 }
 
 func (p *getTestProvider) GetNextTask(agent string) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) PeekNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) PeekNextTasksWithFilter(provider.SelectionFilter, int) ([]core.TaskView, error) {
+	return nil, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) GetNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
 }
 

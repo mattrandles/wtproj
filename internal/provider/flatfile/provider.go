@@ -165,6 +165,13 @@ func (p *Provider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error
 			return err
 		}
 		allTasks := append([]core.Task(nil), tasks...)
+		filtered := tasks[:0]
+		for _, task := range tasks {
+			if core.MatchesGroupingFilter(task, filter.Grouping) {
+				filtered = append(filtered, task)
+			}
+		}
+		tasks = filtered
 		if filter.Status != nil {
 			filtered := tasks[:0]
 			for _, task := range tasks {
@@ -240,6 +247,12 @@ func (p *Provider) CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 			Estimate:     input.Estimate,
 			Lane:         strings.TrimSpace(input.Lane),
 			Model:        strings.TrimSpace(input.Model),
+			IssueID:      strings.TrimSpace(input.IssueID),
+			Project:      strings.TrimSpace(input.Project),
+			Milestone:    strings.TrimSpace(input.Milestone),
+			Version:      strings.TrimSpace(input.Version),
+			FeatureID:    strings.TrimSpace(input.FeatureID),
+			Feature:      strings.TrimSpace(input.Feature),
 			GitRepo:      strings.TrimSpace(input.GitRepo),
 			GitBranch:    strings.TrimSpace(input.GitBranch),
 			WorktreeName: strings.TrimSpace(input.WorktreeName),
@@ -324,6 +337,24 @@ func (p *Provider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (c
 		}
 		if input.Model.Set {
 			task.Model = strings.TrimSpace(input.Model.Value)
+		}
+		if input.IssueID.Set {
+			task.IssueID = strings.TrimSpace(input.IssueID.Value)
+		}
+		if input.Project.Set {
+			task.Project = strings.TrimSpace(input.Project.Value)
+		}
+		if input.Milestone.Set {
+			task.Milestone = strings.TrimSpace(input.Milestone.Value)
+		}
+		if input.Version.Set {
+			task.Version = strings.TrimSpace(input.Version.Value)
+		}
+		if input.FeatureID.Set {
+			task.FeatureID = strings.TrimSpace(input.FeatureID.Value)
+		}
+		if input.Feature.Set {
+			task.Feature = strings.TrimSpace(input.Feature.Value)
 		}
 		if input.GitRepo.Set {
 			task.GitRepo = strings.TrimSpace(input.GitRepo.Value)
@@ -472,40 +503,52 @@ func (p *Provider) AddComment(idOrShortID, actor, message string) (core.TaskView
 }
 
 func (p *Provider) PeekNextTask(agent string) (core.TaskView, error) {
+	return p.PeekNextTaskWithFilter(provider.SelectionFilter{Agent: agent})
+}
+
+func (p *Provider) PeekNextTaskWithFilter(filter provider.SelectionFilter) (core.TaskView, error) {
 	var view core.TaskView
 	err := p.withGlobalLock(func() error {
 		tasks, err := p.loadTasks()
 		if err != nil {
 			return err
 		}
-		task, err := p.selectNextEligibleTask(tasks, agent)
+		task, err := p.selectNextEligibleTask(tasks, filter)
 		if err != nil {
 			return err
 		}
-		view = p.decorateTask(task, tasks, agent)
+		view = p.decorateTask(task, tasks, filter.Agent)
 		return nil
 	})
 	return view, err
 }
 
 func (p *Provider) PeekNextTasks(agent string, limit int) ([]core.TaskView, error) {
+	return p.PeekNextTasksWithFilter(provider.SelectionFilter{Agent: agent}, limit)
+}
+
+func (p *Provider) PeekNextTasksWithFilter(filter provider.SelectionFilter, limit int) ([]core.TaskView, error) {
 	var views []core.TaskView
 	err := p.withGlobalLock(func() error {
 		tasks, err := p.loadTasks()
 		if err != nil {
 			return err
 		}
-		selected, err := p.selectEligibleTasks(tasks, agent, limit)
+		selected, err := p.selectEligibleTasks(tasks, filter, limit)
 		if err != nil {
 			return err
 		}
-		views = p.decorateTasks(selected, tasks, agent)
+		views = p.decorateTasks(selected, tasks, filter.Agent)
 		return nil
 	})
 	return views, err
 }
 
 func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
+	return p.GetNextTaskWithFilter(provider.SelectionFilter{Agent: agent})
+}
+
+func (p *Provider) GetNextTaskWithFilter(filter provider.SelectionFilter) (core.TaskView, error) {
 	var claimed core.Task
 	var tasksAfter []core.Task
 	var handoffs []core.Handoff
@@ -514,7 +557,7 @@ func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
 		if err != nil {
 			return err
 		}
-		next, err := p.selectNextEligibleTask(tasks, agent)
+		next, err := p.selectNextEligibleTask(tasks, filter)
 		if err != nil {
 			return err
 		}
@@ -526,8 +569,8 @@ func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
 
 		now := nextTaskMutationTime(next)
 		next.UpdatedAt = now
-		if agent != "" {
-			next.Assignee = agent
+		if filter.Agent != "" {
+			next.Assignee = filter.Agent
 		}
 		if err := p.catalog.NormalizeTaskStatus(&next, core.StatusInProgress, now); err != nil {
 			return err
@@ -545,7 +588,7 @@ func (p *Provider) GetNextTask(agent string) (core.TaskView, error) {
 	if err != nil {
 		return core.TaskView{}, err
 	}
-	view := p.decorateTask(claimed, tasksAfter, agent)
+	view := p.decorateTask(claimed, tasksAfter, filter.Agent)
 	view.Handoffs = handoffs
 	return view, nil
 }
@@ -1124,8 +1167,8 @@ func (p *Provider) validateStartable(task core.Task, tasks []core.Task) error {
 	return nil
 }
 
-func (p *Provider) selectNextEligibleTask(tasks []core.Task, agent string) (core.Task, error) {
-	eligible, err := p.selectEligibleTasks(tasks, agent, 1)
+func (p *Provider) selectNextEligibleTask(tasks []core.Task, filter provider.SelectionFilter) (core.Task, error) {
+	eligible, err := p.selectEligibleTasks(tasks, filter, 1)
 	if err != nil {
 		return core.Task{}, err
 	}
@@ -1135,12 +1178,15 @@ func (p *Provider) selectNextEligibleTask(tasks []core.Task, agent string) (core
 	return core.Task{}, provider.ErrNoEligibleTask
 }
 
-func (p *Provider) selectEligibleTasks(tasks []core.Task, agent string, limit int) ([]core.Task, error) {
+func (p *Provider) selectEligibleTasks(tasks []core.Task, filter provider.SelectionFilter, limit int) ([]core.Task, error) {
 	if limit <= 0 {
 		return nil, errors.New("ready task limit must be greater than zero")
 	}
 	eligible := make([]core.Task, 0, len(tasks))
 	for _, task := range tasks {
+		if !core.MatchesGroupingFilter(task, filter.Grouping) {
+			continue
+		}
 		if p.automaticSelectionTier(task) < 0 {
 			continue
 		}
@@ -1151,7 +1197,7 @@ func (p *Provider) selectEligibleTasks(tasks []core.Task, agent string, limit in
 			eligible = append(eligible, task)
 		}
 	}
-	agent = strings.TrimSpace(agent)
+	agent := strings.TrimSpace(filter.Agent)
 	sort.Slice(eligible, func(i, j int) bool {
 		leftTier := p.automaticSelectionTier(eligible[i])
 		rightTier := p.automaticSelectionTier(eligible[j])

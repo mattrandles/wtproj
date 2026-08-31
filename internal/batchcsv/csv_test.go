@@ -25,6 +25,12 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 			Estimate:          core.OptionalEstimate{Set: true, Value: core.EstimateM},
 			Lane:              core.OptionalString{Set: true, Value: "backend"},
 			Model:             core.OptionalString{Set: true, Value: "gpt-5"},
+			IssueID:           core.OptionalString{Set: true, Value: "ISSUE-42"},
+			Project:           core.OptionalString{Set: true, Value: "Apollo"},
+			Milestone:         core.OptionalString{Set: true, Value: "MVP"},
+			Version:           core.OptionalString{Set: true, Value: "v1.0"},
+			FeatureID:         core.OptionalString{Set: true, Value: "FEAT-7"},
+			Feature:           core.OptionalString{Set: true, Value: "Search"},
 			GitRepo:           core.OptionalString{Set: true, Value: "/workspace/repo"},
 			GitBranch:         core.OptionalString{Set: true, Value: "feature/csv"},
 			WorktreeName:      core.OptionalString{Set: true, Value: "csv-worktree"},
@@ -48,7 +54,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if bytes.HasPrefix(encoded, []byte{0xef, 0xbb, 0xbf}) {
 		t.Fatal("Encode() emitted a UTF-8 BOM")
 	}
-	wantHeader := "id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear\n"
+	wantHeader := "id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,issueId,project,milestone,version,featureId,feature,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear\n"
 	if !bytes.HasPrefix(encoded, []byte(wantHeader)) {
 		t.Fatalf("Encode() header = %q, want prefix %q", encoded, wantHeader)
 	}
@@ -102,7 +108,7 @@ func TestDecodeBlankCellsPreserveAndClearListClears(t *testing.T) {
 	record[1] = "wtp-0001"
 	record[2] = "2026-01-02T03:04:05Z"
 	record[3] = "New title"
-	record[16] = "description,priority,dependencies"
+	record[22] = "description,priority,issueId,project,milestone,version,featureId,feature,dependencies"
 	if err := writer.Write(record); err != nil {
 		t.Fatalf("write row: %v", err)
 	}
@@ -116,7 +122,11 @@ func TestDecodeBlankCellsPreserveAndClearListClears(t *testing.T) {
 	if row.Title.Value != "New title" || !row.Title.Set {
 		t.Fatalf("title patch = %#v", row.Title)
 	}
-	if row.Description != (core.OptionalString{Set: true}) || row.Priority != (core.OptionalPriority{Set: true}) || !row.Dependencies.Set || row.Dependencies.Value != nil {
+	if row.Description != (core.OptionalString{Set: true}) || row.Priority != (core.OptionalPriority{Set: true}) ||
+		row.IssueID != (core.OptionalString{Set: true}) || row.Project != (core.OptionalString{Set: true}) ||
+		row.Milestone != (core.OptionalString{Set: true}) || row.Version != (core.OptionalString{Set: true}) ||
+		row.FeatureID != (core.OptionalString{Set: true}) || row.Feature != (core.OptionalString{Set: true}) ||
+		!row.Dependencies.Set || row.Dependencies.Value != nil {
 		t.Fatalf("clear state = %#v", row)
 	}
 	if row.Lane.Set || row.Model.Set || row.Status.Set || row.Estimate.Set {

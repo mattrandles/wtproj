@@ -12,8 +12,18 @@ var ErrNoEligibleTask = errors.New("no eligible task found")
 var ErrStaleTask = errors.New("stale task update")
 
 type TaskFilter struct {
-	Status *core.Status
-	Agent  string
+	Status   *core.Status
+	Agent    string
+	Grouping core.GroupingFilter
+}
+
+// SelectionFilter provides the non-status constraints used when previewing or
+// atomically claiming the next eligible task. Grouping is applied before the
+// provider's branch scope, lifecycle, dependency, assignee, priority, and age
+// selection rules.
+type SelectionFilter struct {
+	Agent    string
+	Grouping core.GroupingFilter
 }
 
 type HandoffWriteRequest struct {
@@ -77,5 +87,8 @@ type Provider interface {
 	PeekNextTask(agent string) (core.TaskView, error)
 	PeekNextTasks(agent string, limit int) ([]core.TaskView, error)
 	GetNextTask(agent string) (core.TaskView, error)
+	PeekNextTaskWithFilter(filter SelectionFilter) (core.TaskView, error)
+	PeekNextTasksWithFilter(filter SelectionFilter, limit int) ([]core.TaskView, error)
+	GetNextTaskWithFilter(filter SelectionFilter) (core.TaskView, error)
 	ExportCanonical(outDir string) error
 }

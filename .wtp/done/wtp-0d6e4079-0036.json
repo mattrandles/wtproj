@@ -1,0 +1,41 @@
+{
+  "id": "a656747b-3baa-4a3a-94a5-1a2870a26221",
+  "shortId": "wtp-0d6e4079-0036",
+  "title": "Add canonical task grouping metadata contract",
+  "description": "Add optional issueId, project, milestone, version, featureId, and feature fields to core task/create/update/batch types with omitempty JSON behavior. Treat featureId as a stable grouping key and feature as its human-readable name. Define reusable typed grouping-filter normalization and case-insensitive exact AND matching while preserving stored casing. Keep legacy files valid and add core serialization/compatibility tests.",
+  "priority": "urgent",
+  "estimate": "m",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2233cc1e-0511-4fa1-8f5b-db4dcc330d2d",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the exact task, CONTRIBUTING.md, core types, and retained handoffs. Scope is core grouping fields and reusable filter semantics only; preserve OptionalString update/clear conventions and legacy task JSON. No existing code edits; prior handoffs retained.",
+      "createdAt": "2026-08-31T06:59:28.748915781Z"
+    },
+    {
+      "id": "2873c89b-8272-41dc-92bd-6307e5007563",
+      "author": "codex-wtp-loop",
+      "message": "Implemented all six core grouping fields, canonical omitempty JSON, OptionalString update/batch patches, and GroupingFilter normalization/matching. Focused core tests pass for legacy/empty/null JSON, casing preservation, exact AND matching, and independent featureId/feature semantics. Provider/CLI integration left out of scope; running the full commit verification gate.",
+      "createdAt": "2026-08-31T07:02:32.140952105Z"
+    },
+    {
+      "id": "5d22a658-bdf3-4779-b350-7befcca93c1e",
+      "author": "codex-wtp-loop",
+      "message": "Verification passed: focused grouping/core tests, go test -race ./internal/core -count=1, gofmt (no outstanding formatting), git diff --check, and ./scripts/verify.sh commit (full Go suite, vet, smoke). Reviewed core-only diff; legacy JSON remains valid, grouping casing is preserved, and featureId/name are independent.",
+      "createdAt": "2026-08-31T07:03:16.881053979Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:55.165694605Z",
+  "updatedAt": "2026-08-31T07:03:17.029394564Z",
+  "startedAt": "2026-08-31T06:58:15.518331878Z",
+  "completedAt": "2026-08-31T07:03:17.029394564Z"
+}

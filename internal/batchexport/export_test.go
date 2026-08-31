@@ -63,6 +63,7 @@ func TestExportRejectsSelectorConflictsDuplicatesAndUnknownStatus(t *testing.T) 
 		want    string
 	}{
 		{"status and task", Options{Destination: "-", Format: FormatJSON, Status: "todo", TaskIDs: []string{task.ShortID}}, "cannot be combined"},
+		{"grouping and task", Options{Destination: "-", Format: FormatJSON, Grouping: core.GroupingFilter{Project: "Apollo"}, TaskIDs: []string{task.ShortID}}, "cannot be combined"},
 		{"duplicate exact task", Options{Destination: "-", Format: FormatJSON, TaskIDs: []string{task.ShortID, task.ShortID}}, "duplicates"},
 		{"duplicate through ID aliases", Options{Destination: "-", Format: FormatJSON, TaskIDs: []string{task.ID, task.ShortID}}, "duplicates"},
 		{"unknown status", Options{Destination: "-", Format: FormatJSON, Status: "missingStatus"}, "invalid status"},
@@ -74,6 +75,39 @@ func TestExportRejectsSelectorConflictsDuplicatesAndUnknownStatus(t *testing.T) 
 				t.Fatalf("error = %v, want %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestExportAllowsStatusAndGroupingAndUsesCompleteGraph(t *testing.T) {
+	dependency := testTask("00000000-0000-4000-8000-000000000001", "wtp-0001", core.StatusDone, 1)
+	target := testTask("00000000-0000-4000-8000-000000000002", "wtp-0002", core.StatusTodo, 2)
+	target.Dependencies = []string{dependency.ID}
+	outOfGroup := testTask("00000000-0000-4000-8000-000000000003", "wtp-0003", core.StatusTodo, 3)
+	outOfGroup.Project = "Other"
+	p := &exportTestProvider{tasks: []core.TaskView{{Task: target}, {Task: outOfGroup}, {Task: dependency}}}
+
+	var output bytes.Buffer
+	if _, err := Export(p, Options{
+		Destination: "-", Format: FormatJSON, Status: "todo",
+		Grouping: core.GroupingFilter{Project: "apollo", Feature: "search"},
+	}, &output); err != nil {
+		t.Fatalf("filtered export: %v", err)
+	}
+	rows, err := batchjson.Decode(output.Bytes())
+	if err != nil {
+		t.Fatalf("decode filtered export: %v", err)
+	}
+	if len(rows) != 1 || rows[0].ShortID != target.ShortID || len(rows[0].Dependencies.Value) != 1 || rows[0].Dependencies.Value[0] != dependency.ShortID {
+		t.Fatalf("filtered rows = %#v", rows)
+	}
+	if len(p.filters) != 2 {
+		t.Fatalf("ListTasks filters = %#v, want filtered selection plus complete graph", p.filters)
+	}
+	if p.filters[0].Status == nil || *p.filters[0].Status != core.StatusTodo || p.filters[0].Grouping != (core.GroupingFilter{Project: "apollo", Feature: "search"}) {
+		t.Fatalf("selection filter = %#v", p.filters[0])
+	}
+	if p.filters[1].Status != nil || p.filters[1].Grouping != (core.GroupingFilter{}) {
+		t.Fatalf("graph filter = %#v", p.filters[1])
 	}
 }
 
@@ -110,7 +144,8 @@ func TestExportRendersCompleteEditableTaskAndDependencyShortIDs(t *testing.T) {
 		t.Fatalf("exported identity/token = %#v", row)
 	}
 	if !row.Title.Set || !row.Description.Set || !row.Status.Set || !row.Priority.Set || !row.Estimate.Set ||
-		!row.Lane.Set || !row.Model.Set || !row.GitRepo.Set || !row.GitBranch.Set || !row.WorktreeName.Set ||
+		!row.Lane.Set || !row.Model.Set || !row.IssueID.Set || !row.Project.Set || !row.Milestone.Set || !row.Version.Set ||
+		!row.FeatureID.Set || !row.Feature.Set || !row.GitRepo.Set || !row.GitBranch.Set || !row.WorktreeName.Set ||
 		!row.WorktreeDir.Set || !row.Assignee.Set || !row.Dependencies.Set {
 		t.Fatalf("export did not include every mutable field: %#v", row)
 	}
@@ -277,7 +312,8 @@ func testTask(id, shortID string, status core.Status, day int) core.Task {
 	return core.Task{
 		ID: id, ShortID: shortID, Title: "Task " + shortID, Description: "Description " + shortID,
 		Status: status, Priority: core.PriorityHigh, Estimate: core.EstimateM, Lane: "lane",
-		Model: "model", GitRepo: "/repo", GitBranch: "main", WorktreeName: "worktree",
+		Model: "model", IssueID: "ISSUE-42", Project: "Apollo", Milestone: "MVP", Version: "v1.0", FeatureID: "FEAT-7", Feature: "Search",
+		GitRepo: "/repo", GitBranch: "main", WorktreeName: "worktree",
 		WorktreeDir: "/worktree", Assignee: "Ada", Dependencies: []string{}, Comments: []core.Comment{
 			{Message: "excluded"},
 		}, CreatedAt: stamp, UpdatedAt: stamp.Add(time.Hour), StartedAt: pointer(stamp.Add(2 * time.Hour)),
@@ -296,7 +332,10 @@ func expectedInput(task core.Task, dependencyShortIDs []string) core.BatchTaskUp
 		Title: core.OptionalString{Set: true, Value: task.Title}, Description: core.OptionalString{Set: true, Value: task.Description},
 		Status: core.OptionalStatus{Set: true, Value: task.Status}, Priority: core.OptionalPriority{Set: true, Value: task.Priority},
 		Estimate: core.OptionalEstimate{Set: true, Value: task.Estimate}, Lane: core.OptionalString{Set: true, Value: task.Lane},
-		Model: core.OptionalString{Set: true, Value: task.Model}, GitRepo: core.OptionalString{Set: true, Value: task.GitRepo},
+		Model: core.OptionalString{Set: true, Value: task.Model}, IssueID: core.OptionalString{Set: true, Value: task.IssueID},
+		Project: core.OptionalString{Set: true, Value: task.Project}, Milestone: core.OptionalString{Set: true, Value: task.Milestone},
+		Version: core.OptionalString{Set: true, Value: task.Version}, FeatureID: core.OptionalString{Set: true, Value: task.FeatureID},
+		Feature: core.OptionalString{Set: true, Value: task.Feature}, GitRepo: core.OptionalString{Set: true, Value: task.GitRepo},
 		GitBranch: core.OptionalString{Set: true, Value: task.GitBranch}, WorktreeName: core.OptionalString{Set: true, Value: task.WorktreeName},
 		WorktreeDir: core.OptionalString{Set: true, Value: task.WorktreeDir}, Assignee: core.OptionalString{Set: true, Value: task.Assignee},
 		Dependencies: core.OptionalStrings{Set: true, Value: dependencyShortIDs},
@@ -315,14 +354,15 @@ func (p *exportTestProvider) StatusCatalog() core.StatusCatalog { return core.De
 func (p *exportTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
 	p.lastFilter = filter
 	p.filters = append(p.filters, filter)
-	if filter.Status == nil {
-		return append([]core.TaskView(nil), p.tasks...), nil
-	}
 	filtered := make([]core.TaskView, 0, len(p.tasks))
 	for _, task := range p.tasks {
-		if task.Status == *filter.Status {
-			filtered = append(filtered, task)
+		if filter.Status != nil && task.Status != *filter.Status {
+			continue
 		}
+		if !core.MatchesGroupingFilter(task.Task, filter.Grouping) {
+			continue
+		}
+		filtered = append(filtered, task)
 	}
 	return filtered, nil
 }

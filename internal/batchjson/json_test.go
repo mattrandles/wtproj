@@ -22,6 +22,12 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 			Estimate:          core.OptionalEstimate{Set: true, Value: core.EstimateM},
 			Lane:              core.OptionalString{Set: true, Value: "batch-json"},
 			Model:             core.OptionalString{Set: true, Value: "gpt-5"},
+			IssueID:           core.OptionalString{Set: true, Value: "ISSUE-42"},
+			Project:           core.OptionalString{Set: true, Value: "Apollo"},
+			Milestone:         core.OptionalString{Set: true, Value: "MVP"},
+			Version:           core.OptionalString{Set: true, Value: "v1.0"},
+			FeatureID:         core.OptionalString{Set: true, Value: "FEAT-7"},
+			Feature:           core.OptionalString{Set: true, Value: "Search"},
 			GitRepo:           core.OptionalString{Set: true, Value: "/workspace/repo"},
 			GitBranch:         core.OptionalString{Set: true, Value: "feature/json"},
 			WorktreeName:      core.OptionalString{Set: true, Value: "json-worktree"},
@@ -42,7 +48,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode() error = %v", err)
 	}
-	const expected = `{"version":1,"tasks":[{"id":"00000000-0000-4000-8000-000000000001","shortId":"wtp-0001","updatedAt":"2026-01-02T02:04:05.123456789Z","title":"Updated title","description":"Updated description","status":"inProgress","priority":"high","estimate":"m","lane":"batch-json","model":"gpt-5","gitRepo":"/workspace/repo","gitBranch":"feature/json","worktreeName":"json-worktree","worktreeDir":"/workspace/worktree","assignee":"Ada","dependencies":["wtp-0002","00000000-0000-4000-8000-000000000003"]},{"shortId":"wtp-0002","updatedAt":"2026-01-02T03:04:05Z","description":"","priority":"","dependencies":null}]}`
+	const expected = `{"version":1,"tasks":[{"id":"00000000-0000-4000-8000-000000000001","shortId":"wtp-0001","updatedAt":"2026-01-02T02:04:05.123456789Z","title":"Updated title","description":"Updated description","status":"inProgress","priority":"high","estimate":"m","lane":"batch-json","model":"gpt-5","issueId":"ISSUE-42","project":"Apollo","milestone":"MVP","version":"v1.0","featureId":"FEAT-7","feature":"Search","gitRepo":"/workspace/repo","gitBranch":"feature/json","worktreeName":"json-worktree","worktreeDir":"/workspace/worktree","assignee":"Ada","dependencies":["wtp-0002","00000000-0000-4000-8000-000000000003"]},{"shortId":"wtp-0002","updatedAt":"2026-01-02T03:04:05Z","description":"","priority":"","dependencies":null}]}`
 	if string(encoded) != expected {
 		t.Fatalf("Encode() = %s, want %s", encoded, expected)
 	}
@@ -62,7 +68,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 }
 
 func TestDecodeJSONNullClearsOnlyClearableFields(t *testing.T) {
-	data := []byte(`{"version":1,"tasks":[{"shortId":"wtp-0001","updatedAt":"2026-01-02T03:04:05Z","description":null,"priority":null,"estimate":null,"lane":null,"model":null,"gitRepo":null,"gitBranch":null,"worktreeName":null,"worktreeDir":null,"assignee":null,"dependencies":null}]}`)
+	data := []byte(`{"version":1,"tasks":[{"shortId":"wtp-0001","updatedAt":"2026-01-02T03:04:05Z","description":null,"priority":null,"estimate":null,"lane":null,"model":null,"issueId":null,"project":null,"milestone":null,"version":null,"featureId":null,"feature":null,"gitRepo":null,"gitBranch":null,"worktreeName":null,"worktreeDir":null,"assignee":null,"dependencies":null}]}`)
 	got, err := Decode(data)
 	if err != nil {
 		t.Fatalf("Decode() error = %v", err)
@@ -70,6 +76,14 @@ func TestDecodeJSONNullClearsOnlyClearableFields(t *testing.T) {
 	row := got[0]
 	if !row.Description.Set || row.Description.Value != "" || !row.Priority.Set || row.Priority.Value != "" || !row.Dependencies.Set || row.Dependencies.Value != nil {
 		t.Fatalf("null clear state = %#v", row)
+	}
+	for name, field := range map[string]core.OptionalString{
+		"issueId": row.IssueID, "project": row.Project, "milestone": row.Milestone, "version": row.Version,
+		"featureId": row.FeatureID, "feature": row.Feature,
+	} {
+		if !field.Set || field.Value != "" {
+			t.Errorf("%s null clear state = %#v", name, field)
+		}
 	}
 	if row.Title.Set || row.Status.Set {
 		t.Fatalf("required fields unexpectedly set = %#v", row)
@@ -141,7 +155,7 @@ func equalBatchInput(left, right core.BatchTaskUpdateInput) bool {
 	if left.ID != right.ID || left.ShortID != right.ShortID || !left.ExpectedUpdatedAt.Equal(right.ExpectedUpdatedAt) {
 		return false
 	}
-	if left.Title != right.Title || left.Description != right.Description || left.Status != right.Status || left.Priority != right.Priority || left.Estimate != right.Estimate || left.Lane != right.Lane || left.Model != right.Model || left.GitRepo != right.GitRepo || left.GitBranch != right.GitBranch || left.WorktreeName != right.WorktreeName || left.WorktreeDir != right.WorktreeDir || left.Assignee != right.Assignee {
+	if left.Title != right.Title || left.Description != right.Description || left.Status != right.Status || left.Priority != right.Priority || left.Estimate != right.Estimate || left.Lane != right.Lane || left.Model != right.Model || left.IssueID != right.IssueID || left.Project != right.Project || left.Milestone != right.Milestone || left.Version != right.Version || left.FeatureID != right.FeatureID || left.Feature != right.Feature || left.GitRepo != right.GitRepo || left.GitBranch != right.GitBranch || left.WorktreeName != right.WorktreeName || left.WorktreeDir != right.WorktreeDir || left.Assignee != right.Assignee {
 		return false
 	}
 	if left.Dependencies.Set != right.Dependencies.Set || len(left.Dependencies.Value) != len(right.Dependencies.Value) {

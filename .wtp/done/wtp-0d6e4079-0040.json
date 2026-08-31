@@ -1,0 +1,43 @@
+{
+  "id": "cd769b15-2a2f-46cb-b009-efc904f55f01",
+  "shortId": "wtp-0d6e4079-0040",
+  "title": "Extend version-1 batch editing with grouping metadata",
+  "description": "Extend batch JSON version 1, flat-file batch application, export input construction, patch detection, strict property validation, null clearing, stale-update checks, and rollback coverage for issueId, project, milestone, version, featureId, and feature. Preserve imports whose rows omit the new fields and distinguish stable featureId from display feature.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "42878424-a6c3-44f2-920c-1d944944b5dd"
+  ],
+  "comments": [
+    {
+      "id": "4b339ad8-741c-4c73-93e8-2f4fc44413c0",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task guidance and prior grouping handoffs. Implementing version-1 JSON grouping patches, flat-file batch application/equality, and export input construction; preserving CSV and selector work for dependent task 0041.",
+      "createdAt": "2026-08-31T07:35:36.937254145Z"
+    },
+    {
+      "id": "c590181d-e8ba-466b-a60e-9e10135aece7",
+      "author": "codex-wtp-loop",
+      "message": "Added omission-preservation coverage: a batch row changing title while omitting all grouping fields leaves issueId, project, milestone, version, featureId, and feature unchanged. Re-running post-edit verification.",
+      "createdAt": "2026-08-31T07:41:19.835374803Z"
+    },
+    {
+      "id": "5b50a12b-5223-406b-90c3-3a9592793fb0",
+      "author": "codex-wtp-loop",
+      "message": "Implemented version-1 JSON batch support for issueId, project, milestone, version, featureId, and feature with strict property validation, OptionalString omission/null-clear semantics, stable wire ordering, and featureId/feature separation. Flat-file BatchUpdate now applies and trims all six fields, includes them in mutable/no-op detection and journal recovery snapshots, while export input construction carries them through. Added round-trip/null/omission/export/set-clear/no-op/stale/rollback coverage and updated batch contract text. Verification passed: go test ./... -count=1; go test -tags=wtp_fault_injection ./internal/provider/flatfile; go test -race ./internal/batchjson ./internal/batchexport ./internal/provider/flatfile; go vet ./...; ./scripts/verify.sh commit; gofmt; git diff --check.",
+      "createdAt": "2026-08-31T07:41:58.079293647Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:55.752934233Z",
+  "updatedAt": "2026-08-31T07:42:06.394053714Z",
+  "startedAt": "2026-08-31T07:34:11.525530899Z",
+  "completedAt": "2026-08-31T07:42:06.394053714Z"
+}

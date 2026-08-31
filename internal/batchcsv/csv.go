@@ -18,13 +18,13 @@ import (
 
 var headerNames = [...]string{
 	"id", "shortId", "updatedAt", "title", "description", "status", "priority", "estimate",
-	"lane", "model", "gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee",
-	"dependencies", "_clear",
+	"lane", "model", "issueId", "project", "milestone", "version", "featureId", "feature",
+	"gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies", "_clear",
 }
 
 var clearableFields = [...]string{
-	"description", "priority", "estimate", "lane", "model", "gitRepo", "gitBranch",
-	"worktreeName", "worktreeDir", "assignee", "dependencies",
+	"description", "priority", "estimate", "lane", "model", "issueId", "project", "milestone", "version",
+	"featureId", "feature", "gitRepo", "gitBranch", "worktreeName", "worktreeDir", "assignee", "dependencies",
 }
 
 var requiredFields = map[string]struct{}{
@@ -177,9 +177,11 @@ func encodeTask(index int, input core.BatchTaskUpdateInput, seen map[string]int)
 		name     string
 		value    core.OptionalString
 	}{
-		{8, "lane", input.Lane}, {9, "model", input.Model}, {10, "gitRepo", input.GitRepo},
-		{11, "gitBranch", input.GitBranch}, {12, "worktreeName", input.WorktreeName},
-		{13, "worktreeDir", input.WorktreeDir}, {14, "assignee", input.Assignee},
+		{8, "lane", input.Lane}, {9, "model", input.Model}, {10, "issueId", input.IssueID},
+		{11, "project", input.Project}, {12, "milestone", input.Milestone}, {13, "version", input.Version},
+		{14, "featureId", input.FeatureID}, {15, "feature", input.Feature}, {16, "gitRepo", input.GitRepo},
+		{17, "gitBranch", input.GitBranch}, {18, "worktreeName", input.WorktreeName},
+		{19, "worktreeDir", input.WorktreeDir}, {20, "assignee", input.Assignee},
 	}
 	for _, field := range optionalStrings {
 		if err := encodeOptionalString(record, field.position, field.name, field.value, &clears); err != nil {
@@ -197,11 +199,11 @@ func encodeTask(index int, input core.BatchTaskUpdateInput, seen map[string]int)
 				}
 				dependencies[depIndex] = strings.TrimSpace(dependency)
 			}
-			record[15] = strings.Join(dependencies, ",")
+			record[21] = strings.Join(dependencies, ",")
 		}
 	}
 	if len(clears) > 0 {
-		record[16] = strings.Join(clears, ",")
+		record[22] = strings.Join(clears, ",")
 	}
 	if !hasPatch(input) {
 		return nil, rowError(index+1, "row has no mutable patch fields")
@@ -292,8 +294,10 @@ func decodeTask(rowNumber int, record []string, positions map[string]int, seen m
 		name   string
 		target *core.OptionalString
 	}{
-		{"lane", &task.Lane}, {"model", &task.Model}, {"gitRepo", &task.GitRepo}, {"gitBranch", &task.GitBranch},
-		{"worktreeName", &task.WorktreeName}, {"worktreeDir", &task.WorktreeDir}, {"assignee", &task.Assignee},
+		{"lane", &task.Lane}, {"model", &task.Model}, {"issueId", &task.IssueID}, {"project", &task.Project},
+		{"milestone", &task.Milestone}, {"version", &task.Version}, {"featureId", &task.FeatureID}, {"feature", &task.Feature},
+		{"gitRepo", &task.GitRepo}, {"gitBranch", &task.GitBranch}, {"worktreeName", &task.WorktreeName},
+		{"worktreeDir", &task.WorktreeDir}, {"assignee", &task.Assignee},
 	} {
 		if fieldValue := value(field.name); fieldValue != "" {
 			field.target.Set, field.target.Value = true, fieldValue
@@ -397,6 +401,18 @@ func setClear(task *core.BatchTaskUpdateInput, name string) {
 		task.Lane = core.OptionalString{Set: true}
 	case "model":
 		task.Model = core.OptionalString{Set: true}
+	case "issueId":
+		task.IssueID = core.OptionalString{Set: true}
+	case "project":
+		task.Project = core.OptionalString{Set: true}
+	case "milestone":
+		task.Milestone = core.OptionalString{Set: true}
+	case "version":
+		task.Version = core.OptionalString{Set: true}
+	case "featureId":
+		task.FeatureID = core.OptionalString{Set: true}
+	case "feature":
+		task.Feature = core.OptionalString{Set: true}
 	case "gitRepo":
 		task.GitRepo = core.OptionalString{Set: true}
 	case "gitBranch":
@@ -431,7 +447,8 @@ func recordIdentifiers(rowNumber int, id, shortID string, seen map[string]int) e
 
 func hasPatch(input core.BatchTaskUpdateInput) bool {
 	return input.Title.Set || input.Description.Set || input.Status.Set || input.Priority.Set || input.Estimate.Set ||
-		input.Lane.Set || input.Model.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
+		input.Lane.Set || input.Model.Set || input.IssueID.Set || input.Project.Set || input.Milestone.Set || input.Version.Set ||
+		input.FeatureID.Set || input.Feature.Set || input.GitRepo.Set || input.GitBranch.Set || input.WorktreeName.Set ||
 		input.WorktreeDir.Set || input.Assignee.Set || input.Dependencies.Set
 }
 

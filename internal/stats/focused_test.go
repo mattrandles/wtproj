@@ -92,6 +92,28 @@ func TestAggregateFocusedFilteredModelUsesProviderStatusFilterOnce(t *testing.T)
 	}
 }
 
+func TestAggregateFocusedGroupingPreservesCaseSensitiveBuckets(t *testing.T) {
+	grouping := core.GroupingFilter{IssueID: "issue-42", Project: "apollo", Milestone: "m1", Version: "v1", FeatureID: "feature-7", Feature: "search"}
+	spy := &focusedProviderSpy{fakeProvider: fakeProvider{tasks: []core.TaskView{
+		{Task: core.Task{IssueID: "ISSUE-42", Project: "Apollo", Milestone: "M1", Version: "V1", FeatureID: "FEATURE-7", Feature: "Search"}},
+		{Task: core.Task{IssueID: "issue-42", Project: "APOLLO", Milestone: "m1", Version: "v1", FeatureID: "feature-7", Feature: "search"}},
+		{Task: core.Task{IssueID: "ISSUE-42", Project: "Apollo", Milestone: "M1", Version: "V1", FeatureID: "FEATURE-7", Feature: "excluded"}},
+	}}}
+
+	report, err := AggregateFocused(spy, Options{Grouping: grouping}, AttributeFeature)
+	if err != nil {
+		t.Fatalf("AggregateFocused() error = %v", err)
+	}
+	want := []Bucket{{Value: "Search", Count: 1}, {Value: "search", Count: 1}}
+	if report.TotalTasks != 2 || report.Buckets == nil || !reflect.DeepEqual(*report.Buckets, want) {
+		t.Fatalf("focused grouped report = %#v, want %#v", report, want)
+	}
+	spy.assertCalls(t)
+	if got, want := spy.filters[0].Grouping, grouping; got != want {
+		t.Fatalf("ListTasks grouping = %#v, want %#v", got, want)
+	}
+}
+
 func TestAggregateFocusedReturnsTaskProviderErrorWithoutLoadingHandoffs(t *testing.T) {
 	spy := &focusedProviderSpy{fakeProvider: fakeProvider{
 		listTasksErr:    errors.New("tasks unavailable"),

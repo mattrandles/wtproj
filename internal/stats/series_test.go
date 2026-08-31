@@ -170,6 +170,30 @@ func TestAggregateSeriesEmptyStoreAndProviderError(t *testing.T) {
 	}
 }
 
+func TestAggregateSeriesGroupingFiltersCreatedAndProgressed(t *testing.T) {
+	asOf := time.Date(2026, 8, 30, 0, 0, 0, 0, time.UTC)
+	grouping := core.GroupingFilter{IssueID: "issue-42", Project: "apollo", Milestone: "m1", Version: "v1", FeatureID: "feature-7", Feature: "search"}
+	tasks := []core.TaskView{
+		{Task: core.Task{ID: "created", IssueID: "ISSUE-42", Project: "Apollo", Milestone: "M1", Version: "V1", FeatureID: "FEATURE-7", Feature: "Search", CreatedAt: asOf.Add(-time.Hour), UpdatedAt: asOf.Add(-10 * day)}},
+		{Task: core.Task{ID: "progressed", IssueID: "issue-42", Project: "APOLLO", Milestone: "m1", Version: "v1", FeatureID: "feature-7", Feature: "search", CreatedAt: asOf.Add(-10 * day), UpdatedAt: asOf.Add(-2 * time.Hour)}},
+		{Task: core.Task{ID: "excluded", IssueID: "ISSUE-42", Project: "Apollo", Milestone: "M1", Version: "V1", FeatureID: "FEATURE-7", Feature: "excluded", CreatedAt: asOf.Add(-time.Hour), UpdatedAt: asOf.Add(-time.Hour)}},
+	}
+	for _, metric := range []SeriesMetric{SeriesMetricCreated, SeriesMetricProgressed} {
+		t.Run(string(metric), func(t *testing.T) {
+			report, err := AggregateSeries(fakeProvider{tasks: tasks}, SeriesOptions{
+				Metric: metric, Range: RollingRange{StartDays: 1, EndDays: 0}, AsOf: asOf,
+				Grouping: grouping,
+			})
+			if err != nil {
+				t.Fatalf("AggregateSeries() error = %v", err)
+			}
+			if report.TotalTasks != 1 || report.Buckets[0].Count != 1 {
+				t.Fatalf("grouped %s report = %#v", metric, report)
+			}
+		})
+	}
+}
+
 func seriesTask(number int, createdAt, updatedAt time.Time) core.TaskView {
 	return core.TaskView{Task: core.Task{
 		ID:        "series-task-" + strconv.Itoa(number),

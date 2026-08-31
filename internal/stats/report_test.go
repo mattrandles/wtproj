@@ -12,8 +12,8 @@ import (
 
 func TestAggregateBuildsDeterministicOverview(t *testing.T) {
 	tasks := []core.TaskView{
-		{Task: core.Task{ID: "00000000-0000-4000-8000-000000000001", Status: core.StatusDone, Model: "zeta", Lane: "cli", Priority: core.PriorityUrgent, Estimate: core.EstimateXL, Assignee: "Zed", Comments: []core.Comment{{}, {}}, Dependencies: []string{"a", "b"}}},
-		{Task: core.Task{ID: "00000000-0000-4000-8000-000000000002", Status: core.StatusTodo, Model: "", Lane: "backend", Priority: core.PriorityLow, Estimate: core.EstimateXS, Assignee: "Amy", Comments: []core.Comment{{}}}},
+		{Task: core.Task{ID: "00000000-0000-4000-8000-000000000001", Status: core.StatusDone, Model: "zeta", Lane: "cli", Priority: core.PriorityUrgent, Estimate: core.EstimateXL, Assignee: "Zed", IssueID: "ISSUE-2", Project: "Zeus", Milestone: "M2", Version: "v2", FeatureID: "FEATURE-2", Feature: "Search", Comments: []core.Comment{{}, {}}, Dependencies: []string{"a", "b"}}},
+		{Task: core.Task{ID: "00000000-0000-4000-8000-000000000002", Status: core.StatusTodo, Model: "", Lane: "backend", Priority: core.PriorityLow, Estimate: core.EstimateXS, Assignee: "Amy", IssueID: "ISSUE-1", Project: "Apollo", Milestone: "M1", Version: "v1", FeatureID: "FEATURE-1", Feature: "Browse", Comments: []core.Comment{{}}}},
 		{Task: core.Task{ID: "00000000-0000-4000-8000-000000000003", Status: core.StatusPaused, Model: "alpha", Lane: "", Priority: "", Estimate: "", Assignee: "", Dependencies: []string{}}},
 	}
 	global := core.Handoff{ID: "00000000-0000-4000-8000-000000000011", Message: "global", CreatedAt: time.Unix(1, 0).UTC()}
@@ -40,6 +40,24 @@ func TestAggregateBuildsDeterministicOverview(t *testing.T) {
 	if !reflect.DeepEqual(report.Attributes.Estimate, []Bucket{{Value: "", Count: 1}, {Value: "xs", Count: 1}, {Value: "xl", Count: 1}}) {
 		t.Fatalf("Estimate buckets = %#v", report.Attributes.Estimate)
 	}
+	if got, want := report.Attributes.IssueID, []Bucket{{Value: "", Count: 1}, {Value: "ISSUE-1", Count: 1}, {Value: "ISSUE-2", Count: 1}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("IssueID buckets = %#v, want %#v", got, want)
+	}
+	if got, want := report.Attributes.Project, []Bucket{{Value: "", Count: 1}, {Value: "Apollo", Count: 1}, {Value: "Zeus", Count: 1}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Project buckets = %#v, want %#v", got, want)
+	}
+	if got, want := report.Attributes.Milestone, []Bucket{{Value: "", Count: 1}, {Value: "M1", Count: 1}, {Value: "M2", Count: 1}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Milestone buckets = %#v, want %#v", got, want)
+	}
+	if got, want := report.Attributes.Version, []Bucket{{Value: "", Count: 1}, {Value: "v1", Count: 1}, {Value: "v2", Count: 1}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Version buckets = %#v, want %#v", got, want)
+	}
+	if got, want := report.Attributes.FeatureID, []Bucket{{Value: "", Count: 1}, {Value: "FEATURE-1", Count: 1}, {Value: "FEATURE-2", Count: 1}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("FeatureID buckets = %#v, want %#v", got, want)
+	}
+	if got, want := report.Attributes.Feature, []Bucket{{Value: "", Count: 1}, {Value: "Browse", Count: 1}, {Value: "Search", Count: 1}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Feature buckets = %#v, want %#v", got, want)
+	}
 	if report.Comments != (CommentMetrics{TasksWithComments: 2, TotalRecords: 3}) {
 		t.Fatalf("Comments = %#v", report.Comments)
 	}
@@ -48,6 +66,31 @@ func TestAggregateBuildsDeterministicOverview(t *testing.T) {
 	}
 	if report.Handoffs != (HandoffMetrics{Total: 3, AllStatusTotal: 3, Global: 1, TaskScoped: 2}) {
 		t.Fatalf("Handoffs = %#v", report.Handoffs)
+	}
+}
+
+func TestAggregateGroupingFiltersScopeTasksAndHandoffs(t *testing.T) {
+	done := core.StatusDone
+	grouping := core.GroupingFilter{IssueID: "issue-42", Project: "apollo", Milestone: "m1", Version: "v1", FeatureID: "feature-7", Feature: "search"}
+	selected := core.TaskView{Task: core.Task{ID: "selected", Status: done, IssueID: "ISSUE-42", Project: "Apollo", Milestone: "M1", Version: "V1", FeatureID: "FEATURE-7", Feature: "Search"}}
+	sameGroupOtherStatus := core.TaskView{Task: core.Task{ID: "same-group", Status: core.StatusTodo, IssueID: "issue-42", Project: "APOLLO", Milestone: "m1", Version: "v1", FeatureID: "feature-7", Feature: "search"}}
+	otherGroup := core.TaskView{Task: core.Task{ID: "other-group", Status: done, IssueID: "ISSUE-99", Project: "Apollo", Milestone: "M1", Version: "V1", FeatureID: "FEATURE-7", Feature: "Search"}}
+	handoffs := []core.Handoff{
+		{ID: "global", Message: "global"},
+		{ID: "selected", TaskID: selected.ID, Message: "selected"},
+		{ID: "same-group", TaskID: sameGroupOtherStatus.ID, Message: "same group"},
+		{ID: "other-group", TaskID: otherGroup.ID, Message: "other group"},
+	}
+	provider := fakeProvider{tasks: []core.TaskView{selected, sameGroupOtherStatus, otherGroup}, handoffs: handoffs}
+	report, err := Aggregate(provider, Options{Status: &done, Grouping: grouping})
+	if err != nil {
+		t.Fatalf("Aggregate() error = %v", err)
+	}
+	if report.TotalTasks != 1 || report.Attributes.Project[0] != (Bucket{Value: "Apollo", Count: 1}) {
+		t.Fatalf("grouped report = %#v", report)
+	}
+	if got, want := report.Handoffs, (HandoffMetrics{Total: 2, AllStatusTotal: 3, Global: 1, TaskScoped: 1}); got != want {
+		t.Fatalf("grouped handoffs = %#v, want %#v", got, want)
 	}
 }
 
@@ -138,14 +181,15 @@ func (p fakeProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, er
 	if p.listTasksErr != nil {
 		return nil, p.listTasksErr
 	}
-	if filter.Status == nil {
-		return p.tasks, nil
-	}
 	filtered := make([]core.TaskView, 0, len(p.tasks))
 	for _, task := range p.tasks {
-		if task.Status == *filter.Status {
-			filtered = append(filtered, task)
+		if filter.Status != nil && task.Status != *filter.Status {
+			continue
 		}
+		if !core.MatchesGroupingFilter(task.Task, filter.Grouping) {
+			continue
+		}
+		filtered = append(filtered, task)
 	}
 	return filtered, nil
 }
@@ -176,4 +220,13 @@ func (fakeProvider) AddComment(string, string, string) (core.TaskView, error) { 
 func (fakeProvider) PeekNextTask(string) (core.TaskView, error)               { panic("unused") }
 func (fakeProvider) PeekNextTasks(string, int) ([]core.TaskView, error)       { panic("unused") }
 func (fakeProvider) GetNextTask(string) (core.TaskView, error)                { panic("unused") }
-func (fakeProvider) ExportCanonical(string) error                             { panic("unused") }
+func (fakeProvider) PeekNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	panic("unused")
+}
+func (fakeProvider) PeekNextTasksWithFilter(provider.SelectionFilter, int) ([]core.TaskView, error) {
+	panic("unused")
+}
+func (fakeProvider) GetNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	panic("unused")
+}
+func (fakeProvider) ExportCanonical(string) error { panic("unused") }

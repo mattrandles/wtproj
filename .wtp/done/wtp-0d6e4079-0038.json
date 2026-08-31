@@ -1,0 +1,37 @@
+{
+  "id": "879f7df7-b5d3-4740-b3d5-e8627bdb0fcb",
+  "shortId": "wtp-0d6e4079-0038",
+  "title": "Add grouping metadata to task write and display commands",
+  "description": "Add --issue-id, --project, --milestone, --version, --feature-id, and --feature to canonical task create/update/edit and legacy create compatibility. Support explicit update clearing, reject blank create values after trimming, render populated fields in task detail output, preserve compact list/graph columns, and cover JSON plus human output. Keep featureId stable and feature display-oriented.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "a656747b-3baa-4a3a-94a5-1a2870a26221"
+  ],
+  "comments": [
+    {
+      "id": "66169fd9-e7d8-4109-a51c-850709d1e6b0",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task and repository guidance; inherited 0036/0037 changes are present. Tracing CLI write/detail paths and existing grouping contracts before editing.",
+      "createdAt": "2026-08-31T07:12:46.597876434Z"
+    },
+    {
+      "id": "1ab55cfc-343a-43af-ac49-f763ab7de7b9",
+      "author": "codex-wtp-loop",
+      "message": "Grouping metadata is wired through canonical create/update/edit, legacy create, flat-file persistence, and populated task detail output; compact list/graph text columns remain unchanged. Focused tests, full go test, vet, diff check, and ./scripts/verify.sh commit pass; race verification is the final check.",
+      "createdAt": "2026-08-31T07:20:34.298710435Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:55.457882503Z",
+  "updatedAt": "2026-08-31T07:21:14.4464352Z",
+  "startedAt": "2026-08-31T07:12:11.918993143Z",
+  "completedAt": "2026-08-31T07:21:14.4464352Z"
+}

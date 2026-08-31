@@ -1,0 +1,50 @@
+{
+  "id": "2fd09cb3-9938-4d4a-851a-63ee3df29c4a",
+  "shortId": "wtp-0d6e4079-0043",
+  "title": "Expose grouping filters and dimensions in stats CLI",
+  "description": "Parse all six grouping flags after optional --chart and before positional stats selectors. Add focused attributes issueId, project, milestone, version, featureId, and feature; update overview, focused, JSON, text, and chart paths while preserving status ambiguity rules. Cover combined status/group filters, scalar metrics, series, charts, unset buckets, and invalid ordering.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "550ed327-eb9f-4e65-b7c7-884324d0f699",
+    "879f7df7-b5d3-4740-b3d5-e8627bdb0fcb"
+  ],
+  "comments": [
+    {
+      "id": "2de88674-7011-48c8-b97d-a76fe26a9a4a",
+      "author": "codex-wtp-loop",
+      "message": "0043 resumed: inspecting existing grouped stats aggregation and CLI parser/output paths; preserving completed 0036-0042 changes and scoping edits to stats CLI/tests.",
+      "createdAt": "2026-08-31T08:24:13.563999719Z"
+    },
+    {
+      "id": "e5c07903-b513-4dcb-b882-75519bd3dcd5",
+      "author": "codex-wtp-loop",
+      "message": "Worker was killed after the requested five-minute unresponsive allowance; no new WTP update or filesystem progress was observed. Reclaiming the exact task to continue with preserved stats CLI changes.",
+      "createdAt": "2026-08-31T08:32:23.490068998Z"
+    },
+    {
+      "id": "44def992-621d-4f63-9881-57f12c78eec5",
+      "author": "codex-wtp-loop",
+      "message": "Reclaimed task and inspected preserved implementation; grouping parser, stats propagation, and tests are present. Running focused tests and auditing edge cases before final verification.",
+      "createdAt": "2026-08-31T08:33:11.988737314Z"
+    },
+    {
+      "id": "20abd2ea-382d-4991-9a16-59aeb83484c9",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: focused and full tests, stats/core and focused CLI race tests, go vet, gofmt check, commit gate, and git diff --check passed. Full race was bounded at two minutes because TestCLIProcess subprocess harness did not complete.",
+      "createdAt": "2026-08-31T08:38:12.2863805Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:56.178606206Z",
+  "updatedAt": "2026-08-31T08:38:12.313595232Z",
+  "startedAt": "2026-08-31T08:23:32.844447757Z",
+  "completedAt": "2026-08-31T08:38:12.313595232Z"
+}

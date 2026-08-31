@@ -117,6 +117,115 @@ func TestBatchUpdateEffectiveNoOpPreservesTaskBytesAndTimestamp(t *testing.T) {
 	}
 }
 
+func TestBatchUpdateGroupingMetadataSetAndClear(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root, nil)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	task, err := p.CreateTask(core.CreateTaskInput{
+		Title: "Grouped", IssueID: "ISSUE-1", Project: "Apollo", Milestone: "MVP", Version: "v1",
+		FeatureID: "FEAT-1", Feature: "Search",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	preserved, err := p.BatchUpdate(provider.BatchUpdateRequest{Tasks: []core.BatchTaskUpdateInput{{
+		ShortID: task.ShortID, ExpectedUpdatedAt: task.UpdatedAt,
+		Title: core.OptionalString{Set: true, Value: "Grouped renamed"},
+	}}})
+	if err != nil {
+		t.Fatalf("BatchUpdate(omitted grouping) error = %v", err)
+	}
+	if len(preserved.Updated) != 1 || preserved.Updated[0].IssueID != "ISSUE-1" || preserved.Updated[0].FeatureID != "FEAT-1" || preserved.Updated[0].Feature != "Search" {
+		t.Fatalf("omitted grouping changed metadata = %#v", preserved)
+	}
+	task = preserved.Updated[0]
+	result, err := p.BatchUpdate(provider.BatchUpdateRequest{Tasks: []core.BatchTaskUpdateInput{{
+		ShortID: task.ShortID, ExpectedUpdatedAt: task.UpdatedAt,
+		IssueID: core.OptionalString{Set: true, Value: "ISSUE-2"}, Project: core.OptionalString{Set: true, Value: "Orion"},
+		Milestone: core.OptionalString{Set: true, Value: "Beta"}, Version: core.OptionalString{Set: true, Value: "v2"},
+		FeatureID: core.OptionalString{Set: true, Value: "FEAT-2"}, Feature: core.OptionalString{Set: true, Value: "Checkout"},
+	}}})
+	if err != nil {
+		t.Fatalf("BatchUpdate(set grouping) error = %v", err)
+	}
+	if len(result.Updated) != 1 || result.Updated[0].IssueID != "ISSUE-2" || result.Updated[0].FeatureID != "FEAT-2" || result.Updated[0].Feature != "Checkout" {
+		t.Fatalf("set grouping result = %#v", result)
+	}
+	updated := result.Updated[0]
+	if updated.Project != "Orion" || updated.Milestone != "Beta" || updated.Version != "v2" {
+		t.Fatalf("set grouping result = %#v", updated.Task)
+	}
+
+	cleared, err := p.BatchUpdate(provider.BatchUpdateRequest{Tasks: []core.BatchTaskUpdateInput{{
+		ShortID: updated.ShortID, ExpectedUpdatedAt: updated.UpdatedAt,
+		IssueID: core.OptionalString{Set: true}, Project: core.OptionalString{Set: true}, Milestone: core.OptionalString{Set: true},
+		Version: core.OptionalString{Set: true}, FeatureID: core.OptionalString{Set: true}, Feature: core.OptionalString{Set: true},
+	}}})
+	if err != nil {
+		t.Fatalf("BatchUpdate(clear grouping) error = %v", err)
+	}
+	if len(cleared.Updated) != 1 {
+		t.Fatalf("clear grouping result = %#v", cleared)
+	}
+	got, err := p.GetTask(task.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got.IssueID != "" || got.Project != "" || got.Milestone != "" || got.Version != "" || got.FeatureID != "" || got.Feature != "" {
+		t.Fatalf("cleared grouping task = %#v", got.Task)
+	}
+}
+
+func TestBatchUpdateGroupingNoOpAndStaleChecks(t *testing.T) {
+	root := t.TempDir()
+	p, err := flatfile.New(root, nil)
+	if err != nil {
+		t.Fatalf("flatfile.New() error = %v", err)
+	}
+	task, err := p.CreateTask(core.CreateTaskInput{Title: "Grouped", FeatureID: "stable", Feature: "Display"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	path := filepath.Join(root, string(task.Status), task.ShortID+".json")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read task before no-op: %v", err)
+	}
+	result, err := p.BatchUpdate(provider.BatchUpdateRequest{Tasks: []core.BatchTaskUpdateInput{{
+		ShortID: task.ShortID, ExpectedUpdatedAt: task.UpdatedAt,
+		FeatureID: core.OptionalString{Set: true, Value: "stable"}, Feature: core.OptionalString{Set: true, Value: "Display"},
+	}}})
+	if err != nil {
+		t.Fatalf("BatchUpdate(no-op grouping) error = %v", err)
+	}
+	if len(result.Updated) != 0 || len(result.Unchanged) != 1 || !result.Unchanged[0].UpdatedAt.Equal(task.UpdatedAt) {
+		t.Fatalf("no-op grouping result = %#v", result)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read task after no-op: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("grouping no-op rewrote task bytes")
+	}
+
+	_, err = p.BatchUpdate(provider.BatchUpdateRequest{Tasks: []core.BatchTaskUpdateInput{{
+		ShortID: task.ShortID, ExpectedUpdatedAt: task.UpdatedAt.Add(-time.Second), Project: core.OptionalString{Set: true, Value: "Orion"},
+	}}})
+	if !errors.Is(err, provider.ErrStaleTask) {
+		t.Fatalf("BatchUpdate(stale grouping) error = %v, want ErrStaleTask", err)
+	}
+	got, err := p.GetTask(task.ShortID, "")
+	if err != nil {
+		t.Fatalf("GetTask(after stale) error = %v", err)
+	}
+	if got.Project != "" || got.FeatureID != "stable" || got.Feature != "Display" {
+		t.Fatalf("stale grouping changed task = %#v", got.Task)
+	}
+}
+
 func TestBatchUpdateMixedChangedAndUnchangedRows(t *testing.T) {
 	root := t.TempDir()
 	p, err := flatfile.New(root, nil)

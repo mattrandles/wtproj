@@ -82,7 +82,10 @@ func createFaultFixture(t *testing.T) (string, []core.TaskView) {
 	}
 	tasks := make([]core.TaskView, 0, 3)
 	for _, title := range []string{"one", "two", "three"} {
-		task, err := p.CreateTask(core.CreateTaskInput{Title: title})
+		task, err := p.CreateTask(core.CreateTaskInput{
+			Title: title, IssueID: "issue-" + title, Project: "project-" + title, Milestone: "milestone-" + title,
+			Version: "version-" + title, FeatureID: "feature-id-" + title, Feature: "feature-" + title,
+		})
 		if err != nil {
 			t.Fatalf("CreateTask(%q) error = %v", title, err)
 		}
@@ -93,7 +96,10 @@ func createFaultFixture(t *testing.T) (string, []core.TaskView) {
 
 func faultBatchRequest(tasks []core.TaskView) provider.BatchUpdateRequest {
 	return provider.BatchUpdateRequest{Tasks: []core.BatchTaskUpdateInput{
-		{ShortID: tasks[0].ShortID, ExpectedUpdatedAt: tasks[0].UpdatedAt, Title: core.OptionalString{Set: true, Value: "one changed"}},
+		{ShortID: tasks[0].ShortID, ExpectedUpdatedAt: tasks[0].UpdatedAt, Title: core.OptionalString{Set: true, Value: "one changed"},
+			IssueID: core.OptionalString{Set: true, Value: "changed-issue"}, Project: core.OptionalString{Set: true, Value: "changed-project"},
+			Milestone: core.OptionalString{Set: true, Value: "changed-milestone"}, Version: core.OptionalString{Set: true, Value: "changed-version"},
+			FeatureID: core.OptionalString{Set: true, Value: "changed-feature-id"}, Feature: core.OptionalString{Set: true, Value: "changed-feature"}},
 		{ShortID: tasks[1].ShortID, ExpectedUpdatedAt: tasks[1].UpdatedAt, Status: core.OptionalStatus{Set: true, Value: core.StatusInProgress}},
 		{ShortID: tasks[2].ShortID, ExpectedUpdatedAt: tasks[2].UpdatedAt, Title: core.OptionalString{Set: true, Value: "three changed"}},
 	}}
@@ -134,6 +140,15 @@ func assertRecoveredFaultFixture(t *testing.T, root string, original []core.Task
 		}
 		if expectAfter && index == 1 && got.Status != core.StatusInProgress {
 			t.Fatalf("status task %s status = %s, want inProgress", want.ShortID, got.Status)
+		}
+		if index == 0 {
+			if expectAfter {
+				if got.IssueID != "changed-issue" || got.Project != "changed-project" || got.Milestone != "changed-milestone" || got.Version != "changed-version" || got.FeatureID != "changed-feature-id" || got.Feature != "changed-feature" {
+					t.Fatalf("task %s grouping after recovery = %#v", want.ShortID, got.Task)
+				}
+			} else if got.IssueID != "issue-one" || got.Project != "project-one" || got.Milestone != "milestone-one" || got.Version != "version-one" || got.FeatureID != "feature-id-one" || got.Feature != "feature-one" {
+				t.Fatalf("task %s grouping after rollback = %#v", want.ShortID, got.Task)
+			}
 		}
 	}
 	if _, err := os.Stat(filepath.Join(root, "meta", batchUpdateJournalName)); !errors.Is(err, os.ErrNotExist) {

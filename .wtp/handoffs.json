@@ -301,6 +301,78 @@
       "author": "codex-wtp-loop",
       "message": "wtp-0d6e4079-0035 audit complete: no corrections required. Verified focused categorical/scalar and created/progressed series queries are task-only and avoid ListHandoffs; overview retains handoffs; stats leaves provider/storage interfaces unchanged; overview/focused text+JSON contracts are compatible; range and bucket boundaries are UTC half-open; runStats captures time once; custom catalog order and explicit unset model values are preserved; and --chart is rejected with root --json. No parallel tasks remain in progress. Verification passed: gofmt -l ./cmd ./internal (no output); go test ./...; go vet ./...; git diff --check; ./scripts/verify.sh commit (smoke test passed; commit verification passed).",
       "createdAt": "2026-08-30T06:28:46.252451156Z"
+    },
+    {
+      "id": "a7d00727-7c70-4df4-a96e-b9aaaf045592",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0036 implemented and verified: six optional grouping fields in Task/CreateTaskInput/UpdateTaskInput/BatchTaskUpdateInput; canonical task JSON uses omitempty and patches retain OptionalString preserve/clear semantics. Reuse core.GroupingFilter, NormalizeGroupingFilter, and MatchesGroupingFilter. Filter normalization trims selectors; empty selectors are unrestricted, so explicit-empty rejection belongs at parsing boundaries. Matching uses case-insensitive exact AND comparisons without mutating stored casing; featureId and feature are independent key/name fields. Core tests cover serialization, legacy absent/empty/null fields, validation, and matching. Provider/CLI/batch codecs are unchanged. Passed focused and race core tests, gofmt, diff check, and full commit verification (tests/vet/smoke). Prior handoffs retained; no workers spawned.",
+      "createdAt": "2026-08-31T07:03:16.954490655Z"
+    },
+    {
+      "id": "e6cc67a7-18ed-4aa8-a587-600ac41dbfaa",
+      "author": "codex-wtp-loop",
+      "message": "0037 complete: flat-file grouped list/ready/claim filtering uses core matcher; SelectionFilter preserves atomic claims and scope/dependency ordering. 0039 should parse selectors and call the new WithFilter provider methods.",
+      "createdAt": "2026-08-31T07:11:35.039693979Z"
+    },
+    {
+      "id": "95808db8-ec32-4c33-aedb-a87b64aa36df",
+      "author": "codex-wtp-loop",
+      "message": "0038 complete: added grouping metadata flags and persistence for canonical/legacy task creation, update/edit clear semantics, trimmed blank-create rejection, and detail JSON/human rendering; compact list/graph columns preserved. Full tests, race tests, vet, diff check, and commit verification pass.",
+      "createdAt": "2026-08-31T07:21:14.358144976Z"
+    },
+    {
+      "id": "d71a26a7-228a-4927-b443-fea4971c03ad",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0039 paused due to environment_failure: primary worker Lagrange (agent 01a056b2-0b99-71a3-a58b-b2f21f49884f) stopped returning progress after inspection and a follow-up nudge; no blocker response was available. Usage remained above threshold at 97%. Reclaim the exact task before resuming; current implementation changes from prior completed tasks are preserved.",
+      "createdAt": "2026-08-31T07:28:47.371200161Z"
+    },
+    {
+      "id": "215c45fd-de2f-4f3c-b4fb-08c0e80b379f",
+      "author": "codex-wtp-loop",
+      "message": "Completed wtp-0d6e4079-0039: operational and legacy list/next commands share strict six-field grouping selectors; ready/next pass identical filters through preview/claim APIs; graph emits only matched tasks and internal edges. Full tests, vet, smoke, gofmt, and diff checks pass.",
+      "createdAt": "2026-08-31T07:33:46.04343736Z"
+    },
+    {
+      "id": "a8df23f5-1f42-4434-ac59-196669b5e691",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0040 complete: version-1 JSON batches now support all six grouping metadata fields with strict validation, omission preservation, null clearing, stable featureId/feature semantics, flat-file apply/no-op/stale/journal handling, and export input propagation. Focused/full tests, race, vet, commit verification, gofmt, diff checks, and fault-injection rollback matrix pass; CSV and batch-export selector extensions remain scoped to dependent task 0041.",
+      "createdAt": "2026-08-31T07:42:02.661480277Z"
+    },
+    {
+      "id": "73b7cabd-c283-47cb-b9ba-d0ca8129abf6",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0041 paused due to environment_failure: primary worker Mendel (agent 01a056c5-2d08-7940-beff-dd55ca0ae9de) stopped returning after implementation progress and a follow-up nudge. Usage was 95%, above threshold. Reclaim exact task before resuming; preserve current changes.",
+      "createdAt": "2026-08-31T07:51:53.778674053Z"
+    },
+    {
+      "id": "a1c85679-b055-4dac-a3ed-219d628ee246",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0041 verified complete: grouping CSV/export changes preserved; full tests, vet, commit smoke, gofmt/diff check, repeated focused tests, and race suite pass.",
+      "createdAt": "2026-08-31T08:07:31.004354331Z"
+    },
+    {
+      "id": "25cc78ac-75eb-4162-b9af-7a5025b3c929",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0042 paused due to environment_failure: primary worker Pasteur (agent 01a056dc-7402-7a42-a726-eecc8264bdf3) stopped returning after stats implementation and a continuation nudge. Usage was 92%, above threshold. Reclaim the exact task before resuming; preserve current stats changes.",
+      "createdAt": "2026-08-31T08:16:10.822556545Z"
+    },
+    {
+      "id": "8ecc3b50-fd13-4667-ad7c-30e09b629c26",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0042 complete: stats supports six grouped categorical dimensions and filters across overview/focused/created/progressed; grouped handoffs retain globals and compute allStatusTotal before status filtering. Full verification passed.",
+      "createdAt": "2026-08-31T08:23:09.153279835Z"
+    },
+    {
+      "id": "8d327d0b-6f5b-44bd-b334-98b66d16475b",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0043 worker killed after five-minute unresponsive allowance; no new WTP update or filesystem progress. Reclaim exact task before restarting; preserved stats CLI changes remain in the worktree. Usage was 90%, above threshold.",
+      "createdAt": "2026-08-31T08:32:23.513425202Z"
+    },
+    {
+      "id": "ba0a9f4f-cfe0-42b8-91da-e455a066f6f4",
+      "author": "codex-wtp-loop",
+      "message": "Stats CLI grouping task complete: six selectors parse after optional --chart before positionals; issueId/project/milestone/version/featureId/feature flow through overview, focused, JSON/text/charts and series filters. Normal full tests, focused race tests, stats/core race, vet, commit gate, gofmt, and git diff --check passed. Full race was bounded at two minutes because subprocess-heavy TestCLIProcess did not complete.",
+      "createdAt": "2026-08-31T08:38:07.767982673Z"
     }
   ]
 }

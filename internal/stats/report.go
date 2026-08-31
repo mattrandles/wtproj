@@ -29,6 +29,12 @@ const (
 	AttributePriority     Attribute = "priority"
 	AttributeEstimate     Attribute = "estimate"
 	AttributeAssignee     Attribute = "assignee"
+	AttributeIssueID      Attribute = "issueId"
+	AttributeProject      Attribute = "project"
+	AttributeMilestone    Attribute = "milestone"
+	AttributeVersion      Attribute = "version"
+	AttributeFeatureID    Attribute = "featureId"
+	AttributeFeature      Attribute = "feature"
 	AttributeComments     Attribute = "comments"
 	AttributeDependencies Attribute = "dependencies"
 )
@@ -37,11 +43,17 @@ const (
 // is ordered by its attribute's canonical order or, for free text, lexical
 // order. Empty values are represented by a bucket whose Value is "".
 type Attributes struct {
-	Model    []Bucket `json:"model"`
-	Lane     []Bucket `json:"lane"`
-	Priority []Bucket `json:"priority"`
-	Estimate []Bucket `json:"estimate"`
-	Assignee []Bucket `json:"assignee"`
+	Model     []Bucket `json:"model"`
+	Lane      []Bucket `json:"lane"`
+	Priority  []Bucket `json:"priority"`
+	Estimate  []Bucket `json:"estimate"`
+	Assignee  []Bucket `json:"assignee"`
+	IssueID   []Bucket `json:"issueId"`
+	Project   []Bucket `json:"project"`
+	Milestone []Bucket `json:"milestone"`
+	Version   []Bucket `json:"version"`
+	FeatureID []Bucket `json:"featureId"`
+	Feature   []Bucket `json:"feature"`
 }
 
 // CommentMetrics describes comments on the selected tasks.
@@ -58,8 +70,9 @@ type DependencyMetrics struct {
 }
 
 // HandoffMetrics describes retained handoffs relevant to the selected task
-// set. AllStatusTotal is the total before applying a status filter; it is
-// equal to Total when the report is unfiltered.
+// set. AllStatusTotal is the total before applying an optional status filter;
+// it is equal to Total when status is not selected (including a grouping-only
+// report).
 type HandoffMetrics struct {
 	Total          int `json:"total"`
 	AllStatusTotal int `json:"allStatusTotal"`
@@ -96,8 +109,9 @@ type FocusedReport struct {
 // is passed through the provider's existing TaskFilter; provider and storage
 // interfaces are intentionally unchanged.
 type Options struct {
-	Status  *core.Status
-	Catalog core.StatusCatalog
+	Status   *core.Status
+	Catalog  core.StatusCatalog
+	Grouping core.GroupingFilter
 }
 
 // Aggregate loads tasks and retained handoffs from p and returns their
@@ -105,16 +119,31 @@ type Options struct {
 // can include global records and task-scoped records belonging to selected
 // tasks without changing Provider or storage contracts.
 func Aggregate(p provider.Provider, options Options) (Report, error) {
+	filter, _, err := statsTaskFilter(p, options)
+	if err != nil {
+		return Report{}, err
+	}
+
+	allStatusTasks := []core.TaskView(nil)
+	if options.Status != nil && filter.Grouping != (core.GroupingFilter{}) {
+		allStatusTasks, err = p.ListTasks(provider.TaskFilter{Grouping: filter.Grouping})
+		if err != nil {
+			return Report{}, fmt.Errorf("list unfiltered tasks for stats: %w", err)
+		}
+	}
 	report, tasks, err := aggregateTasks(p, options)
 	if err != nil {
 		return Report{}, err
+	}
+	if allStatusTasks == nil {
+		allStatusTasks = tasks
 	}
 	handoffResult, err := p.ListHandoffs(provider.HandoffFilter{AllScopes: true})
 	if err != nil {
 		return Report{}, fmt.Errorf("list handoffs for stats: %w", err)
 	}
 
-	report.Handoffs = handoffMetrics(tasks, handoffResult.Handoffs, options.Status != nil)
+	report.Handoffs = handoffMetrics(tasks, allStatusTasks, handoffResult.Handoffs, filter.Grouping, options.Status != nil)
 	return report, nil
 }
 
@@ -130,24 +159,9 @@ func AggregateFocused(p provider.Provider, options Options, attribute Attribute)
 }
 
 func aggregateTasks(p provider.Provider, options Options) (Report, []core.TaskView, error) {
-	if p == nil {
-		return Report{}, nil, fmt.Errorf("stats provider is nil")
-	}
-
-	catalog := options.Catalog
-	if len(catalog.Statuses()) == 0 {
-		catalog = p.StatusCatalog()
-	}
-	if len(catalog.Statuses()) == 0 {
-		catalog = core.DefaultStatusCatalog()
-	}
-	filter := provider.TaskFilter{}
-	if options.Status != nil {
-		status, err := catalog.ParseStatus(string(*options.Status))
-		if err != nil {
-			return Report{}, nil, err
-		}
-		filter.Status = &status
+	filter, catalog, err := statsTaskFilter(p, options)
+	if err != nil {
+		return Report{}, nil, err
 	}
 
 	tasks, err := p.ListTasks(filter)
@@ -159,11 +173,17 @@ func aggregateTasks(p provider.Provider, options Options) (Report, []core.TaskVi
 		TotalTasks:   len(tasks),
 		StatusCounts: statusBuckets(tasks, catalog),
 		Attributes: Attributes{
-			Model:    textBuckets(tasks, func(task core.TaskView) string { return task.Model }),
-			Lane:     textBuckets(tasks, func(task core.TaskView) string { return task.Lane }),
-			Priority: priorityBuckets(tasks),
-			Estimate: estimateBuckets(tasks),
-			Assignee: textBuckets(tasks, func(task core.TaskView) string { return task.Assignee }),
+			Model:     textBuckets(tasks, func(task core.TaskView) string { return task.Model }),
+			Lane:      textBuckets(tasks, func(task core.TaskView) string { return task.Lane }),
+			Priority:  priorityBuckets(tasks),
+			Estimate:  estimateBuckets(tasks),
+			Assignee:  textBuckets(tasks, func(task core.TaskView) string { return task.Assignee }),
+			IssueID:   textBuckets(tasks, func(task core.TaskView) string { return task.IssueID }),
+			Project:   textBuckets(tasks, func(task core.TaskView) string { return task.Project }),
+			Milestone: textBuckets(tasks, func(task core.TaskView) string { return task.Milestone }),
+			Version:   textBuckets(tasks, func(task core.TaskView) string { return task.Version }),
+			FeatureID: textBuckets(tasks, func(task core.TaskView) string { return task.FeatureID }),
+			Feature:   textBuckets(tasks, func(task core.TaskView) string { return task.Feature }),
 		},
 		Comments: commentMetrics(tasks),
 		Dependencies: DependencyMetrics{
@@ -176,6 +196,29 @@ func aggregateTasks(p provider.Provider, options Options) (Report, []core.TaskVi
 		report.Status = string(*options.Status)
 	}
 	return report, tasks, nil
+}
+
+func statsTaskFilter(p provider.Provider, options Options) (provider.TaskFilter, core.StatusCatalog, error) {
+	if p == nil {
+		return provider.TaskFilter{}, core.StatusCatalog{}, fmt.Errorf("stats provider is nil")
+	}
+
+	catalog := options.Catalog
+	if len(catalog.Statuses()) == 0 {
+		catalog = p.StatusCatalog()
+	}
+	if len(catalog.Statuses()) == 0 {
+		catalog = core.DefaultStatusCatalog()
+	}
+	filter := provider.TaskFilter{Grouping: core.NormalizeGroupingFilter(options.Grouping)}
+	if options.Status != nil {
+		status, err := catalog.ParseStatus(string(*options.Status))
+		if err != nil {
+			return provider.TaskFilter{}, core.StatusCatalog{}, err
+		}
+		filter.Status = &status
+	}
+	return filter, catalog, nil
 }
 
 // Build is a descriptive alias for Aggregate for callers constructing a
@@ -200,6 +243,18 @@ func (r Report) Buckets(attribute Attribute) []Bucket {
 		return r.Attributes.Estimate
 	case AttributeAssignee:
 		return r.Attributes.Assignee
+	case AttributeIssueID:
+		return r.Attributes.IssueID
+	case AttributeProject:
+		return r.Attributes.Project
+	case AttributeMilestone:
+		return r.Attributes.Milestone
+	case AttributeVersion:
+		return r.Attributes.Version
+	case AttributeFeatureID:
+		return r.Attributes.FeatureID
+	case AttributeFeature:
+		return r.Attributes.Feature
 	default:
 		return nil
 	}
@@ -215,7 +270,8 @@ func (r Report) Focus(attribute Attribute) FocusedReport {
 		Attribute:  attribute,
 	}
 	switch attribute {
-	case AttributeStatus, AttributeModel, AttributeLane, AttributePriority, AttributeEstimate, AttributeAssignee:
+	case AttributeStatus, AttributeModel, AttributeLane, AttributePriority, AttributeEstimate, AttributeAssignee,
+		AttributeIssueID, AttributeProject, AttributeMilestone, AttributeVersion, AttributeFeatureID, AttributeFeature:
 		buckets := r.Buckets(attribute)
 		focused.Buckets = &buckets
 	case AttributeComments:
@@ -332,31 +388,46 @@ func countTasks(tasks []core.TaskView, predicate func(core.TaskView) bool) int {
 	return count
 }
 
-func handoffMetrics(tasks []core.TaskView, handoffs []core.Handoff, statusFiltered bool) HandoffMetrics {
-	selectedIDs := make(map[string]struct{}, len(tasks))
-	for _, task := range tasks {
-		selectedIDs[task.ID] = struct{}{}
-	}
+func handoffMetrics(tasks, allStatusTasks []core.TaskView, handoffs []core.Handoff, grouping core.GroupingFilter, statusFiltered bool) HandoffMetrics {
+	selectedIDs := taskIDs(tasks)
+	allStatusIDs := taskIDs(allStatusTasks)
+	grouping = core.NormalizeGroupingFilter(grouping)
+	grouped := grouping != (core.GroupingFilter{})
 
-	result := HandoffMetrics{AllStatusTotal: len(handoffs)}
+	result := HandoffMetrics{}
 	for _, handoff := range handoffs {
-		if handoff.TaskID != "" {
-			if _, selected := selectedIDs[handoff.TaskID]; !selected && statusFiltered {
-				continue
-			}
-			if !statusFiltered {
-				result.TaskScoped++
-			}
+		if handoff.TaskID == "" {
+			// Global handoffs remain relevant to every selection.
+			result.AllStatusTotal++
+			result.Total++
+			result.Global++
+			continue
+		}
+		if grouped && !containsTaskID(allStatusIDs, handoff.TaskID) {
+			continue
+		}
+
+		// Count the group-wide total before narrowing task-scoped handoffs to
+		// the optional status selection.
+		result.AllStatusTotal++
+		if statusFiltered && !containsTaskID(selectedIDs, handoff.TaskID) {
+			continue
 		}
 		result.Total++
-		if handoff.TaskID == "" {
-			result.Global++
-		} else if statusFiltered {
-			result.TaskScoped++
-		}
-	}
-	if !statusFiltered {
-		result.AllStatusTotal = result.Total
+		result.TaskScoped++
 	}
 	return result
+}
+
+func taskIDs(tasks []core.TaskView) map[string]struct{} {
+	ids := make(map[string]struct{}, len(tasks))
+	for _, task := range tasks {
+		ids[task.ID] = struct{}{}
+	}
+	return ids
+}
+
+func containsTaskID(ids map[string]struct{}, id string) bool {
+	_, ok := ids[id]
+	return ok
 }

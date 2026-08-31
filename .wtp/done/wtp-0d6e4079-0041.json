@@ -1,0 +1,43 @@
+{
+  "id": "ef977840-ab3e-45e8-8043-3ea95bef07a1",
+  "shortId": "wtp-0d6e4079-0041",
+  "title": "Extend CSV and batch export grouping selection",
+  "description": "Add issueId, project, milestone, version, featureId, and feature columns to deterministic batch CSV, subset headers, and _clear. Add all six grouping selectors to batch export, allow status plus grouping filters, reject grouping/status with explicit --task, and resolve dependencies against the complete graph for filtered exports.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "cd769b15-2a2f-46cb-b009-efc904f55f01"
+  ],
+  "comments": [
+    {
+      "id": "1c1c83f8-0c38-4a6f-98c3-4f35380fd277",
+      "author": "codex-wtp-loop",
+      "message": "Worker became unresponsive during final verification after scoped CSV/export changes and a follow-up nudge; pausing for explicit recovery rather than replacing the worker.",
+      "createdAt": "2026-08-31T07:51:53.755036324Z"
+    },
+    {
+      "id": "cbb3cc62-1b9e-40f3-9b22-914b503b79e5",
+      "author": "codex-wtp-loop",
+      "message": "Recovery started: inspecting preserved CSV/grouping/export changes and running focused verification.",
+      "createdAt": "2026-08-31T08:03:21.80786635Z"
+    },
+    {
+      "id": "2ca2c51e-1f41-4604-9052-9a3a560b0b92",
+      "author": "codex-wtp-loop",
+      "message": "Recovery verification complete: focused and full go test, go vet, verify.sh commit/smoke, gofmt, diff check, repeated focused tests, and race suite all pass; preserved grouping CSV/export implementation is ready.",
+      "createdAt": "2026-08-31T08:07:26.935230479Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:55.893804592Z",
+  "updatedAt": "2026-08-31T08:07:33.988548026Z",
+  "startedAt": "2026-08-31T07:42:28.045568953Z",
+  "completedAt": "2026-08-31T08:07:33.988548026Z"
+}

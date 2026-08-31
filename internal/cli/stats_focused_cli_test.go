@@ -302,14 +302,14 @@ func TestRunStatsFocusedRejectsMalformedAndExcessArgumentsBeforeProvider(t *test
 	}
 }
 
-func TestRunStatsLegacyOverviewAndFocusedShapesRemainStable(t *testing.T) {
+func TestRunStatsOverviewAndFocusedShapes(t *testing.T) {
 	p := &statsTestProvider{}
 	var stdout bytes.Buffer
 	ctx := context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}}
 	if err := runStats(ctx, nil); err != nil {
 		t.Fatalf("runStats(overview) error = %v", err)
 	}
-	wantOverview := "stats\nstatus: all\ntotalTasks: 0\nstatusCounts:\n  todo: 0\n  inProgress: 0\n  paused: 0\n  done: 0\nmodel:\nlane:\npriority:\nestimate:\nassignee:\n" +
+	wantOverview := "stats\nstatus: all\ntotalTasks: 0\nstatusCounts:\n  todo: 0\n  inProgress: 0\n  paused: 0\n  done: 0\nmodel:\nlane:\npriority:\nestimate:\nassignee:\nissueId:\nproject:\nmilestone:\nversion:\nfeatureId:\nfeature:\n" +
 		"comments.tasksWithComments: 0\ncomments.totalRecords: 0\ndependencies.tasksWithDependencies: 0\ndependencies.independentTasks: 0\ndependencies.directDependencyTotal: 0\nhandoffs.total: 0\nhandoffs.allStatusTotal: 0\nhandoffs.global: 0\nhandoffs.taskScoped: 0\n"
 	if stdout.String() != wantOverview {
 		t.Fatalf("legacy overview = %q, want %q", stdout.String(), wantOverview)
@@ -326,7 +326,7 @@ func TestRunStatsLegacyOverviewAndFocusedShapesRemainStable(t *testing.T) {
 	if err := runStats(ctx, []string{"done"}); err != nil {
 		t.Fatalf("runStats(legacy filtered overview) error = %v", err)
 	}
-	wantFiltered := "stats\nstatus: done\ntotalTasks: 0\nstatusCounts:\n  todo: 0\n  inProgress: 0\n  paused: 0\n  done: 0\nmodel:\nlane:\npriority:\nestimate:\nassignee:\n" +
+	wantFiltered := "stats\nstatus: done\ntotalTasks: 0\nstatusCounts:\n  todo: 0\n  inProgress: 0\n  paused: 0\n  done: 0\nmodel:\nlane:\npriority:\nestimate:\nassignee:\nissueId:\nproject:\nmilestone:\nversion:\nfeatureId:\nfeature:\n" +
 		"comments.tasksWithComments: 0\ncomments.totalRecords: 0\ndependencies.tasksWithDependencies: 0\ndependencies.independentTasks: 0\ndependencies.directDependencyTotal: 0\nhandoffs.total: 0\nhandoffs.allStatusTotal: 0\nhandoffs.global: 0\nhandoffs.taskScoped: 0\n"
 	if stdout.String() != wantFiltered {
 		t.Fatalf("legacy filtered overview = %q, want %q", stdout.String(), wantFiltered)

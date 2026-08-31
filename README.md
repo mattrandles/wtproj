@@ -165,8 +165,11 @@ wtp batch import --in todo-edits.json
 wtp batch import --in task-edits.csv
 ```
 
-`batch export` accepts at most one selector kind: `--status STATUS` or one or
-more `--task ID` options; omitting both exports every task. IDs may be canonical UUIDs or short IDs. With a file
+`batch export` accepts `--status STATUS` together with any combination of the
+six grouping selectors (`--issue-id`, `--project`, `--milestone`, `--version`,
+`--feature-id`, and `--feature`); repeatable `--task ID` options instead select
+exact tasks and cannot be combined with status or grouping selectors. Omitting
+selectors exports every task. IDs may be canonical UUIDs or short IDs. With a file
 destination, `.json` and `.csv` infer the format; use `--format json|csv` for
 stdin/stdout or another extension. `--out -` writes raw batch data to stdout,
 and `batch import --in -` reads stdin; both require an explicit format. Batch
@@ -182,7 +185,8 @@ write guard: import succeeds only when it still equals the task's current
 timestamp. A row identifies its task with `id`, `shortId`, or both; when both
 are present they must identify the same task. Each row must contain at least
 one mutable patch field. The editable fields are `title`, `description`,
-`status`, `priority`, `estimate`, `lane`, `model`, `gitRepo`, `gitBranch`,
+`status`, `priority`, `estimate`, `lane`, `model`, `issueId`, `project`,
+`milestone`, `version`, `featureId`, `feature`, `gitRepo`, `gitBranch`,
 `worktreeName`, `worktreeDir`, `assignee`, and `dependencies`. Title and status
 must be non-empty when supplied; priority is `low|medium|high|urgent`, estimate
 is `xs|s|m|l|xl`, configured statuses are accepted, paths `gitRepo` and
@@ -202,6 +206,8 @@ clears all dependencies):
       "updatedAt": "2026-04-21T12:34:56Z",
       "title": "Implement parser",
       "priority": "high",
+      "featureId": "FEAT-7",
+      "feature": "Batch editing",
       "dependencies": ["wtp-0002"]
     }
   ]
@@ -209,13 +215,15 @@ clears all dependencies):
 ```
 
 CSV uses the header `id,shortId,updatedAt,title,description,status,priority,
-estimate,lane,model,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,
-dependencies,_clear`. A blank editable cell preserves the stored value. Put
+estimate,lane,model,issueId,project,milestone,version,featureId,feature,
+gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear`. A
+blank editable cell preserves the stored value. Put
 comma-separated optional field names in `_clear` to clear them explicitly;
 supported names are `description`, `priority`, `estimate`, `lane`, `model`,
-`gitRepo`, `gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, and
-`dependencies`. Required identifiers, `updatedAt`, `title`, and `status` may
-not be cleared. CSV is UTF-8 and accepts an optional BOM.
+`issueId`, `project`, `milestone`, `version`, `featureId`, `feature`, `gitRepo`,
+`gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, and `dependencies`.
+Required identifiers, `updatedAt`, `title`, and `status` may not be cleared.
+CSV is UTF-8 and accepts an optional BOM.
 
 Import validates and prepares every row before publishing. Any stale,
 malformed, invalid, duplicate, missing-dependency, cyclic, or invalid-status
@@ -320,10 +328,10 @@ before the command, for example `wtp --json task list`.
 | `wtp schema` | none |
 | `wtp version` | `--json` |
 | `wtp update` | `--json` |
-| `wtp task create` | `--title` (required), `--status`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent` |
-| `wtp task update <task-id>` | `--status`, `--title`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent`; supply at least one |
+| `wtp task create` | `--title` (required), `--status`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent` |
+| `wtp task update <task-id>` | `--status`, `--title`, `--description`, `--priority`, `--estimate`, `--lane`, `--model`, `--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`, `--git-repo`, `--git-branch`, `--worktree-name`, `--worktree-dir`, `--depends-on`, `--agent`; supply at least one |
 | `wtp task edit <task-id>` | same options as `task update` |
-| `wtp task list` | `--status`, `--agent` |
+| `wtp task list` | `--status`, grouping selectors (`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`), `--agent` |
 | `wtp task show <task-id>` | `--agent` |
 | `wtp task get <task-id>` | `--agent` (`get` is an alias for `show`) |
 | `wtp task start <task-id>` | `--agent` |
@@ -331,15 +339,15 @@ before the command, for example `wtp --json task list`.
 | `wtp task done <task-id>` | `--agent` |
 | `wtp task set-status <task-id> STATUS` | `--agent` |
 | `wtp task comment <task-id>` | `--message` (required), `--agent` |
-| `wtp task ready` | `--agent`, `--limit` |
-| `wtp task next` | `--agent` |
+| `wtp task ready` | grouping selectors (`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`), `--agent`, `--limit` |
+| `wtp task next` | grouping selectors (`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`), `--agent` |
 | `wtp handoff write` | `--message` (required), `--agent`, `--task`, `--replace` |
 | `wtp handoff get` | `--task`, `--all-scopes`, `--limit`, `--all` |
 | `wtp handoff purge` | exactly one of `--id`, `--global`, `--task`, `--all-scopes`; optional `--before` or `--older-than` |
-| `wtp graph` | `--status` |
+| `wtp graph` | `--status`, grouping selectors (`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, `--feature`) |
 | `wtp stats` | optional `--chart`, `STATUS`, and `ATTRIBUTE`, or a series metric and range |
 | `wtp export` | `--out` |
-| `wtp batch export` | `--out PATH|-` (required), `--format csv|json`, optional `--status STATUS` or repeatable `--task ID` (not both) |
+| `wtp batch export` | `--out PATH|-` (required), `--format csv|json`, optional `--status STATUS` plus grouping selectors, or repeatable `--task ID` (exclusive) |
 | `wtp batch import` | `--in PATH|-` (required), `--format csv|json` |
 
 `--priority` accepts `low`, `medium`, `high`, or `urgent`; `--estimate`
@@ -356,15 +364,16 @@ an empty `--model=`, `--git-repo=`, `--git-branch=`, `--worktree-name=`, or
 Batch commands use these exact forms:
 
 ```text
-wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...]
+wtp batch export --out PATH|- [--format csv|json] [--status STATUS] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--task ID ...]
 wtp batch import --in PATH|- [--format csv|json]
 ```
 
 The batch export file contains editable patches, not complete task snapshots.
 It includes `version: 1` and `tasks` in JSON, or the documented CSV header.
-Export selectors are mutually exclusive: `--status` selects all tasks in one
-configured status, while repeatable `--task` selects exact canonical UUIDs or
-short IDs in caller order; omitting both selects every task. File suffixes infer format only for `.json` and
+`--status` selects all tasks in one configured status and may be combined with
+any grouping selectors. Repeatable `--task` selects exact canonical UUIDs or
+short IDs in caller order and cannot be combined with status/grouping selectors;
+omitting selectors selects every task. File suffixes infer format only for `.json` and
 `.csv`; stdout and unknown suffixes require `--format`. Batch import uses the
 same inference rule, reads `--in -` from stdin, and validates before calling
 the provider. Its JSON response is `{"updated":[...],"unchanged":[...]}`;
@@ -374,8 +383,9 @@ with `--json`, and stdout export is raw data only.
 For both formats, `id` and/or `shortId` identifies each row and `updatedAt` is
 required as the exact optimistic-concurrency token. The mutable fields are
 `title`, `description`, `status`, `priority`, `estimate`, `lane`, `model`,
-`gitRepo`, `gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, and
-`dependencies`; each row needs at least one of them. JSON omits fields to
+`issueId`, `project`, `milestone`, `version`, `featureId`, `feature`, `gitRepo`,
+`gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, and `dependencies`; each
+row needs at least one of them. JSON omits fields to
 preserve them and uses `null` to clear nullable fields. CSV blank cells
 preserve values and `_clear` explicitly clears only optional fields. Title and
 status must be non-empty; enums and configured statuses are validated, origin
@@ -722,6 +732,14 @@ wtp task create --title "Imported work" \
 # Replace $task_id with the exact short ID returned by task create.
 wtp task update "$task_id" --git-branch= --worktree-name=
 ```
+
+Tasks also accept optional grouping metadata: `issueId`, `project`,
+`milestone`, `version`, `featureId`, and `feature`. `featureId` is the stable
+grouping key; `feature` is its human-readable display name. Set these with
+`--issue-id`, `--project`, `--milestone`, `--version`, `--feature-id`, and
+`--feature` on create/update/edit. On update/edit, use an empty assignment such
+as `--project=` to clear a field. Supplied create values must not be blank after
+trimming.
 
 Task files are human-readable and friendly to version control; task status is
 represented by one directory per configured status. Without additional

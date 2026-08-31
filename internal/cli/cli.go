@@ -101,7 +101,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	}
 }
 
-const statsUsage = "usage: wtp stats [--chart] [STATUS] [status|model|lane|priority|estimate|assignee|comments|dependencies] | wtp stats [--chart] [created|progressed] STARTd-ENDd"
+const statsUsage = "usage: wtp stats [--chart] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [STATUS] [status|model|lane|priority|estimate|assignee|issueId|project|milestone|version|featureId|feature|comments|dependencies] | wtp stats [--chart] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [created|progressed] STARTd-ENDd"
 
 // statsQuery is the typed positional query accepted by the stats command.
 // Attribute and Metric are mutually exclusive; an empty value for both is an
@@ -110,6 +110,7 @@ const statsUsage = "usage: wtp stats [--chart] [STATUS] [status|model|lane|prior
 // established status-first meaning.
 type statsQuery struct {
 	status    *core.Status
+	grouping  core.GroupingFilter
 	attribute stats.Attribute
 	metric    stats.SeriesMetric
 	rangeSpec stats.RollingRange
@@ -144,9 +145,10 @@ func runStatsAt(ctx context, args []string, asOf time.Time) error {
 
 	if query.isSeries() {
 		report, err := stats.AggregateSeries(ctx.provider, stats.SeriesOptions{
-			Metric: query.metric,
-			Range:  query.rangeSpec,
-			AsOf:   asOf,
+			Metric:   query.metric,
+			Range:    query.rangeSpec,
+			AsOf:     asOf,
+			Grouping: query.grouping,
 		})
 		if err != nil {
 			return err
@@ -156,7 +158,7 @@ func runStatsAt(ctx context, args []string, asOf time.Time) error {
 		}
 		return printStatsSeries(ctx, report)
 	}
-	options := stats.Options{Status: query.status, Catalog: catalog}
+	options := stats.Options{Status: query.status, Catalog: catalog, Grouping: query.grouping}
 	if !query.isOverview() {
 		report, err := stats.AggregateFocused(ctx.provider, options, query.attribute)
 		if err != nil {
@@ -176,7 +178,7 @@ func runStatsAt(ctx context, args []string, asOf time.Time) error {
 }
 
 func parseStatsArgs(args []string, catalogs ...core.StatusCatalog) (statsQuery, error) {
-	chart, selectors, err := parseStatsChartFlag(args)
+	chart, grouping, selectors, err := parseStatsSelectorFlags(args)
 	if err != nil {
 		return statsQuery{}, err
 	}
@@ -196,12 +198,12 @@ func parseStatsArgs(args []string, catalogs ...core.StatusCatalog) (statsQuery, 
 		return statsQuery{}, errors.New(statsUsage)
 	}
 	if len(args) == 0 {
-		return statsQuery{chart: chart}, nil
+		return statsQuery{grouping: grouping, chart: chart}, nil
 	}
 
 	if status, err := catalog.ParseStatus(args[0]); err == nil {
 		if len(args) == 1 {
-			return statsQuery{status: &status, chart: chart}, nil
+			return statsQuery{status: &status, grouping: grouping, chart: chart}, nil
 		}
 		if _, metric := parseStatsSeriesMetric(args[1]); metric {
 			return statsQuery{}, fmt.Errorf("stats time series does not accept a status filter; %s", statsUsage)
@@ -213,7 +215,7 @@ func parseStatsArgs(args []string, catalogs ...core.StatusCatalog) (statsQuery, 
 		if chart && !isChartAttribute(attribute) {
 			return statsQuery{}, fmt.Errorf("stats --chart does not support scalar attribute %q", attribute)
 		}
-		return statsQuery{status: &status, attribute: attribute, chart: chart}, nil
+		return statsQuery{status: &status, grouping: grouping, attribute: attribute, chart: chart}, nil
 	}
 
 	if metric, ok := parseStatsSeriesMetric(args[0]); ok {
@@ -224,7 +226,7 @@ func parseStatsArgs(args []string, catalogs ...core.StatusCatalog) (statsQuery, 
 		if err != nil {
 			return statsQuery{}, fmt.Errorf("%w; %s", err, statsUsage)
 		}
-		return statsQuery{metric: metric, rangeSpec: rangeSpec, chart: chart}, nil
+		return statsQuery{grouping: grouping, metric: metric, rangeSpec: rangeSpec, chart: chart}, nil
 	}
 
 	attribute, ok := parseStatsAttribute(args[0])
@@ -237,7 +239,72 @@ func parseStatsArgs(args []string, catalogs ...core.StatusCatalog) (statsQuery, 
 	if chart && !isChartAttribute(attribute) {
 		return statsQuery{}, fmt.Errorf("stats --chart does not support scalar attribute %q", attribute)
 	}
-	return statsQuery{attribute: attribute, chart: chart}, nil
+	return statsQuery{grouping: grouping, attribute: attribute, chart: chart}, nil
+}
+
+// parseStatsSelectorFlags consumes the optional chart flag and the strict
+// grouping-selector prefix. Positional selectors intentionally remain a
+// separate grammar so configured statuses keep their status-first meaning.
+func parseStatsSelectorFlags(args []string) (bool, core.GroupingFilter, []string, error) {
+	chart, selectors, err := parseStatsChartFlag(args)
+	if err != nil {
+		return false, core.GroupingFilter{}, nil, err
+	}
+
+	parser := newGroupingSelectorParser(nil)
+	index := 0
+	for index < len(selectors) {
+		name, value, assignment := legacyGroupingSelectorAssignment(selectors[index])
+		if assignment {
+			if err := parser.set(name, value); err != nil {
+				return false, core.GroupingFilter{}, nil, err
+			}
+			index++
+			continue
+		}
+
+		selectorName := statsGroupingSelectorName(selectors[index])
+		if selectorName == "" {
+			break
+		}
+		if index+1 >= len(selectors) || strings.HasPrefix(selectors[index+1], "-") {
+			return false, core.GroupingFilter{}, nil, fmt.Errorf("option %q requires a value", selectors[index])
+		}
+		if err := parser.set(selectorName, selectors[index+1]); err != nil {
+			return false, core.GroupingFilter{}, nil, err
+		}
+		index += 2
+	}
+
+	for _, selector := range selectors[index:] {
+		if name, _, assignment := legacyGroupingSelectorAssignment(selector); assignment {
+			return false, core.GroupingFilter{}, nil, fmt.Errorf("stats grouping selector --%s must appear before selectors; %s", name, statsUsage)
+		}
+		if name := statsGroupingSelectorName(selector); name != "" {
+			return false, core.GroupingFilter{}, nil, fmt.Errorf("stats grouping selector --%s must appear before selectors; %s", name, statsUsage)
+		}
+	}
+
+	return chart, parser.Filter(), selectors[index:], nil
+}
+
+func statsGroupingSelectorName(arg string) string {
+	switch arg {
+	case "--issue-id":
+		return "issue-id"
+	case "--project":
+		return "project"
+	case "--milestone":
+		return "milestone"
+	case "--version":
+		return "version"
+	case "--feature-id":
+		return "feature-id"
+	case "--feature":
+		return "feature"
+	default:
+		return ""
+	}
 }
 
 func parseStatsChartFlag(args []string) (bool, []string, error) {
@@ -267,7 +334,9 @@ func parseStatsChartFlag(args []string) (bool, []string, error) {
 func isChartAttribute(attribute stats.Attribute) bool {
 	switch attribute {
 	case stats.AttributeStatus, stats.AttributeModel, stats.AttributeLane,
-		stats.AttributePriority, stats.AttributeEstimate, stats.AttributeAssignee:
+		stats.AttributePriority, stats.AttributeEstimate, stats.AttributeAssignee,
+		stats.AttributeIssueID, stats.AttributeProject, stats.AttributeMilestone,
+		stats.AttributeVersion, stats.AttributeFeatureID, stats.AttributeFeature:
 		return true
 	default:
 		return false
@@ -278,7 +347,9 @@ func parseStatsAttribute(value string) (stats.Attribute, bool) {
 	attribute := stats.Attribute(value)
 	switch attribute {
 	case stats.AttributeStatus, stats.AttributeModel, stats.AttributeLane, stats.AttributePriority,
-		stats.AttributeEstimate, stats.AttributeAssignee, stats.AttributeComments,
+		stats.AttributeEstimate, stats.AttributeAssignee, stats.AttributeIssueID,
+		stats.AttributeProject, stats.AttributeMilestone, stats.AttributeVersion,
+		stats.AttributeFeatureID, stats.AttributeFeature, stats.AttributeComments,
 		stats.AttributeDependencies:
 		return attribute, true
 	default:
@@ -323,6 +394,12 @@ func printStatsOverview(ctx context, report stats.Report) error {
 		{name: "priority", buckets: report.Attributes.Priority},
 		{name: "estimate", buckets: report.Attributes.Estimate},
 		{name: "assignee", buckets: report.Attributes.Assignee},
+		{name: "issueId", buckets: report.Attributes.IssueID},
+		{name: "project", buckets: report.Attributes.Project},
+		{name: "milestone", buckets: report.Attributes.Milestone},
+		{name: "version", buckets: report.Attributes.Version},
+		{name: "featureId", buckets: report.Attributes.FeatureID},
+		{name: "feature", buckets: report.Attributes.Feature},
 	} {
 		if err := printStatsBuckets(ctx.stdout, item.name, item.buckets); err != nil {
 			return err
@@ -635,7 +712,7 @@ func runHandoff(ctx context, args []string) error {
 	}
 }
 
-const batchExportUsage = "usage: wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...]"
+const batchExportUsage = "usage: wtp batch export --out PATH|- [--format csv|json] [--status STATUS] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--task ID ...]"
 const batchImportUsage = "usage: wtp batch import --in PATH|- [--format csv|json]"
 
 func runBatch(ctx context, args []string) error {
@@ -658,6 +735,7 @@ func runBatchExport(ctx context, args []string) error {
 	out := flags.String("out", "", "batch destination path or - for stdout")
 	format := flags.String("format", "", "batch format: csv or json")
 	status := flags.String("status", "", "select tasks with this status")
+	grouping := newGroupingSelectorParser(flags)
 	var taskIDs stringList
 	flags.Var(&taskIDs, "task", "task ID to export (repeatable)")
 	if err := flags.Parse(args); err != nil {
@@ -669,8 +747,15 @@ func runBatchExport(ctx context, args []string) error {
 	if !wasFlagSet(flags, "out") || strings.TrimSpace(*out) == "" {
 		return errors.New("batch export --out is required")
 	}
-	if strings.TrimSpace(*status) != "" && len(taskIDs) > 0 {
-		return fmt.Errorf("batch export accepts either --status or --task, not both\n%s", batchExportUsage)
+	if len(taskIDs) > 0 {
+		switch {
+		case strings.TrimSpace(*status) != "" && grouping.Filter() != (core.GroupingFilter{}):
+			return fmt.Errorf("batch export status/grouping selectors cannot be combined with --task\n%s", batchExportUsage)
+		case strings.TrimSpace(*status) != "":
+			return fmt.Errorf("batch export accepts either --status or --task, not both\n%s", batchExportUsage)
+		case grouping.Filter() != (core.GroupingFilter{}):
+			return fmt.Errorf("batch export grouping selectors cannot be combined with --task\n%s", batchExportUsage)
+		}
 	}
 	if strings.TrimSpace(*out) == "-" && ctx.jsonOut {
 		return errors.New("batch export --out - cannot be combined with --json")
@@ -681,6 +766,7 @@ func runBatchExport(ctx context, args []string) error {
 		Format:      batchexport.Format(*format),
 		Status:      *status,
 		TaskIDs:     taskIDs,
+		Grouping:    grouping.Filter(),
 	}, ctx.stdout)
 	if err != nil {
 		return err
@@ -958,6 +1044,18 @@ func runTaskCreate(ctx context, args []string) error {
 	estimateValue := flags.String("estimate", "", "task estimate (xs|s|m|l|xl)")
 	lane := flags.String("lane", "", "task lane or area")
 	model := flags.String("model", "", "suggested model for completing the task")
+	var issueID optionString
+	var project optionString
+	var milestone optionString
+	var version optionString
+	var featureID optionString
+	var feature optionString
+	flags.Var(&issueID, "issue-id", "issue grouping identifier")
+	flags.Var(&project, "project", "project grouping name")
+	flags.Var(&milestone, "milestone", "milestone grouping name")
+	flags.Var(&version, "version", "version grouping name")
+	flags.Var(&featureID, "feature-id", "stable feature grouping identifier")
+	flags.Var(&feature, "feature", "human-readable feature grouping name")
 	var gitRepo optionString
 	var gitBranch optionString
 	var worktreeName optionString
@@ -972,10 +1070,25 @@ func runTaskCreate(ctx context, args []string) error {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task create --title \"...\" [--status STATUS] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
+		return errors.New(taskCreateUsage)
 	}
 	if strings.TrimSpace(*title) == "" {
 		return errors.New("task title is required")
+	}
+	for _, value := range []struct {
+		name   string
+		option optionString
+	}{
+		{name: "issueId", option: issueID},
+		{name: "project", option: project},
+		{name: "milestone", option: milestone},
+		{name: "version", option: version},
+		{name: "featureId", option: featureID},
+		{name: "feature", option: feature},
+	} {
+		if value.option.set && strings.TrimSpace(value.option.value) == "" {
+			return fmt.Errorf("task %s cannot be blank", value.name)
+		}
 	}
 	priority, err := core.ParsePriority(*priorityValue)
 	if err != nil {
@@ -997,6 +1110,12 @@ func runTaskCreate(ctx context, args []string) error {
 		Estimate:     estimate,
 		Lane:         *lane,
 		Model:        *model,
+		IssueID:      strings.TrimSpace(issueID.value),
+		Project:      strings.TrimSpace(project.value),
+		Milestone:    strings.TrimSpace(milestone.value),
+		Version:      strings.TrimSpace(version.value),
+		FeatureID:    strings.TrimSpace(featureID.value),
+		Feature:      strings.TrimSpace(feature.value),
 		GitRepo:      defaultedOption(gitRepo, ctx.invocation.RepositoryRoot),
 		GitBranch:    defaultedOption(gitBranch, ctx.invocation.Branch),
 		WorktreeName: defaultedOption(worktreeName, ctx.invocation.WorktreeName),
@@ -1010,10 +1129,14 @@ func runTaskCreate(ctx context, args []string) error {
 	return printValue(ctx, task)
 }
 
+const taskCreateUsage = "usage: wtp task create --title \"...\" [--status STATUS] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]"
+
+const taskUpdateUsage = "usage: wtp task update <task-id> [--status STATUS] [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]"
+
 func runTaskUpdate(ctx context, args []string) error {
 	id, options, err := splitSinglePositionalArgs(args)
 	if err != nil {
-		return errors.New("usage: wtp task update <task-id> [--status STATUS] [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
+		return errors.New(taskUpdateUsage)
 	}
 	flags := flag.NewFlagSet("task update", flag.ContinueOnError)
 	flags.SetOutput(ctx.stderr)
@@ -1025,6 +1148,12 @@ func runTaskUpdate(ctx context, args []string) error {
 	var estimateValue optionString
 	var lane optionString
 	var model optionString
+	var issueID optionString
+	var project optionString
+	var milestone optionString
+	var version optionString
+	var featureID optionString
+	var feature optionString
 	var gitRepo optionString
 	var gitBranch optionString
 	var worktreeName optionString
@@ -1039,6 +1168,12 @@ func runTaskUpdate(ctx context, args []string) error {
 	flags.Var(&estimateValue, "estimate", "task estimate (xs|s|m|l|xl)")
 	flags.Var(&lane, "lane", "task lane or area")
 	flags.Var(&model, "model", "suggested model for completing the task")
+	flags.Var(&issueID, "issue-id", "issue grouping identifier")
+	flags.Var(&project, "project", "project grouping name")
+	flags.Var(&milestone, "milestone", "milestone grouping name")
+	flags.Var(&version, "version", "version grouping name")
+	flags.Var(&featureID, "feature-id", "stable feature grouping identifier")
+	flags.Var(&feature, "feature", "human-readable feature grouping name")
 	flags.Var(&gitRepo, "git-repo", "absolute path to the Git repository")
 	flags.Var(&gitBranch, "git-branch", "Git branch name")
 	flags.Var(&worktreeName, "worktree-name", "Git worktree name")
@@ -1049,9 +1184,9 @@ func runTaskUpdate(ctx context, args []string) error {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task update <task-id> [--status STATUS] [--title \"...\"] [--description \"...\"] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]")
+		return errors.New(taskUpdateUsage)
 	}
-	if !title.set && !description.set && !statusValue.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !gitRepo.set && !gitBranch.set && !worktreeName.set && !worktreeDir.set && !dependsOn.set && !agent.set {
+	if !title.set && !description.set && !statusValue.set && !priorityValue.set && !estimateValue.set && !lane.set && !model.set && !issueID.set && !project.set && !milestone.set && !version.set && !featureID.set && !feature.set && !gitRepo.set && !gitBranch.set && !worktreeName.set && !worktreeDir.set && !dependsOn.set && !agent.set {
 		return errors.New("task update requires at least one field to change")
 	}
 
@@ -1079,6 +1214,12 @@ func runTaskUpdate(ctx context, args []string) error {
 		Estimate:     core.OptionalEstimate{Set: estimateValue.set, Value: estimate},
 		Lane:         core.OptionalString{Set: lane.set, Value: lane.value},
 		Model:        core.OptionalString{Set: model.set, Value: model.value},
+		IssueID:      core.OptionalString{Set: issueID.set, Value: issueID.value},
+		Project:      core.OptionalString{Set: project.set, Value: project.value},
+		Milestone:    core.OptionalString{Set: milestone.set, Value: milestone.value},
+		Version:      core.OptionalString{Set: version.set, Value: version.value},
+		FeatureID:    core.OptionalString{Set: featureID.set, Value: featureID.value},
+		Feature:      core.OptionalString{Set: feature.set, Value: feature.value},
 		GitRepo:      core.OptionalString{Set: gitRepo.set, Value: gitRepo.value},
 		GitBranch:    core.OptionalString{Set: gitBranch.set, Value: gitBranch.value},
 		WorktreeName: core.OptionalString{Set: worktreeName.set, Value: worktreeName.value},
@@ -1097,13 +1238,14 @@ func runTaskList(ctx context, args []string) error {
 	flags.SetOutput(ctx.stderr)
 	statusValue := flags.String("status", "", "status filter")
 	agent := flags.String("agent", "", "agent context for claimability")
+	grouping := newGroupingSelectorParser(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task list [--status STATUS] [--agent Tony]")
+		return errors.New(taskListUsage)
 	}
-	filter := provider.TaskFilter{}
+	filter := provider.TaskFilter{Grouping: grouping.Filter()}
 	if strings.TrimSpace(*statusValue) != "" {
 		status, err := parseConfiguredStatus(ctx.provider, *statusValue)
 		if err != nil {
@@ -1180,13 +1322,17 @@ func runTaskNext(ctx context, args []string) error {
 	flags := flag.NewFlagSet("task next", flag.ContinueOnError)
 	flags.SetOutput(ctx.stderr)
 	agent := flags.String("agent", "", "claiming agent")
+	grouping := newGroupingSelectorParser(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task next [--agent Tony]")
+		return errors.New(taskNextUsage)
 	}
-	task, err := ctx.provider.GetNextTask(*agent)
+	task, err := ctx.provider.GetNextTaskWithFilter(provider.SelectionFilter{
+		Agent:    *agent,
+		Grouping: grouping.Filter(),
+	})
 	if err != nil {
 		return err
 	}
@@ -1198,23 +1344,30 @@ func runTaskReady(ctx context, args []string) error {
 	flags.SetOutput(ctx.stderr)
 	agent := flags.String("agent", "", "agent context")
 	limit := flags.Int("limit", 1, "number of ready tasks to inspect")
+	grouping := newGroupingSelectorParser(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp task ready [--agent Tony] [--limit N]")
+		return errors.New(taskReadyUsage)
 	}
 	if *limit <= 0 {
 		return errors.New("ready task limit must be greater than zero")
 	}
 	if *limit == 1 {
-		task, err := ctx.provider.PeekNextTask(*agent)
+		task, err := ctx.provider.PeekNextTaskWithFilter(provider.SelectionFilter{
+			Agent:    *agent,
+			Grouping: grouping.Filter(),
+		})
 		if err != nil {
 			return handleNoEligibleReady(ctx, err, false)
 		}
 		return printValue(ctx, task)
 	}
-	tasks, err := ctx.provider.PeekNextTasks(*agent, *limit)
+	tasks, err := ctx.provider.PeekNextTasksWithFilter(provider.SelectionFilter{
+		Agent:    *agent,
+		Grouping: grouping.Filter(),
+	}, *limit)
 	if err != nil {
 		return handleNoEligibleReady(ctx, err, true)
 	}
@@ -1225,20 +1378,32 @@ func runGraph(ctx context, args []string) error {
 	flags := flag.NewFlagSet("graph", flag.ContinueOnError)
 	flags.SetOutput(ctx.stderr)
 	statusValue := flags.String("status", string(core.StatusTodo), "graph status filter (configured status or all)")
+	grouping := newGroupingSelectorParser(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: wtp graph [--status STATUS|all]")
+		return errors.New(graphUsage)
 	}
 	statusFilter, err := parseGraphStatus(*statusValue, ctx.provider.StatusCatalog())
 	if err != nil {
 		return err
 	}
-	tasks, err := ctx.provider.ListTasks(provider.TaskFilter{})
+	groupingFilter := grouping.Filter()
+	tasks, err := ctx.provider.ListTasks(provider.TaskFilter{Grouping: groupingFilter})
 	if err != nil {
 		return err
 	}
+	// Providers are expected to honor TaskFilter.Grouping, but keeping this
+	// boundary local also protects graph output for alternate providers and
+	// ensures dependency edges never pull in an unmatched task.
+	filteredTasks := tasks[:0]
+	for _, task := range tasks {
+		if core.MatchesGroupingFilter(task.Task, groupingFilter) {
+			filteredTasks = append(filteredTasks, task)
+		}
+	}
+	tasks = filteredTasks
 	nodes := buildGraph(tasks, statusFilter)
 	if ctx.jsonOut {
 		encoder := json.NewEncoder(ctx.stdout)
@@ -1483,6 +1648,24 @@ func printTask(w io.Writer, task core.TaskView) error {
 	if task.Model != "" {
 		lines = append(lines, fmt.Sprintf("model: %s", task.Model))
 	}
+	if task.IssueID != "" {
+		lines = append(lines, fmt.Sprintf("issueId: %s", task.IssueID))
+	}
+	if task.Project != "" {
+		lines = append(lines, fmt.Sprintf("project: %s", task.Project))
+	}
+	if task.Milestone != "" {
+		lines = append(lines, fmt.Sprintf("milestone: %s", task.Milestone))
+	}
+	if task.Version != "" {
+		lines = append(lines, fmt.Sprintf("version: %s", task.Version))
+	}
+	if task.FeatureID != "" {
+		lines = append(lines, fmt.Sprintf("featureId: %s", task.FeatureID))
+	}
+	if task.Feature != "" {
+		lines = append(lines, fmt.Sprintf("feature: %s", task.Feature))
+	}
 	if task.GitRepo != "" {
 		lines = append(lines, fmt.Sprintf("gitRepo: %s", task.GitRepo))
 	}
@@ -1548,10 +1731,10 @@ func help(w io.Writer) error {
 	_, err := io.WriteString(w, `wtp
 
 Commands:
-	  wtp task create --title "..." [--status STATUS] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]
-		wtp task update <task-id> [--status STATUS] [--title "..."] [--description "..."] [--priority low|medium|high|urgent] [--estimate xs|s|m|l|xl] [--lane backend] [--model gpt-5] [--git-repo /path/to/repo] [--git-branch branch] [--worktree-name name] [--worktree-dir /path/to/worktree] [--depends-on a,b] [--agent Tony]
+		`+taskCreateUsage[7:]+`
+		`+taskUpdateUsage[7:]+`
 		wtp task edit <task-id> [same options as update]
-	  wtp task list [--status STATUS] [--agent Tony]
+	  `+taskListUsage[7:]+`
   wtp task show <task-id> [--agent Tony]
   wtp task get <task-id> [--agent Tony]
 	  wtp task start <task-id> [--agent Tony]
@@ -1559,18 +1742,18 @@ Commands:
 		wtp task done <task-id> [--agent Tony]
 	  wtp task set-status <task-id> STATUS [--agent Tony]
 	wtp task comment <task-id> [--agent Tony] --message "..."
-  wtp task ready [--agent Tony] [--limit N]
-  wtp task next [--agent Tony]
+	  `+taskReadyUsage[7:]+`
+	  `+taskNextUsage[7:]+`
 	wtp handoff write --message "..." [--agent Tony] [--task <task-id>] [--replace]
 	wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]
 	wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]
-	  wtp graph [--status STATUS|all]
+	  `+graphUsage[7:]+`
 	  wtp stats [--chart] [STATUS]
 	  wtp stats [--chart] [status|model|lane|priority|estimate|assignee|comments|dependencies]
 	wtp stats [--chart] [STATUS] [status|model|lane|priority|estimate|assignee|comments|dependencies]
 	wtp stats [--chart] [created|progressed] STARTd-ENDd
 	wtp export --out .wtp-export
-	wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...]
+	wtp batch export --out PATH|- [--format csv|json] [--status STATUS] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--task ID ...]
 	wtp batch import --in PATH|- [--format csv|json]
 	wtp version
 	wtp update
@@ -1588,7 +1771,7 @@ task-scoped handoff records are retained after task next/start claims and are at
 The retained collection is .wtp/handoffs.json with a {"handoffs":[...]} wrapper; a missing file is treated as empty and is not created by reads.
 With --json, handoff write returns {"handoff":...,"scopeCount":...}, get returns {"handoffs":...,"totalMatching":...,"hasMore":...,"otherScopesAvailable":...}, and purge returns {"purged":...}.
 When --agent is supplied, list/get/ready/next compute claimability using that same assignee-safety rule.
-task update edits mutable task fields in place; pass --model= or any Git/worktree metadata option with = to clear that field.
+task update edits mutable task fields in place; pass --model=, a grouping metadata option with =, or any Git/worktree metadata option with = to clear that field.
 On task create, omitted Git/worktree fields default independently from the current Git context; explicit empty values override those defaults.
 Configuration is read from .wtp.json at the current Git worktree root (or the invocation directory outside Git); wtpDir selects storage and is relative to that file when not absolute.
 The optional free-form model field records a suggested execution model and does not affect task ordering or claimability.
@@ -1628,8 +1811,8 @@ Examples:
   wtp stats --chart done model
   wtp stats --chart progressed 7d-0d
 export writes an exact canonical snapshot to a dedicated directory, including the retained handoffs.json collection; unmanaged entries and paths overlapping active .wtp storage are rejected. Root export is not an editable batch document.
-batch export writes an editable patch document. Use at most one selector kind: --status STATUS or repeatable --task ID; omit both to export every task. Task selectors accept canonical UUIDs or short IDs and retain caller order. File .json/.csv suffixes infer format; --format is required for PATH with another suffix or for - (stdout). Batch export to stdout writes raw data and cannot be combined with --json. File export text reports destination, format, and taskCount; --json returns {"count":1,"format":"json","destination":"PATH"}.
-batch import reads PATH or - (stdin), using the same format inference and --format rules. JSON output is {"updated":[...],"unchanged":[...]}; human output reports updated and unchanged counts. Each row requires id or shortId and updatedAt plus at least one mutable field. The mutable fields are title, description, status, priority, estimate, lane, model, gitRepo, gitBranch, worktreeName, worktreeDir, assignee, and dependencies.
+batch export writes an editable patch document. It accepts at most one selector kind for explicit task selection; --status STATUS may be combined with grouping selectors (--issue-id, --project, --milestone, --version, --feature-id, and --feature) to export matching tasks. Repeatable --task ID selects exact canonical UUIDs or short IDs in caller order; status and grouping selectors cannot be combined with --task. For an unfiltered export, omit both to export every task (status and grouping selectors, and --task, are all omitted). File .json/.csv suffixes infer format; --format is required for PATH with another suffix or for - (stdout). Batch export to stdout writes raw data and cannot be combined with --json. File export text reports destination, format, and taskCount; --json returns {"count":1,"format":"json","destination":"PATH"}.
+batch import reads PATH or - (stdin), using the same format inference and --format rules. JSON output is {"updated":[...],"unchanged":[...]}; human output reports updated and unchanged counts. Each row requires id or shortId and updatedAt plus at least one mutable field. The mutable fields are title, description, status, priority, estimate, lane, model, issueId, project, milestone, version, featureId, feature, gitRepo, gitBranch, worktreeName, worktreeDir, assignee, and dependencies.
 Batch JSON is version 1 with {"version":1,"tasks":[...]}; omitted patch fields preserve stored values and null clears optional fields. CSV blanks preserve stored values; _clear explicitly clears optional fields only. Title and status must be non-empty; priority is low|medium|high|urgent; estimate is xs|s|m|l|xl; statuses must be configured; gitRepo and worktreeDir must be absolute; dependencies must resolve and remain acyclic. Both identifiers, when supplied, must name the same task. Duplicate rows or identifiers, unknown fields or headers, malformed input, stale updatedAt, invalid transitions, lifecycle violations, and dependency errors reject the entire import before publication.
 The flat-file batch transaction uses transient .wtp/meta/batch-update.json with version 1 and prepared/committed states. Store opening recovers that journal; a recovery failure retains it for diagnosis. Version-controlled stores should ignore it alongside .wtp/meta/wtp.lock.
 version reports the binary's version, commit, and build date; use wtp --json version for machine-readable output.
@@ -1818,6 +2001,12 @@ Task JSON schema:
 		"estimate": "m",
 		"lane": "cli",
 		"model": "gpt-5",
+		"issueId": "ISSUE-42",
+		"project": "Apollo",
+		"milestone": "MVP",
+		"version": "v1.0",
+		"featureId": "FEAT-7",
+		"feature": "Search",
 		"gitRepo": "/workspace/repo",
 		"gitBranch": "feature/parser",
 		"worktreeName": "parser",
@@ -1885,6 +2074,10 @@ Field semantics:
 	- lane: optional string for area/team grouping.
 	- model: optional free-form string naming the suggested model for completing the task.
 	  Set it with --model VALUE on task create/update/edit, or clear it with --model=.
+	- issueId, project, milestone, version, featureId, feature: optional grouping metadata.
+	  featureId is a stable grouping key and feature is its human-readable display name.
+	  Set grouping metadata with the corresponding option on task create/update/edit;
+	  pass an empty assignment (for example --project=) to clear it during update/edit.
 	- gitRepo: optional absolute path to the primary Git worktree root where the task was created.
 	- gitBranch: optional branch name where the task was created; empty for a detached HEAD unless explicitly overridden.
 	- worktreeName: optional name of the current Git worktree where the task was created.
@@ -1929,11 +2122,13 @@ Export rules:
 
 Editable batch task contract:
 	- Commands are:
-	    wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...]
+	wtp batch export --out PATH|- [--format csv|json] [--status STATUS] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--task ID ...]
 	    wtp batch import --in PATH|- [--format csv|json]
-	- batch export accepts at most one selector kind. --status selects one configured
-	  status; repeatable --task selects exact canonical UUIDs or short IDs in the
-	  order supplied; omitting both selects every task. A file ending in .json or .csv infers its format; an unknown
+	- batch export accepts at most one selector kind for explicit task selection;
+	  repeatable --task instead selects exact canonical UUIDs or short IDs in the
+	  order supplied, and cannot be combined with status or grouping selectors.
+	  Status may be combined with any combination of the six grouping selectors.
+	  Omitting selectors selects every task; omitting both selects every task. A file ending in .json or .csv infers its format; an unknown
 	  suffix and PATH '-' require --format. Import follows the same rule, reads '-'
 	  from stdin, and export '-' writes only raw batch data. Export stdout cannot
 	  be combined with --json.
@@ -1941,21 +2136,24 @@ Editable batch task contract:
 	    {"version":1,"tasks":[{"id":"<uuid>","shortId":"wtp-0001",
 	      "updatedAt":"<RFC3339>","title":"..."}]}
 	  Each task row may contain id, shortId, updatedAt, title, description, status,
-	  priority, estimate, lane, model, gitRepo, gitBranch, worktreeName,
-	  worktreeDir, assignee, and dependencies. id or shortId and updatedAt are
+	  priority, estimate, lane, model, issueId, project, milestone, version,
+	  featureId, feature, gitRepo, gitBranch, worktreeName, worktreeDir, assignee,
+	  and dependencies. id or shortId and updatedAt are
 	  required; at least one mutable field is required. Omitted patch fields
 	  preserve stored values. JSON null clears an optional field, including all
 	  dependencies when dependencies is null. Title and status cannot be empty.
 	- CSV uses the header:
-	    id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear
+	    id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,issueId,project,milestone,version,featureId,feature,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear
 	  The header must include updatedAt and id or shortId, and may contain a subset
 	  of known columns. Blank editable cells preserve stored values. _clear is a
 	  comma-separated list of optional fields to clear: description, priority,
-	  estimate, lane, model, gitRepo, gitBranch, worktreeName, worktreeDir,
-	  assignee, or dependencies. Required identifiers, updatedAt, title, and
+	  estimate, lane, model, issueId, project, milestone, version, featureId,
+	  feature, gitRepo, gitBranch, worktreeName, worktreeDir, assignee, or
+	  dependencies. Required identifiers, updatedAt, title, and
 	  status cannot be cleared. CSV is UTF-8 and may have a BOM.
 	- Mutable fields are title, description, status, priority, estimate, lane, model,
-	  gitRepo, gitBranch, worktreeName, worktreeDir, assignee, and dependencies.
+	  issueId, project, milestone, version, featureId, feature, gitRepo, gitBranch,
+	  worktreeName, worktreeDir, assignee, and dependencies.
 	  Priority accepts low|medium|high|urgent; estimate accepts xs|s|m|l|xl;
 	  status must be configured; gitRepo and worktreeDir must be absolute paths;
 	  dependencies must resolve to existing tasks, cannot include the task itself,
@@ -2013,6 +2211,140 @@ type optionString struct {
 	value string
 }
 
+const (
+	taskListUsage  = "usage: wtp task list [--status STATUS] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--agent Tony]"
+	taskReadyUsage = "usage: wtp task ready [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--agent Tony] [--limit N]"
+	taskNextUsage  = "usage: wtp task next [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE] [--agent Tony]"
+	graphUsage     = "usage: wtp graph [--status STATUS|all] [--issue-id ISSUE-ID] [--project PROJECT] [--milestone MILESTONE] [--version VERSION] [--feature-id FEATURE-ID] [--feature FEATURE]"
+)
+
+// groupingSelectorValue is the strict flag value used by operational task
+// selectors. It is deliberately separate from optionString because update
+// metadata flags may be repeated by existing callers while selectors must be
+// unambiguous and non-empty.
+type groupingSelectorValue struct {
+	name  string
+	set   bool
+	value string
+}
+
+func (v *groupingSelectorValue) String() string { return v.value }
+
+func (v *groupingSelectorValue) Set(value string) error {
+	if v.set {
+		return fmt.Errorf("grouping selector --%s cannot be specified more than once", v.name)
+	}
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("grouping selector --%s cannot be empty", v.name)
+	}
+	v.set = true
+	v.value = value
+	return nil
+}
+
+type groupingSelectorParser struct {
+	issueID   groupingSelectorValue
+	project   groupingSelectorValue
+	milestone groupingSelectorValue
+	version   groupingSelectorValue
+	featureID groupingSelectorValue
+	feature   groupingSelectorValue
+}
+
+func newGroupingSelectorParser(flags *flag.FlagSet) *groupingSelectorParser {
+	parser := &groupingSelectorParser{
+		issueID:   groupingSelectorValue{name: "issue-id"},
+		project:   groupingSelectorValue{name: "project"},
+		milestone: groupingSelectorValue{name: "milestone"},
+		version:   groupingSelectorValue{name: "version"},
+		featureID: groupingSelectorValue{name: "feature-id"},
+		feature:   groupingSelectorValue{name: "feature"},
+	}
+	if flags != nil {
+		flags.Var(&parser.issueID, "issue-id", "issue grouping selector")
+		flags.Var(&parser.project, "project", "project grouping selector")
+		flags.Var(&parser.milestone, "milestone", "milestone grouping selector")
+		flags.Var(&parser.version, "version", "version grouping selector")
+		flags.Var(&parser.featureID, "feature-id", "stable feature grouping selector")
+		flags.Var(&parser.feature, "feature", "feature grouping selector")
+	}
+	return parser
+}
+
+func (p *groupingSelectorParser) Filter() core.GroupingFilter {
+	return core.NormalizeGroupingFilter(core.GroupingFilter{
+		IssueID:   p.issueID.value,
+		Project:   p.project.value,
+		Milestone: p.milestone.value,
+		Version:   p.version.value,
+		FeatureID: p.featureID.value,
+		Feature:   p.feature.value,
+	})
+}
+
+func (p *groupingSelectorParser) set(name, value string) error {
+	var target *groupingSelectorValue
+	switch name {
+	case "issue-id":
+		target = &p.issueID
+	case "project":
+		target = &p.project
+	case "milestone":
+		target = &p.milestone
+	case "version":
+		target = &p.version
+	case "feature-id":
+		target = &p.featureID
+	case "feature":
+		target = &p.feature
+	default:
+		return fmt.Errorf("unknown grouping selector %q", name)
+	}
+	return target.Set(value)
+}
+
+func (p *groupingSelectorParser) args() []string {
+	var out []string
+	for _, value := range []struct {
+		name string
+		item groupingSelectorValue
+	}{
+		{name: "--issue-id", item: p.issueID},
+		{name: "--project", item: p.project},
+		{name: "--milestone", item: p.milestone},
+		{name: "--version", item: p.version},
+		{name: "--feature-id", item: p.featureID},
+		{name: "--feature", item: p.feature},
+	} {
+		if value.item.set {
+			out = append(out, value.name, value.item.value)
+		}
+	}
+	return out
+}
+
+func consumeLegacyOptionValue(args []string, index *int, option string) (string, error) {
+	if *index+1 >= len(args) {
+		return "", fmt.Errorf("option %q requires a value", option)
+	}
+	value := args[*index+1]
+	if strings.HasPrefix(value, "-") {
+		return "", fmt.Errorf("option %q requires a value", option)
+	}
+	(*index)++
+	return value, nil
+}
+
+func legacyGroupingSelectorAssignment(arg string) (name, value string, found bool) {
+	for _, candidate := range []string{"issue-id", "project", "milestone", "version", "feature-id", "feature"} {
+		prefix := "--" + candidate + "="
+		if value, ok := strings.CutPrefix(arg, prefix); ok {
+			return candidate, value, true
+		}
+	}
+	return "", "", false
+}
+
 type stringList []string
 
 func (values *stringList) String() string {
@@ -2052,6 +2384,7 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 	estimate := ""
 	lane := ""
 	model := ""
+	grouping := newGroupingSelectorParser(nil)
 	var gitRepo optionString
 	var gitBranch optionString
 	var worktreeName optionString
@@ -2125,6 +2458,15 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 			if i < len(args) {
 				model = args[i]
 			}
+		case "--issue-id", "--project", "--milestone", "--version", "--feature-id", "--feature":
+			name := strings.TrimPrefix(arg, "--")
+			value, err := consumeLegacyOptionValue(args, &i, arg)
+			if err != nil {
+				return legacyParseResult{}, err
+			}
+			if err := grouping.set(name, value); err != nil {
+				return legacyParseResult{}, err
+			}
 		case "--git-repo":
 			gitRepo.set = true
 			i++
@@ -2176,6 +2518,12 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 				worktreeDir = optionString{set: true, value: value}
 				continue
 			}
+			if name, value, found := legacyGroupingSelectorAssignment(arg); found {
+				if err := grouping.set(name, value); err != nil {
+					return legacyParseResult{}, err
+				}
+				continue
+			}
 			if strings.HasPrefix(arg, "--export-tasks=") {
 				exportOut = strings.TrimPrefix(arg, "--export-tasks=")
 				actions = append(actions, "export")
@@ -2196,12 +2544,12 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 	switch action {
 	case "next":
 		return legacyParseResult{
-			args:  append(append(rest, "task", "next"), withValue("--agent", agent)...),
+			args:  append(append(append(rest, "task", "next"), grouping.args()...), withValue("--agent", agent)...),
 			found: true,
 		}, nil
 	case "list":
 		return legacyParseResult{
-			args:  append(append(rest, "task", "list"), append(withValue("--status", status), withValue("--agent", agent)...)...),
+			args:  append(append(append(rest, "task", "list"), append(withValue("--status", status), grouping.args()...)...), withValue("--agent", agent)...),
 			found: true,
 		}, nil
 	case "get":
@@ -2247,6 +2595,7 @@ func rewriteLegacyArgs(args []string) (legacyParseResult, error) {
 		out = append(out, withValue("--estimate", estimate)...)
 		out = append(out, withValue("--lane", lane)...)
 		out = append(out, withValue("--model", model)...)
+		out = append(out, grouping.args()...)
 		out = append(out, withOptionalValue("--git-repo", gitRepo)...)
 		out = append(out, withOptionalValue("--git-branch", gitBranch)...)
 		out = append(out, withOptionalValue("--worktree-name", worktreeName)...)

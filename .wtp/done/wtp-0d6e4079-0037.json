@@ -1,0 +1,37 @@
+{
+  "id": "42878424-a6c3-44f2-920c-1d944944b5dd",
+  "shortId": "wtp-0d6e4079-0037",
+  "title": "Implement grouped provider filtering and atomic claiming",
+  "description": "Extend provider selection interfaces and flat-file list/preview/claim paths with filters for issueId, project, milestone, version, featureId, and feature. Apply the shared matcher before existing branch-scope, status, dependency, assignee, priority, and age logic; preserve ready/next parity and atomic claims. Cover mixed casing, AND filters, unmatched scopes, branch isolation, dependencies, and concurrency.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "a656747b-3baa-4a3a-94a5-1a2870a26221"
+  ],
+  "comments": [
+    {
+      "id": "4ce5562f-81aa-4c7c-9cce-f06da40449eb",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task and repository guidance plus 0036’s shared matcher. I’m limiting scope to provider selection and flat-file list/preview/claim paths, retaining their existing scope/dependency/claim semantics.",
+      "createdAt": "2026-08-31T07:04:30.589902514Z"
+    },
+    {
+      "id": "c17d99f2-2ff4-4389-b498-b1ac96974eb3",
+      "author": "codex-wtp-loop",
+      "message": "Implemented provider-level Grouping/Selection filters and flat-file matching before scope, status, dependencies, assignee, priority, and age. Added mixed-case AND, unmatched, dependency, branch-isolation, preview/claim parity, and filtered-concurrency tests. Focused/race tests, go test -race ./..., commit verification, smoke, gofmt, and diff checks pass.",
+      "createdAt": "2026-08-31T07:11:35.01664626Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:55.30750266Z",
+  "updatedAt": "2026-08-31T07:11:35.066504715Z",
+  "startedAt": "2026-08-31T07:03:36.770159433Z",
+  "completedAt": "2026-08-31T07:11:35.066504715Z"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "550ed327-eb9f-4e65-b7c7-884324d0f699",
+  "shortId": "wtp-0d6e4079-0042",
+  "title": "Add grouped stats aggregation",
+  "description": "Add issueId, project, milestone, version, featureId, and feature categorical dimensions and thread all six grouping filters through overview, focused, created, and progressed aggregation. Preserve lexical case-sensitive buckets while filters match case-insensitively. Scope task handoffs to matching tasks, retain globals, and define allStatusTotal before optional status filtering.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "42878424-a6c3-44f2-920c-1d944944b5dd"
+  ],
+  "comments": [
+    {
+      "id": "83763f3a-7faa-4090-b91d-b0690adadcba",
+      "author": "codex-wtp-loop",
+      "message": "Inspecting inherited grouping matcher/provider filter patterns and stats aggregation paths before implementation.",
+      "createdAt": "2026-08-31T08:08:25.536780694Z"
+    },
+    {
+      "id": "d1005705-9695-4828-a5ba-4969297eaea9",
+      "author": "codex-wtp-loop",
+      "message": "Worker remained unresponsive after implementation changes and a continuation nudge; pausing for explicit recovery rather than replacing the worker.",
+      "createdAt": "2026-08-31T08:16:10.799642211Z"
+    },
+    {
+      "id": "0374f501-f891-4098-8381-82f11b2a8227",
+      "author": "",
+      "message": "Reclaimed after stall. Preserved stats changes inspected; validating grouped overview/focused/series behavior and handoff status-total ordering before focused tests.",
+      "createdAt": "2026-08-31T08:18:32.688399765Z"
+    },
+    {
+      "id": "6ae27baf-e30d-4315-a25d-0dc84b27993d",
+      "author": "codex-wtp-loop",
+      "message": "Verified reclaimed stats aggregation: six dimensions, case-insensitive selectors with case-preserving buckets, grouped handoff scoping/global retention, and pre-status allStatusTotal coverage. Focused/full tests, stats race, vet, gofmt, diff, and commit verification pass.",
+      "createdAt": "2026-08-31T08:23:09.129792288Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:56.036599863Z",
+  "updatedAt": "2026-08-31T08:23:09.179565055Z",
+  "startedAt": "2026-08-31T08:07:54.0655585Z",
+  "completedAt": "2026-08-31T08:23:09.179565055Z"
+}

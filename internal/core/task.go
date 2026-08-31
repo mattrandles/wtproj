@@ -118,6 +118,12 @@ type Task struct {
 	Estimate     Estimate   `json:"estimate,omitempty"`
 	Lane         string     `json:"lane,omitempty"`
 	Model        string     `json:"model,omitempty"`
+	IssueID      string     `json:"issueId,omitempty"`
+	Project      string     `json:"project,omitempty"`
+	Milestone    string     `json:"milestone,omitempty"`
+	Version      string     `json:"version,omitempty"`
+	FeatureID    string     `json:"featureId,omitempty"` // Stable grouping key, independent of the display name.
+	Feature      string     `json:"feature,omitempty"`   // Human-readable feature name.
 	GitRepo      string     `json:"gitRepo,omitempty"`
 	GitBranch    string     `json:"gitBranch,omitempty"`
 	WorktreeName string     `json:"worktreeName,omitempty"`
@@ -146,6 +152,12 @@ type CreateTaskInput struct {
 	Estimate     Estimate
 	Lane         string
 	Model        string
+	IssueID      string
+	Project      string
+	Milestone    string
+	Version      string
+	FeatureID    string
+	Feature      string
 	GitRepo      string
 	GitBranch    string
 	WorktreeName string
@@ -191,6 +203,12 @@ type UpdateTaskInput struct {
 	Estimate     OptionalEstimate
 	Lane         OptionalString
 	Model        OptionalString
+	IssueID      OptionalString
+	Project      OptionalString
+	Milestone    OptionalString
+	Version      OptionalString
+	FeatureID    OptionalString
+	Feature      OptionalString
 	GitRepo      OptionalString
 	GitBranch    OptionalString
 	WorktreeName OptionalString
@@ -213,6 +231,12 @@ type BatchTaskUpdateInput struct {
 	Estimate          OptionalEstimate
 	Lane              OptionalString
 	Model             OptionalString
+	IssueID           OptionalString
+	Project           OptionalString
+	Milestone         OptionalString
+	Version           OptionalString
+	FeatureID         OptionalString
+	Feature           OptionalString
 	GitRepo           OptionalString
 	GitBranch         OptionalString
 	WorktreeName      OptionalString
@@ -277,6 +301,18 @@ func (t Task) ValidateWithCatalog(catalog StatusCatalog) error {
 	}
 	if t.Model != "" && strings.TrimSpace(t.Model) == "" {
 		return errors.New("task model cannot be blank")
+	}
+	for _, field := range []struct{ name, value string }{
+		{"issueId", t.IssueID},
+		{"project", t.Project},
+		{"milestone", t.Milestone},
+		{"version", t.Version},
+		{"featureId", t.FeatureID},
+		{"feature", t.Feature},
+	} {
+		if field.value != "" && strings.TrimSpace(field.value) == "" {
+			return fmt.Errorf("task %s cannot be blank", field.name)
+		}
 	}
 	if err := validateOptionalAbsolutePath("gitRepo", t.GitRepo); err != nil {
 		return err

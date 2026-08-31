@@ -244,6 +244,15 @@ func (p *importTestProvider) PeekNextTasks(string, int) ([]core.TaskView, error)
 	return nil, nil
 }
 func (p *importTestProvider) GetNextTask(string) (core.TaskView, error) { return core.TaskView{}, nil }
-func (p *importTestProvider) ExportCanonical(string) error              { return nil }
+func (p *importTestProvider) PeekNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	return core.TaskView{}, nil
+}
+func (p *importTestProvider) PeekNextTasksWithFilter(provider.SelectionFilter, int) ([]core.TaskView, error) {
+	return nil, nil
+}
+func (p *importTestProvider) GetNextTaskWithFilter(provider.SelectionFilter) (core.TaskView, error) {
+	return core.TaskView{}, nil
+}
+func (p *importTestProvider) ExportCanonical(string) error { return nil }
 
 var _ provider.Provider = (*importTestProvider)(nil)

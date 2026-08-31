@@ -1,0 +1,50 @@
+{
+  "id": "012638c3-846a-4747-9d7a-364908cd3991",
+  "shortId": "wtp-0d6e4079-0039",
+  "title": "Add grouping selectors to operational task commands",
+  "description": "Add one shared six-field grouping-selector parser to task list, task ready, task next, graph, and legacy list/next paths. Support issueId, project, milestone, version, featureId, and feature; reject duplicate or empty selectors, pass identical filters to preview and claim, and keep graph limited to matching tasks and internal edges. Test text/JSON results and preview/claim parity.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "42878424-a6c3-44f2-920c-1d944944b5dd",
+    "879f7df7-b5d3-4740-b3d5-e8627bdb0fcb"
+  ],
+  "comments": [
+    {
+      "id": "604d244c-0b53-49dd-b1fd-c364fdbed950",
+      "author": "codex-wtp-loop",
+      "message": "Inspecting repository guidance and existing grouping/filter APIs; next I will wire one shared selector parser through operational and legacy command paths, then verify parity and graph scoping.",
+      "createdAt": "2026-08-31T07:22:08.441755732Z"
+    },
+    {
+      "id": "7e31db25-5a7e-43f4-9335-22c6e66780fb",
+      "author": "codex-wtp-loop",
+      "message": "Worker became unresponsive after initial inspection and a follow-up nudge; no implementation progress or blocker response was observed across bounded waits. Pausing for explicit recovery rather than replacing the worker.",
+      "createdAt": "2026-08-31T07:28:47.348211509Z"
+    },
+    {
+      "id": "a6b6a087-bbfe-4777-adae-2284da9ec590",
+      "author": "codex-wtp-loop",
+      "message": "Reclaimed task reviewed: shared six-field selector parser is wired through task list/ready/next, graph, and legacy list/next; focused CLI/core/provider tests pass. Running full verification and final diff checks now.",
+      "createdAt": "2026-08-31T07:33:00.151855212Z"
+    },
+    {
+      "id": "88fef87a-106c-4ff5-9daa-6f71012b0d7e",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: selector parser rejects duplicates/blanks; text/JSON list and graph coverage, legacy rewrite, and ready/next preview-claim parity tests pass. Commit gate, gofmt, vet, smoke, and git diff --check pass.",
+      "createdAt": "2026-08-31T07:33:46.006157545Z"
+    }
+  ],
+  "createdAt": "2026-08-30T07:19:55.598606566Z",
+  "updatedAt": "2026-08-31T07:33:46.086054856Z",
+  "startedAt": "2026-08-31T07:21:34.553391849Z",
+  "completedAt": "2026-08-31T07:33:46.086054856Z"
+}

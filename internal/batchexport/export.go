@@ -39,9 +39,10 @@ type Options struct {
 	Output      string
 	Out         string
 
-	Format  Format
-	Status  string
-	TaskIDs []string
+	Format   Format
+	Status   string
+	TaskIDs  []string
+	Grouping core.GroupingFilter
 	// Stdout is used when Destination is "-". Export also accepts a writer
 	// argument so a command layer need not mutate Options.
 	Stdout io.Writer
@@ -95,9 +96,11 @@ func (s *Service) Export(options Options, stdout ...io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if strings.TrimSpace(options.Status) != "" && len(options.TaskIDs) > 0 {
-		return Result{}, errors.New("batch export status and task selectors cannot be combined")
+	grouping := core.NormalizeGroupingFilter(options.Grouping)
+	if (strings.TrimSpace(options.Status) != "" || grouping != (core.GroupingFilter{})) && len(options.TaskIDs) > 0 {
+		return Result{}, errors.New("batch export status/grouping selectors cannot be combined with task selectors")
 	}
+	options.Grouping = grouping
 
 	tasks, graph, err := selectTasks(s.Provider, options)
 	if err != nil {
@@ -192,12 +195,18 @@ func selectTasks(p provider.Provider, options Options) ([]core.TaskView, []core.
 	if len(catalog.Statuses()) == 0 {
 		catalog = core.DefaultStatusCatalog()
 	}
-	if statusText := strings.TrimSpace(options.Status); statusText != "" {
-		status, err := catalog.ParseStatus(statusText)
-		if err != nil {
-			return nil, nil, err
+	statusText := strings.TrimSpace(options.Status)
+	grouping := core.NormalizeGroupingFilter(options.Grouping)
+	if statusText != "" || grouping != (core.GroupingFilter{}) {
+		var status *core.Status
+		if statusText != "" {
+			parsed, err := catalog.ParseStatus(statusText)
+			if err != nil {
+				return nil, nil, err
+			}
+			status = &parsed
 		}
-		tasks, err := p.ListTasks(provider.TaskFilter{Status: &status})
+		tasks, err := p.ListTasks(provider.TaskFilter{Status: status, Grouping: grouping})
 		if err != nil {
 			return nil, nil, fmt.Errorf("list tasks for batch export: %w", err)
 		}
@@ -293,6 +302,12 @@ func editableInputs(tasks, graph []core.TaskView) ([]core.BatchTaskUpdateInput, 
 			Estimate:          core.OptionalEstimate{Set: true, Value: view.Estimate},
 			Lane:              core.OptionalString{Set: true, Value: view.Lane},
 			Model:             core.OptionalString{Set: true, Value: view.Model},
+			IssueID:           core.OptionalString{Set: true, Value: view.IssueID},
+			Project:           core.OptionalString{Set: true, Value: view.Project},
+			Milestone:         core.OptionalString{Set: true, Value: view.Milestone},
+			Version:           core.OptionalString{Set: true, Value: view.Version},
+			FeatureID:         core.OptionalString{Set: true, Value: view.FeatureID},
+			Feature:           core.OptionalString{Set: true, Value: view.Feature},
 			GitRepo:           core.OptionalString{Set: true, Value: view.GitRepo},
 			GitBranch:         core.OptionalString{Set: true, Value: view.GitBranch},
 			WorktreeName:      core.OptionalString{Set: true, Value: view.WorktreeName},
