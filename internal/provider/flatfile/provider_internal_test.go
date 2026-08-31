@@ -1054,6 +1054,11 @@ func TestExportCanonicalRejectsStorageOverlapWithoutChangingStorage(t *testing.T
 func TestExportCanonicalPublishFailurePreservesExistingFileAndStaleSnapshot(t *testing.T) {
 	p, task := newInternalProviderWithTask(t)
 	exportDir := t.TempDir()
+	var err error
+	exportDir, err = resolvePath(exportDir)
+	if err != nil {
+		t.Fatalf("resolvePath(export dir) error = %v", err)
+	}
 	currentPath := filepath.Join(exportDir, task.ID+".json")
 	stalePath := filepath.Join(exportDir, "ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a.json")
 	currentBefore := []byte("old snapshot\n")
@@ -1065,7 +1070,7 @@ func TestExportCanonicalPublishFailurePreservesExistingFileAndStaleSnapshot(t *t
 	}
 	p.fs.replace = func(_, _ string) error { return errors.New("injected export replace failure") }
 
-	err := p.ExportCanonical(exportDir)
+	err = p.ExportCanonical(exportDir)
 	if err == nil || !strings.Contains(err.Error(), "injected export replace failure") {
 		t.Fatalf("ExportCanonical() error = %v, want injected failure", err)
 	}
@@ -1084,6 +1089,11 @@ func TestExportCanonicalPublishFailurePreservesExistingFileAndStaleSnapshot(t *t
 func TestExportCanonicalRemovalFailureLeavesStaleManagedFile(t *testing.T) {
 	p, task := newInternalProviderWithTask(t)
 	exportDir := t.TempDir()
+	var err error
+	exportDir, err = resolvePath(exportDir)
+	if err != nil {
+		t.Fatalf("resolvePath(export dir) error = %v", err)
+	}
 	stalePath := filepath.Join(exportDir, "ec58fe90-eb0f-4c4c-b2bf-4f1178a56c8a.json")
 	if err := os.WriteFile(stalePath, []byte("stale snapshot\n"), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(stale) error = %v", err)
@@ -1095,7 +1105,7 @@ func TestExportCanonicalRemovalFailureLeavesStaleManagedFile(t *testing.T) {
 		return os.Remove(path)
 	}
 
-	err := p.ExportCanonical(exportDir)
+	err = p.ExportCanonical(exportDir)
 	if err == nil || !strings.Contains(err.Error(), "injected export removal failure") {
 		t.Fatalf("ExportCanonical() error = %v, want injected removal failure", err)
 	}
@@ -1334,6 +1344,11 @@ func TestExportCanonicalPlanningPublicationFailurePreservesStaleRecord(t *testin
 	item := planningStorageTask(t, "15c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0002", core.PlanningStatusToplan)
 	writePlanningStorageItem(t, filepath.Join(p.planningStatusDir(item.Status), item.ShortID+".json"), item)
 	exportDir := t.TempDir()
+	var err error
+	exportDir, err = resolvePath(exportDir)
+	if err != nil {
+		t.Fatalf("resolvePath(export dir) error = %v", err)
+	}
 	planningExportDir := filepath.Join(exportDir, planningDirectory)
 	if err := os.MkdirAll(planningExportDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(planning export) error = %v", err)
@@ -1349,7 +1364,7 @@ func TestExportCanonicalPlanningPublicationFailurePreservesStaleRecord(t *testin
 		return replaceFile(source, target)
 	}
 
-	err := p.ExportCanonical(exportDir)
+	err = p.ExportCanonical(exportDir)
 	if err == nil || !strings.Contains(err.Error(), "injected planning export replace failure") {
 		t.Fatalf("ExportCanonical() error = %v, want injected failure", err)
 	}
@@ -1363,6 +1378,11 @@ func TestExportCanonicalPlanningRemovalFailureLeavesStaleRecord(t *testing.T) {
 	item := planningStorageTask(t, "15c3806a-bd1b-424d-889b-29e5b06679b8", "wtp-0002", core.PlanningStatusToplan)
 	writePlanningStorageItem(t, filepath.Join(p.planningStatusDir(item.Status), item.ShortID+".json"), item)
 	exportDir := t.TempDir()
+	var err error
+	exportDir, err = resolvePath(exportDir)
+	if err != nil {
+		t.Fatalf("resolvePath(export dir) error = %v", err)
+	}
 	planningExportDir := filepath.Join(exportDir, planningDirectory)
 	if err := os.MkdirAll(planningExportDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(planning export) error = %v", err)
@@ -1378,7 +1398,7 @@ func TestExportCanonicalPlanningRemovalFailureLeavesStaleRecord(t *testing.T) {
 		return os.Remove(path)
 	}
 
-	err := p.ExportCanonical(exportDir)
+	err = p.ExportCanonical(exportDir)
 	if err == nil || !strings.Contains(err.Error(), "injected planning export removal failure") {
 		t.Fatalf("ExportCanonical() error = %v, want injected failure", err)
 	}

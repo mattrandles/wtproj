@@ -20,6 +20,8 @@ func TestCreatePlanningItemAcceptsFullMetadataAndResolvesReferences(t *testing.T
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	repoPath := filepath.Join(t.TempDir(), "repo")
+	worktreePath := filepath.Join(repoPath, "worktree")
 	dependency, err := p.CreateTask(core.CreateTaskInput{Title: "dependency"})
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -47,10 +49,10 @@ func TestCreatePlanningItemAcceptsFullMetadataAndResolvesReferences(t *testing.T
 		Version:       "  v1  ",
 		FeatureID:     "  FEAT-1  ",
 		Feature:       "  Feature  ",
-		GitRepo:       "  /repo  ",
+		GitRepo:       "  " + repoPath + "  ",
 		GitBranch:     "  feature/planning  ",
 		WorktreeName:  "  planning  ",
-		WorktreeDir:   "  /repo/worktree  ",
+		WorktreeDir:   "  " + worktreePath + "  ",
 		Assignee:      "  Alice  ",
 		Dependencies:  []string{"  " + dependency.ShortID + "  "},
 		ReusableTasks: []string{" second ", first.ID},
@@ -67,7 +69,7 @@ func TestCreatePlanningItemAcceptsFullMetadataAndResolvesReferences(t *testing.T
 	if view.IssueID != "ISSUE-1" || view.Project != "Project" || view.Milestone != "MVP" || view.Version != "v1" || view.FeatureID != "FEAT-1" || view.Feature != "Feature" {
 		t.Fatalf("trimmed grouping metadata = %#v", view.PlanningItem)
 	}
-	if view.GitRepo != "/repo" || view.GitBranch != "feature/planning" || view.WorktreeName != "planning" || view.WorktreeDir != "/repo/worktree" {
+	if view.GitRepo != repoPath || view.GitBranch != "feature/planning" || view.WorktreeName != "planning" || view.WorktreeDir != worktreePath {
 		t.Fatalf("trimmed origin metadata = %#v", view.PlanningItem)
 	}
 	if !slices.Equal(view.Dependencies, []string{dependency.ID}) {

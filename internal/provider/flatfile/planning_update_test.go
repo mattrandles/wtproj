@@ -19,6 +19,8 @@ func TestUpdatePlanningItemPatchesMetadataAndPreservesIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	repoPath := filepath.Join(t.TempDir(), "repo")
+	worktreePath := filepath.Join(repoPath, "worktree")
 	dependency, err := p.CreateTask(core.CreateTaskInput{Title: "dependency"})
 	if err != nil {
 		t.Fatal(err)
@@ -56,10 +58,10 @@ func TestUpdatePlanningItemPatchesMetadataAndPreservesIdentity(t *testing.T) {
 		Version:      core.OptionalString{Set: true, Value: "v2"},
 		FeatureID:    core.OptionalString{Set: true, Value: "FEAT-1"},
 		Feature:      core.OptionalString{Set: true, Value: "Feature"},
-		GitRepo:      core.OptionalString{Set: true, Value: "/repo"},
+		GitRepo:      core.OptionalString{Set: true, Value: repoPath},
 		GitBranch:    core.OptionalString{Set: true, Value: "branch"},
 		WorktreeName: core.OptionalString{Set: true, Value: "worktree"},
-		WorktreeDir:  core.OptionalString{Set: true, Value: "/repo/worktree"},
+		WorktreeDir:  core.OptionalString{Set: true, Value: worktreePath},
 		Assignee:     core.OptionalString{Set: true, Value: "Alice"},
 		Dependencies: core.OptionalStrings{Set: true, Value: []string{dependency.ID}},
 		ReusableTasks: core.OptionalStrings{Set: true, Value: []string{second.Name,
@@ -106,6 +108,7 @@ func TestUpdatePlanningItemClearsOptionalFieldsAndReordersAssignments(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
+	repoPath := filepath.Join(t.TempDir(), "repo")
 	first, err := p.CreateReusableTask(core.CreateReusableTaskInput{Name: "First", Title: "first", Instructions: "first"})
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +120,7 @@ func TestUpdatePlanningItemClearsOptionalFieldsAndReordersAssignments(t *testing
 	created, err := p.CreatePlanningItem(core.CreatePlanningItemInput{
 		Title: "title", Description: "description", Priority: core.PriorityHigh, Estimate: core.EstimateM,
 		Lane: "lane", Model: "model", IssueID: "issue", Project: "project", Milestone: "milestone", Version: "version",
-		FeatureID: "feature-id", Feature: "feature", GitRepo: "/repo", GitBranch: "branch", WorktreeName: "name", WorktreeDir: "/worktree",
+		FeatureID: "feature-id", Feature: "feature", GitRepo: repoPath, GitBranch: "branch", WorktreeName: "name", WorktreeDir: filepath.Join(repoPath, "worktree"),
 		Assignee: "agent", ReusableTasks: []string{first.ID, second.ID},
 	})
 	if err != nil {
