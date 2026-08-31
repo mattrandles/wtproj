@@ -1,0 +1,24 @@
+{
+  "id": "ae50a1fd-11d8-4493-82f4-941f0dbe8036",
+  "shortId": "wtp-0d6e4079-0057",
+  "title": "Expose reusable update and delete commands",
+  "description": "Complete wtp reusable with update NAME_OR_ID and delete NAME_OR_ID. Update accepts optional --name, --title, and --instructions, requires at least one supplied field, distinguishes omission from an explicit empty invalid value, and returns the updated definition. Delete performs the provider atomic detach operation and returns {deleted:...,detachedTaskCount:N} in JSON plus a precise human summary. Cover name and UUID selectors, casing-only rename, referenced and unreferenced deletion, completed-task detachment, concurrent/stale provider errors, extra arguments, and no-op updates in CLI tests. Do not add confirmation prompts or force flags; deletion semantics are deliberately detach-everywhere.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "reusable-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "0268b202-70dc-4403-8da0-9848daa94244",
+    "062a93ed-5d41-4e96-b810-f65c9c3f315f"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:41:56.964866701Z",
+  "updatedAt": "2026-08-30T07:41:56.964866701Z",
+  "startedAt": null,
+  "completedAt": null
+}

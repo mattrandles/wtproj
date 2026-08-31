@@ -9,6 +9,8 @@ import (
 
 var ErrNoEligibleTask = errors.New("no eligible task found")
 
+var ErrStaleTask = errors.New("stale task update")
+
 type TaskFilter struct {
 	Status *core.Status
 	Agent  string
@@ -51,6 +53,15 @@ type HandoffPurgeResult struct {
 	Purged int `json:"purged"`
 }
 
+type BatchUpdateRequest struct {
+	Tasks []core.BatchTaskUpdateInput
+}
+
+type BatchUpdateResult struct {
+	Updated   []core.TaskView `json:"updated"`
+	Unchanged []core.TaskView `json:"unchanged"`
+}
+
 type Provider interface {
 	StatusCatalog() core.StatusCatalog
 	ListTasks(filter TaskFilter) ([]core.TaskView, error)
@@ -60,6 +71,7 @@ type Provider interface {
 	GetTask(idOrShortID, agent string) (core.TaskView, error)
 	CreateTask(input core.CreateTaskInput) (core.TaskView, error)
 	UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error)
+	BatchUpdate(request BatchUpdateRequest) (BatchUpdateResult, error)
 	UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error)
 	AddComment(idOrShortID, actor, message string) (core.TaskView, error)
 	PeekNextTask(agent string) (core.TaskView, error)

@@ -1,0 +1,43 @@
+{
+  "id": "c1a646b1-2a6f-4879-8297-f1700c648126",
+  "shortId": "wtp-0d6e4079-0024",
+  "title": "Document batch workflow and update agent skills",
+  "description": "Document the completed batch contract after CLI behavior is final. Update README everyday workflow and CLI reference with CSV/JSON export-edit-import examples, selectors, format inference, stdin/stdout, required updatedAt stale protection, JSON version 1 shape, CSV blank-preserves plus _clear semantics, atomic all-or-nothing behavior, and the distinction from canonical root export. Update wtp help and wtp schema with exact commands, response shapes, editable fields, validation rules, and the transient .wtp/meta/batch-update.json recovery journal. Update CONTRIBUTING task-backlog guidance and the Unreleased changelog. Add the journal to this repository's .gitignore beside wtp.lock. Update skills/task-management/SKILL.md to instruct agents to prefer focused batch export/import over generated PowerShell scripts or repeated task update calls. Update skills/setup-wtp/SKILL.md and the README history-worktree recipe so version-controlled stores ignore both transient files. Keep skill text concise, imperative, and within its existing scope; do not add new skill folders or helper scripts. Run the skill validator on both changed skills, documentation contract tests, go test ./..., and git diff --check.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "documentation",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "2644d3b3-cb00-44f3-a7c3-9f47d4713ac6"
+  ],
+  "comments": [
+    {
+      "id": "4972f80b-9b23-45ac-a9ff-27a2e95ad755",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the claimed task and finalized batch implementation; mapping exact export/import contracts before editing docs and skills.",
+      "createdAt": "2026-08-30T03:37:50.043275477Z"
+    },
+    {
+      "id": "aecacf62-b4df-40c5-a042-6dffa776173b",
+      "author": "codex-wtp-loop",
+      "message": "Implemented README/CLI reference batch contract, help/schema, CONTRIBUTING/changelog, both transient ignore rules, and task-management/setup-wtp skill updates. Both skill validators and focused documentation/help tests pass.",
+      "createdAt": "2026-08-30T05:49:30.706187712Z"
+    },
+    {
+      "id": "430b4cbf-a0d8-4137-a91c-6bc471dbd45b",
+      "author": "codex-wtp-loop",
+      "message": "Verification passed: both skill validators, documentation/help/schema contract tests, go test ./..., and git diff --check.",
+      "createdAt": "2026-08-30T05:49:57.467465111Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.778924423Z",
+  "updatedAt": "2026-08-30T05:50:15.603363153Z",
+  "startedAt": "2026-08-30T03:36:48.735299269Z",
+  "completedAt": "2026-08-30T05:50:15.603363153Z"
+}

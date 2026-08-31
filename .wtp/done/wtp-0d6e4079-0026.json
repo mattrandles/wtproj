@@ -1,0 +1,41 @@
+{
+  "id": "8b75a63d-191b-4bb2-b354-79cef0a55cdd",
+  "shortId": "wtp-0d6e4079-0026",
+  "title": "Establish extensible stats query and report architecture",
+  "description": "Refactor internal/stats to support focused categorical and rolling time-series queries without destabilizing the existing overview contract. Introduce AttributeStatus, typed series metrics for created and progressed, rolling-range and time-bucket types, and a JSON report containing attribute, totalTasks, exact range boundaries, and buckets. Separate common task aggregation from overview-only handoff aggregation so later focused paths can avoid ListHandoffs. Preserve all existing Report and FocusedReport JSON fields and ordering. Establish an API that accepts an explicit asOf instant for deterministic tests. Do not alter provider interfaces, storage, CLI parsing, or rendering. Add contract tests, run go test ./internal/stats ./internal/cli, and keep all existing behavior green.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "stats-architecture",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "6c049585-7dff-497d-b9e1-3354f0cdb433",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task and repository guidance; mapping existing stats contracts and preserving the dirty worktree before scoped implementation.",
+      "createdAt": "2026-08-30T03:16:03.943521156Z"
+    },
+    {
+      "id": "bf1b308a-958d-4cce-b945-545bae2a5a88",
+      "author": "codex-wtp-loop",
+      "message": "Added AttributeStatus, typed created/progressed series contracts, explicit-asOf rolling range resolution, exact UTC range/bucket JSON types, and task-only AggregateFocused. Refactored overview handoff loading behind shared task aggregation; targeted stats/CLI and stats race/386 checks pass.",
+      "createdAt": "2026-08-30T03:20:23.680617503Z"
+    },
+    {
+      "id": "9f6c77bf-0377-42b2-bb2f-5d96a30fabca",
+      "author": "codex-wtp-loop",
+      "message": "Completed stats architecture with legacy Report/FocusedReport byte-order contracts preserved. Verification passed: go test -count=1 ./internal/stats ./internal/cli; go test -count=1 ./...; go vet ./...; go test -race ./internal/stats; GOARCH=386 go test ./internal/stats; git diff --check.",
+      "createdAt": "2026-08-30T03:21:02.250437214Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:10.560091609Z",
+  "updatedAt": "2026-08-30T03:21:02.293302599Z",
+  "startedAt": "2026-08-30T03:15:25.399633338Z",
+  "completedAt": "2026-08-30T03:21:02.293302599Z"
+}

@@ -115,11 +115,13 @@ func TestAggregateUsesOrderedCatalogWithZeroBuckets(t *testing.T) {
 }
 
 type fakeProvider struct {
-	catalog         core.StatusCatalog
-	tasks           []core.TaskView
-	handoffs        []core.Handoff
-	listTasksErr    error
-	listHandoffsErr error
+	catalog           core.StatusCatalog
+	tasks             []core.TaskView
+	handoffs          []core.Handoff
+	listTasksErr      error
+	listHandoffsErr   error
+	listTasksCalls    *int
+	listHandoffsCalls *int
 }
 
 func (p fakeProvider) StatusCatalog() core.StatusCatalog {
@@ -130,6 +132,9 @@ func (p fakeProvider) StatusCatalog() core.StatusCatalog {
 }
 
 func (p fakeProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, error) {
+	if p.listTasksCalls != nil {
+		*p.listTasksCalls = *p.listTasksCalls + 1
+	}
 	if p.listTasksErr != nil {
 		return nil, p.listTasksErr
 	}
@@ -146,6 +151,9 @@ func (p fakeProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskView, er
 }
 
 func (p fakeProvider) ListHandoffs(provider.HandoffFilter) (provider.HandoffListResult, error) {
+	if p.listHandoffsCalls != nil {
+		*p.listHandoffsCalls = *p.listHandoffsCalls + 1
+	}
 	return provider.HandoffListResult{Handoffs: p.handoffs}, p.listHandoffsErr
 }
 
@@ -158,6 +166,9 @@ func (fakeProvider) PurgeHandoffs(provider.HandoffPurgeRequest) (provider.Handof
 func (fakeProvider) GetTask(string, string) (core.TaskView, error)                  { panic("unused") }
 func (fakeProvider) CreateTask(core.CreateTaskInput) (core.TaskView, error)         { panic("unused") }
 func (fakeProvider) UpdateTask(string, core.UpdateTaskInput) (core.TaskView, error) { panic("unused") }
+func (fakeProvider) BatchUpdate(provider.BatchUpdateRequest) (provider.BatchUpdateResult, error) {
+	panic("unused")
+}
 func (fakeProvider) UpdateTaskStatus(string, core.Status, string) (core.TaskView, error) {
 	panic("unused")
 }

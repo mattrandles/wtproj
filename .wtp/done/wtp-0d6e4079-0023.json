@@ -1,0 +1,38 @@
+{
+  "id": "607028b6-3962-4764-80bc-6d1c24c86c6e",
+  "shortId": "wtp-0d6e4079-0023",
+  "title": "Add end-to-end batch CLI regression coverage",
+  "description": "Add process-level integration coverage after CLI wiring and provider recovery tests are available. Exercise JSON and CSV export-edit-import round trips through real flat-file storage; all/default, configured-status, and explicit-ID selection; deterministic ordering; file extension inference and explicit format override; stdin/stdout paths; CSV BOM/CRLF/multiline text and _clear; JSON null/omission; dependency short-ID export and canonical storage on import; status lifecycle changes; updated versus unchanged JSON results; and required stale updatedAt rejection. For every malformed, duplicate, stale, invalid-transition, missing-dependency, cyclic-dependency, and mixed-validity batch, snapshot the store and prove the entire store remains unchanged. Add regressions proving root wtp export still emits canonical UUID-named task files plus handoffs and legacy --export-tasks remains unchanged. Extend smoke fixtures only where needed for a small representative batch workflow. Avoid duplicating codec unit cases. Run go test ./..., go vet ./..., and the current platform commit verification script.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "integration",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "2644d3b3-cb00-44f3-a7c3-9f47d4713ac6",
+    "8d329a3c-abe2-45d0-a0f8-f60f68500021"
+  ],
+  "comments": [
+    {
+      "id": "0a37a7ca-e41c-4b9b-9f08-9ef737e95ab6",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task and guidance; existing process harness covers canonical root export and legacy --export-tasks. Adding focused real flat-file batch JSON/CSV round-trip, stdin/stdout, selector, lifecycle, and no-mutation rejection integration coverage without codec duplication.",
+      "createdAt": "2026-08-30T03:09:59.663256397Z"
+    },
+    {
+      "id": "4829bbf9-61e1-4236-b348-e9e1bda90f9f",
+      "author": "codex-wtp-loop",
+      "message": "Implemented process-level batch CLI regressions in internal/cli/batch_integration_test.go: JSON/CSV real flat-file round trips, selection/order/format/stdin-stdout semantics, CSV edge cases, JSON null/omission, canonical dependency import, lifecycle/result split, all requested invalid-batch no-mutation snapshots, and canonical root versus legacy export parity. Added representative batch export/import to Unix and PowerShell smoke fixtures. Final verification passed: go test ./..., go vet ./..., ./scripts/verify.sh commit, git diff --check.",
+      "createdAt": "2026-08-30T03:15:01.865221515Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.699245062Z",
+  "updatedAt": "2026-08-30T03:15:02.032060258Z",
+  "startedAt": "2026-08-30T03:07:43.824735388Z",
+  "completedAt": "2026-08-30T03:15:02.032060258Z"
+}

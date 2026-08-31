@@ -27,19 +27,30 @@ not perform installation or updates through this task-management skill.
 Inspect the project before planning or claiming work:
 
 ```sh
-wtp stats
-wtp stats todo
-wtp stats todo priority
+wtp --json stats
+wtp --json stats status
+wtp --json stats model
+wtp --json stats done model
+wtp --json stats created 7d-0d
+wtp --json stats progressed 7d-0d
 wtp task list
 wtp graph --status todo
 ```
 
-- Use `wtp stats` for the complete project overview and status counts.
-- Use `wtp stats STATUS` for tasks in one configured status; `wtp stats todo`
-  is the direct way to count remaining todo work.
-- Use `wtp stats ATTRIBUTE` or `wtp stats STATUS ATTRIBUTE` for a focused
-  breakdown. Attributes include `model`, `lane`, `priority`, `estimate`,
-  `assignee`, `comments`, and `dependencies`.
+- Use `wtp --json stats` for the complete project overview and its status
+  counts; JSON is the preferred interface for agents and scripts.
+- Use `wtp --json stats STATUS` for an overview filtered to one configured
+  status, or `wtp --json stats status` for focused counts of every status.
+- Use `wtp --json stats ATTRIBUTE` or `wtp --json stats STATUS ATTRIBUTE` for
+  one focused breakdown. Attributes include `status`, `model`, `lane`,
+  `priority`, `estimate`, `assignee`, `comments`, and `dependencies`; the
+  status selector precedes the attribute.
+- Use `wtp --json stats created STARTd-ENDd` or `progressed STARTd-ENDd` for
+  rolling 24-hour series. Ranges are half-open UTC windows, and `progressed`
+  uses each task's latest `UpdatedAt`.
+- Charts are optional human-facing output: `wtp stats --chart model` or
+  `wtp stats --chart done model`. Place `--chart` immediately after `stats`;
+  it cannot be combined with root `--json`.
 - Use `wtp graph` to inspect dependency structure. Do not infer ordering from
   counts alone.
 
@@ -108,6 +119,19 @@ wtp task done "$task_id" --agent NAME
 Use `task update` or `task edit` when title, scope, dependencies, ownership, or
 model guidance changes. Use comments for concise audit history, not as a
 substitute for task metadata.
+
+For a focused edit across several existing tasks, use the batch contract:
+
+```sh
+wtp batch export --status todo --out task-edits.json
+# Edit the patch fields, then import once.
+wtp batch import --in task-edits.json
+```
+
+Prefer focused batch export/import over generated PowerShell scripts or repeated
+`task update` calls. Preserve each row's `updatedAt`; a stale token rejects the
+whole import safely. Use `wtp help` and `wtp schema` for the JSON/CSV field and
+clearing rules.
 
 Projects may append statuses in `.wtp.json`:
 

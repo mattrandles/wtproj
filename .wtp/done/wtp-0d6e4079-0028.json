@@ -1,0 +1,37 @@
+{
+  "id": "cfd3cc51-9e08-4e6d-8597-46733d651253",
+  "shortId": "wtp-0d6e4079-0028",
+  "title": "Implement rolling created and progressed series aggregation",
+  "description": "Implement rolling time-series aggregation using the shared stats architecture. A range 7d-0d means [asOf-168h, asOf), split into seven adjacent half-open 24-hour buckets ordered oldest to newest. created uses CreatedAt; progressed uses the task's latest UpdatedAt and counts each task at most once. Include empty buckets, exact RFC3339 boundaries, labels such as 7d-6d, and totalTasks equal to the bucket sum. Reject negative, malformed, equal, reversed, fractional, overflowing, missing, or extra day bounds. Test exact boundaries, nonzero end offsets, empty stores, future timestamps, UTC normalization, provider errors, and an injected fixed clock. Do not add CLI parsing or rendering.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "stats-series",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "8b75a63d-191b-4bb2-b354-79cef0a55cdd"
+  ],
+  "comments": [
+    {
+      "id": "262d5575-3540-43ae-98dc-605f140b4148",
+      "author": "codex-wtp-loop",
+      "message": "Mapped the established SeriesOptions/RollingRange/SeriesReport contracts and provider interfaces. Implementing AggregateSeries plus strict rolling-range parsing and focused boundary/provider/clock coverage in internal/stats only.",
+      "createdAt": "2026-08-30T03:27:36.30037958Z"
+    },
+    {
+      "id": "f925652d-2537-47ac-899c-a832fd1cdb64",
+      "author": "codex-wtp-loop",
+      "message": "Implemented AggregateSeries and BuildSeries with strict ParseRollingRange validation, UTC half-open bucket construction, exact labels/boundaries, created/progressed timestamp selection, duplicate-ID latest-update handling, empty buckets, sum-based totalTasks, and no handoff loading. Added focused boundary, nonzero-end, future, UTC, empty-store, provider-error, overflow/malformed-range, and fixed-asOf coverage. Verification passed: go test -count=1 -run 'Series|RollingRange' ./internal/stats; GOARCH=386 go test -count=1 ./internal/stats; go test -count=1 ./...; git diff --check.",
+      "createdAt": "2026-08-30T03:30:46.13723808Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:10.731177285Z",
+  "updatedAt": "2026-08-30T03:30:46.181518895Z",
+  "startedAt": "2026-08-30T03:25:28.276452128Z",
+  "completedAt": "2026-08-30T03:30:46.181518895Z"
+}

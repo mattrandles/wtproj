@@ -1,0 +1,37 @@
+{
+  "id": "a5dd57a3-f1cf-4c91-9065-614461965485",
+  "shortId": "wtp-0d6e4079-0027",
+  "title": "Implement lightweight focused status and model aggregation",
+  "description": "Implement the task-only focused aggregation API established by the stats architecture task. Apply the existing provider status filter for status-scoped model queries, call ListTasks exactly once, and never call ListHandoffs. The new status attribute must return every configured status in catalog order, including zero buckets. Existing model, lane, priority, estimate, assignee, comments, and dependencies semantics must remain unchanged, including lexical model ordering and the empty model bucket. Add provider-spy tests covering empty stores, custom statuses, filtered models, unset models, provider errors, and proof that handoffs are not loaded. Run the stats package and full repository tests.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "stats-core",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "8b75a63d-191b-4bb2-b354-79cef0a55cdd"
+  ],
+  "comments": [
+    {
+      "id": "3ca7401a-9d38-404c-94ae-df4b4e7d5244",
+      "author": "",
+      "message": "Inspected the exact task, repository guidance, and architecture handoff. Focused API exists but needs task-specific provider-spy edge-case coverage; CLI routing remains with dependent CLI task.",
+      "createdAt": "2026-08-30T03:23:10.62358636Z"
+    },
+    {
+      "id": "a73de49c-945c-44a4-a157-1f8b04e3fe18",
+      "author": "",
+      "message": "Focused aggregation contract verified with provider-spy tests: empty stores, custom ordered status zero buckets, one status-filtered ListTasks call, lexical/unset model buckets, task errors, and no ListHandoffs even when handoff loading would fail. go test -count=1 ./internal/stats, go test -count=1 ./..., and git diff --check pass.",
+      "createdAt": "2026-08-30T03:25:00.441380369Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:10.647218553Z",
+  "updatedAt": "2026-08-30T03:25:03.44699827Z",
+  "startedAt": "2026-08-30T03:21:30.891080575Z",
+  "completedAt": "2026-08-30T03:25:03.44699827Z"
+}

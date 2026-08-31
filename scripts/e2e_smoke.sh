@@ -42,6 +42,9 @@ handoff_write_json="$work_dir/handoff_write.json"
 handoff_get_json="$work_dir/handoff_get.json"
 handoff_purge_json="$work_dir/handoff_purge.json"
 handoff_after_purge_json="$work_dir/handoff_after_purge.json"
+batch_export_path="$work_dir/batch_export.json"
+batch_export_summary="$work_dir/batch_export_summary.txt"
+batch_import_json="$work_dir/batch_import.json"
 
 (
   cd "$test_repo"
@@ -103,6 +106,13 @@ handoff_after_purge_json="$work_dir/handoff_after_purge.json"
   assert_contains "\"status\": \"inProgress\"" "$task_out"
 
   "$binary_path" task done "$task_b_short_id" --agent Bob > /dev/null
+
+  "$binary_path" batch export --out "$batch_export_path" > "$batch_export_summary"
+  assert_contains 'taskCount: 2' "$batch_export_summary"
+  "$binary_path" --json batch import --in "$batch_export_path" > "$batch_import_json"
+  assert_contains '"updated": []' "$batch_import_json"
+  assert_contains '"unchanged": [' "$batch_import_json"
+
   "$binary_path" export --out exported > /dev/null
 
   (

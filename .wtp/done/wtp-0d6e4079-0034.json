@@ -1,0 +1,37 @@
+{
+  "id": "d9a03ee9-684e-4db3-8817-767b79a44649",
+  "shortId": "wtp-0d6e4079-0034",
+  "title": "Document focused stats and chart workflows",
+  "description": "Update README, embedded wtp help, CLI reference text, examples, and the Unreleased changelog. Document singular selectors, the status-before-model compatibility form, --chart placement, the --chart/--json conflict, fixed-width scaled bars, (unset) models, rolling half-open 24-hour ranges, UTC boundaries, and the precise meaning of progressed as latest UpdatedAt. Include examples for status counts, model counts across all tasks and one status, and created/progressed ranges. Remove the claim that stats supports exactly four forms. Keep agent-facing guidance centered on JSON and human-facing guidance centered on optional charts. Run documentation contract tests, go test ./..., and git diff --check.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "documentation",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "b944e25e-a1de-4049-9628-99ac7f82da5f"
+  ],
+  "comments": [
+    {
+      "id": "5ddbb4c7-a991-4a06-8400-0a63663653c7",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the exact task and existing CLI/stats contracts. Docs are stale on the old four-form description; updating README, embedded help, task-management guidance, examples, and Unreleased changelog to match implemented selectors, charts, and rolling series semantics.",
+      "createdAt": "2026-08-30T06:23:03.817104706Z"
+    },
+    {
+      "id": "9e2e5683-8268-4c01-861e-75ff2758d66d",
+      "author": "codex-wtp-loop",
+      "message": "Updated README, embedded help/usage, task-management and setup guidance, and Unreleased changelog. Documented singular/status-first selectors, status-before-model compatibility, --chart placement/conflict and 32-cell scaled bars, (unset) models, UTC half-open 24-hour ranges, latest UpdatedAt progressed semantics, and JSON/chart examples. Verification: embedded help contract, go test ./internal/releaseasset -run Documentation -count=1, go test ./..., skill quick_validate, git diff --check.",
+      "createdAt": "2026-08-30T06:26:14.353236158Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:11.241162932Z",
+  "updatedAt": "2026-08-30T06:26:14.399869392Z",
+  "startedAt": "2026-08-30T06:21:43.759653572Z",
+  "completedAt": "2026-08-30T06:26:14.399869392Z"
+}

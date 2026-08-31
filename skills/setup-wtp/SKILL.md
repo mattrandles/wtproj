@@ -244,7 +244,8 @@ Apply this sequence for any destination:
    `.wtp.json`. This leaves the original as a recoverable fallback. Move only
    when the user specifically requests it and a separate backup is verified.
 6. Write or merge `.wtp.json` only after the destination copy succeeds.
-7. From the intended project/worktree, run `wtp task list` and `wtp stats`.
+7. From the intended project/worktree, run `wtp task list` and
+   `wtp --json stats`.
    Compare counts, configured statuses, handoffs, and representative task
    metadata with the source or backup.
 8. On any failure, restore the previous `.wtp.json` selection and leave all
@@ -286,7 +287,7 @@ create the linked worktree:
 grep -qxF '.wtp-task-history/' "$wtp_exclude_file" ||
   printf '%s\n' '.wtp-task-history/' >> "$wtp_exclude_file"
 git -C "$wtp_project_root" worktree add --orphan -b "$wtp_history_branch" "$wtp_history_worktree"
-printf '%s\n' '.wtp/meta/wtp.lock' > "$wtp_history_worktree/.gitignore"
+printf '%s\n' '.wtp/meta/wtp.lock' '.wtp/meta/batch-update.json' > "$wtp_history_worktree/.gitignore"
 ```
 
 If the branch already exists, do not recreate it; update/synchronize it safely
@@ -357,7 +358,7 @@ Run setup-focused checks from the intended project or linked worktree:
 ```sh
 wtp version
 wtp task list
-wtp stats
+wtp --json stats
 ```
 
 Confirm the executable path/version, configuration root, resolved store path,

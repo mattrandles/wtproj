@@ -1,0 +1,24 @@
+{
+  "id": "4797970d-600a-491a-95e5-25bcb0aa82c5",
+  "shortId": "wtp-0d6e4079-0064",
+  "title": "Teach WTP skills to use reusable advisory tasks",
+  "description": "Update skills/task-management/SKILL.md, skills/codex-wtp-loop/SKILL.md, and skills/setup-wtp/SKILL.md to match the completed feature. Task management must show how to define reusable items, explicitly choose the final parent task, attach ordered --reusable flags, and understand live advisory semantics. The Codex loop must parse resolved reusableTasks from start/next claims, preserve their order in the worker prompt, require the worker to address each item before reporting completion, and state that WTP itself neither executes nor enforces them. Setup guidance must include reusable.json in complete-store migration/backup/export checks and reusable-update.json among transient recovery journals. Keep scopes and safety rules intact, add no new skill folders, validate every changed skill, and add/update repository contract tests where appropriate.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "reusable-skills",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "0a238a49-9373-43d7-bd18-6609386b7b2f",
+    "f2f880d5-2c8e-498f-a1d2-d590d326e2d7"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:41:57.160605474Z",
+  "updatedAt": "2026-08-30T07:41:57.160605474Z",
+  "startedAt": null,
+  "completedAt": null
+}

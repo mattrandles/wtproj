@@ -1,0 +1,24 @@
+{
+  "id": "eba33198-9817-4c00-8c65-e21d3a8d72b7",
+  "shortId": "wtp-0d6e4079-0076",
+  "title": "Expose planning create CLI",
+  "description": "Register wtp planning create with the complete task metadata flag surface, including --status, six grouping flags, repeatable dependency/reusable inputs as established by the completed contracts, priority, estimate, lane, model, origin, and assignee. Default status to toplan; distinguish omitted values from explicit empties exactly as task create does; reject blank required/grouping values and execution statuses. Preserve Git/worktree origin discovery parity. Return the typed planning item with stable root --json output and a concise human identifier/title/status line. Add parser-order, legacy-global-flag isolation, Unicode, defaults, explicit overrides, invalid combinations, and output tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "17e7f2f8-93dc-4547-a75f-4ba0d07bdf6c",
+    "8efd694e-9415-4ddf-80fc-69fcdc152d9b"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:17:29.991442848Z",
+  "updatedAt": "2026-08-30T08:17:29.991442848Z",
+  "startedAt": null,
+  "completedAt": null
+}

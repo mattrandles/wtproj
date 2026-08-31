@@ -148,6 +148,88 @@ under a repository-local lock, preventing two local agents from claiming the
 same work. Use `task ready` to preview eligible tasks. `wtp help` lists every
 command; `wtp schema` documents the task-file and interoperability contract.
 
+### Focused batch edits
+
+Use the batch commands when several existing tasks need the same focused edit.
+Export first, edit only the fields you intend to change, then import the file:
+
+```sh
+# Select every todo task, inferring JSON from the destination suffix.
+wtp batch export --status todo --out todo-edits.json
+
+# Or select exact tasks, preserving the repeated selector order.
+wtp batch export --task "$task_id" --task wtp-0007 --out task-edits.csv
+
+# Edit todo-edits.json or task-edits.csv, then publish all rows together.
+wtp batch import --in todo-edits.json
+wtp batch import --in task-edits.csv
+```
+
+`batch export` accepts at most one selector kind: `--status STATUS` or one or
+more `--task ID` options; omitting both exports every task. IDs may be canonical UUIDs or short IDs. With a file
+destination, `.json` and `.csv` infer the format; use `--format json|csv` for
+stdin/stdout or another extension. `--out -` writes raw batch data to stdout,
+and `batch import --in -` reads stdin; both require an explicit format. Batch
+export to stdout cannot be combined with the root `--json` flag because stdout
+must contain only the batch document. File exports report their destination,
+format, and task count; `--json` returns
+`{"count":1,"format":"json","destination":"tasks.json"}`. Import returns
+`{"updated":[...],"unchanged":[...]}` with `--json`, or the two counts in
+human output.
+
+Every row carries `updatedAt`, which is required and is an optimistic stale-
+write guard: import succeeds only when it still equals the task's current
+timestamp. A row identifies its task with `id`, `shortId`, or both; when both
+are present they must identify the same task. Each row must contain at least
+one mutable patch field. The editable fields are `title`, `description`,
+`status`, `priority`, `estimate`, `lane`, `model`, `gitRepo`, `gitBranch`,
+`worktreeName`, `worktreeDir`, `assignee`, and `dependencies`. Title and status
+must be non-empty when supplied; priority is `low|medium|high|urgent`, estimate
+is `xs|s|m|l|xl`, configured statuses are accepted, paths `gitRepo` and
+`worktreeDir` must be absolute, and dependencies must resolve without cycles.
+
+JSON is version 1 and has this shape; omitted patch fields preserve their
+stored values, while `null` clears an optional field (`dependencies: null`
+clears all dependencies):
+
+```json
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "25c3806a-bd1b-424d-889b-29e5b06679b8",
+      "shortId": "wtp-0001",
+      "updatedAt": "2026-04-21T12:34:56Z",
+      "title": "Implement parser",
+      "priority": "high",
+      "dependencies": ["wtp-0002"]
+    }
+  ]
+}
+```
+
+CSV uses the header `id,shortId,updatedAt,title,description,status,priority,
+estimate,lane,model,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,
+dependencies,_clear`. A blank editable cell preserves the stored value. Put
+comma-separated optional field names in `_clear` to clear them explicitly;
+supported names are `description`, `priority`, `estimate`, `lane`, `model`,
+`gitRepo`, `gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, and
+`dependencies`. Required identifiers, `updatedAt`, `title`, and `status` may
+not be cleared. CSV is UTF-8 and accepts an optional BOM.
+
+Import validates and prepares every row before publishing. Any stale,
+malformed, invalid, duplicate, missing-dependency, cyclic, or invalid-status
+row rejects the whole batch, so no task is changed. Changed tasks are
+published under the store lock with the transient recovery journal
+`.wtp/meta/batch-update.json`; a later store open recovers a prepared or
+committed journal, and a journal is retained if recovery itself fails. In a
+version-controlled store, ignore this journal alongside `.wtp/meta/wtp.lock`.
+
+Batch files are editable interoperability documents, not canonical snapshots.
+The root `wtp export --out DIRECTORY` (and legacy `--export-tasks=DIRECTORY`)
+still writes one canonical UUID-named task JSON file plus `handoffs.json` and
+does not write a batch `version` wrapper or short-ID filename set.
+
 ### Configurable statuses
 
 Projects can append lifecycle statuses in `.wtp.json`:
@@ -255,8 +337,10 @@ before the command, for example `wtp --json task list`.
 | `wtp handoff get` | `--task`, `--all-scopes`, `--limit`, `--all` |
 | `wtp handoff purge` | exactly one of `--id`, `--global`, `--task`, `--all-scopes`; optional `--before` or `--older-than` |
 | `wtp graph` | `--status` |
-| `wtp stats` | optional `STATUS` followed by optional `ATTRIBUTE` |
+| `wtp stats` | optional `--chart`, `STATUS`, and `ATTRIBUTE`, or a series metric and range |
 | `wtp export` | `--out` |
+| `wtp batch export` | `--out PATH|-` (required), `--format csv|json`, optional `--status STATUS` or repeatable `--task ID` (not both) |
+| `wtp batch import` | `--in PATH|-` (required), `--format csv|json` |
 
 `--priority` accepts `low`, `medium`, `high`, or `urgent`; `--estimate`
 accepts `xs`, `s`, `m`, `l`, or `xl`. `--status` accepts any configured status,
@@ -269,20 +353,62 @@ emits `{"ref":"<canonical task UUID>"}` in place of another nested task copy.
 an empty `--model=`, `--git-repo=`, `--git-branch=`, `--worktree-name=`, or
 `--worktree-dir=` clears the corresponding field.
 
-`wtp stats` supports exactly four invocation forms:
+Batch commands use these exact forms:
 
 ```text
-wtp stats
-wtp stats STATUS
-wtp stats ATTRIBUTE
-wtp stats STATUS ATTRIBUTE
+wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...]
+wtp batch import --in PATH|- [--format csv|json]
 ```
 
-`STATUS` is any configured status. `ATTRIBUTE` is one of
-`model`, `lane`, `priority`, `estimate`, `assignee`, `comments`, or
-`dependencies`; a status must precede an attribute. The first two forms return
-the overview, across all statuses or the selected status. The last two return
-only the selected breakdown or metric and `totalTasks`.
+The batch export file contains editable patches, not complete task snapshots.
+It includes `version: 1` and `tasks` in JSON, or the documented CSV header.
+Export selectors are mutually exclusive: `--status` selects all tasks in one
+configured status, while repeatable `--task` selects exact canonical UUIDs or
+short IDs in caller order; omitting both selects every task. File suffixes infer format only for `.json` and
+`.csv`; stdout and unknown suffixes require `--format`. Batch import uses the
+same inference rule, reads `--in -` from stdin, and validates before calling
+the provider. Its JSON response is `{"updated":[...],"unchanged":[...]}`;
+export file output is `{"count":1,"format":"json","destination":"PATH"}`
+with `--json`, and stdout export is raw data only.
+
+For both formats, `id` and/or `shortId` identifies each row and `updatedAt` is
+required as the exact optimistic-concurrency token. The mutable fields are
+`title`, `description`, `status`, `priority`, `estimate`, `lane`, `model`,
+`gitRepo`, `gitBranch`, `worktreeName`, `worktreeDir`, `assignee`, and
+`dependencies`; each row needs at least one of them. JSON omits fields to
+preserve them and uses `null` to clear nullable fields. CSV blank cells
+preserve values and `_clear` explicitly clears only optional fields. Title and
+status must be non-empty; enums and configured statuses are validated, origin
+paths must be absolute, dependencies must exist and remain acyclic, and status
+transitions/lifecycle/dependency rules still apply. Duplicate rows or
+identifiers, malformed input, stale `updatedAt`, unknown fields/headers, and
+any other invalid row reject the entire import without publishing any row.
+The flat-file provider uses `.wtp/meta/batch-update.json` as a transient,
+version-1 prepared/committed recovery journal; it recovers that journal on
+store open and retains it when recovery fails.
+
+`wtp stats` accepts singular positional selectors. Use at most one configured
+`STATUS` and one `ATTRIBUTE`; when both are present, `STATUS` comes first. The
+status-only form returns the overview filtered to that status, while an
+attribute-only form returns its focused breakdown. The status-before-model
+compatibility form remains supported, as in `wtp stats done model`; the same
+status-first rule applies to every attribute.
+`status` is itself a focused attribute for status counts. The series selectors
+`created` and `progressed` each take one rolling range and cannot be combined
+with a status selector.
+
+```text
+wtp stats [STATUS]
+wtp stats [STATUS] ATTRIBUTE
+wtp stats ATTRIBUTE
+wtp stats [created|progressed] STARTd-ENDd
+```
+
+`STATUS` is any configured status. `ATTRIBUTE` is one of `status`, `model`,
+`lane`, `priority`, `estimate`, `assignee`, `comments`, or `dependencies`.
+Configured statuses are resolved before attributes and series metrics, so a
+custom status named `model` keeps the status-first meaning: `wtp stats model`
+is that status's overview, and `wtp stats model model` is its model breakdown.
 
 With `--json`, an overview contains `totalTasks`, `statusCounts`, `attributes`,
 `comments`, `dependencies`, and `handoffs`, plus `status` when a status filter
@@ -297,6 +423,28 @@ lane, priority, estimate, or assignee values are represented by `"value": ""`
 in JSON and displayed as `(unset)` in human output. Model, lane, and assignee
 values are sorted lexically; priority and estimate values use their canonical
 orders.
+
+For machine-readable output, put the root flag before the command, for example
+`wtp --json stats model` or `wtp --json stats done model`. JSON is the preferred
+interface for agents and scripts. Human users can request an optional chart on
+a focused categorical or series query with `--chart` immediately after
+`stats`, for example `wtp stats --chart model` or
+`wtp stats --chart progressed 7d-0d`. `--chart` must appear before all
+selectors, may be specified only once, requires a focused selector, and cannot
+be combined with root `--json`. Charts preserve bucket order, align labels,
+and render fixed-width bars scaled to a maximum of 32 cells: the largest
+positive bucket gets 32 cells, smaller positive buckets are proportional (but
+at least one cell), and zero buckets have no bar. Empty model values are shown
+as `(unset)`.
+
+Series ranges use whole-day rolling offsets such as `7d-0d`. At the command's
+single UTC as-of instant, `STARTd-ENDd` resolves to the half-open UTC range
+`[asOf-START*24h, asOf-END*24h)`, split into 24-hour half-open buckets. Thus
+the start is included and the end is excluded; boundaries are UTC instants,
+not local calendar-day boundaries. `created` counts each task's `CreatedAt`.
+`progressed` counts each task once using its latest `UpdatedAt`, so it measures
+the most recent update represented by the current task record rather than every
+historical update.
 
 The comments metrics are the number of selected tasks with at least one comment
 and the total number of comment records. The dependency metrics are the number
@@ -315,14 +463,26 @@ set. Unrelated task-scoped records are not folded into the filtered totals.
 Examples:
 
 ```sh
-# Overview for all tasks.
-wtp stats
+# Machine-readable overview; statusCounts includes every configured status.
+wtp --json stats
 
-# Model breakdown across all tasks.
-wtp stats model
+# Focused status counts.
+wtp --json stats status
 
-# Model breakdown for done tasks.
-wtp stats done model
+# Model counts across all tasks.
+wtp --json stats model
+
+# Model counts for one status.
+wtp --json stats done model
+
+# Rolling created and progressed counts for the last seven 24-hour buckets.
+wtp --json stats created 7d-0d
+wtp --json stats progressed 7d-0d
+
+# Optional human-facing charts use the same singular selectors.
+wtp stats --chart model
+wtp stats --chart done model
+wtp stats --chart progressed 7d-0d
 ```
 
 ### Retained handoffs
@@ -510,8 +670,8 @@ exclude_file="$(git -C "$project_root" rev-parse --path-format=absolute --git-pa
 grep -qxF '.wtp-task-history/' "$exclude_file" || printf '%s\n' '.wtp-task-history/' >> "$exclude_file"
 git -C "$project_root" worktree add --orphan -b "$history_branch" "$history_worktree"
 
-# The history branch needs only its task files and its transient lock ignored.
-printf '%s\n' '.wtp/meta/wtp.lock' > "$history_worktree/.gitignore"
+# The history branch needs only its task files; ignore both transient WTP files.
+printf '%s\n' '.wtp/meta/wtp.lock' '.wtp/meta/batch-update.json' > "$history_worktree/.gitignore"
 
 # wtpDir is relative to this .wtp.json and points into the history worktree.
 # .wtp.json is local configuration; keep it in each project checkout that

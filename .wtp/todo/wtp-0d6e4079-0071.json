@@ -1,0 +1,23 @@
+{
+  "id": "17e7f2f8-93dc-4547-a75f-4ba0d07bdf6c",
+  "shortId": "wtp-0d6e4079-0071",
+  "title": "Implement planning provider creation",
+  "description": "Add the provider create operation for planning items under the global lock. Accept the same full metadata as task creation, default status to toplan, trim and validate inputs consistently, discover omitted Git/worktree origin fields through the existing CLI boundary, resolve dependencies against the unified graph, resolve reusable names/UUIDs to ordered canonical IDs, allocate one global short ID, and publish exactly one planning record atomically. Return a typed planning view without execution readiness. Cover every explicit planning status, validation failures before allocation publication, dependency and reusable resolution, monotonic UTC timestamps, injected write failures, and concurrent creators.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-provider",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "5ef45b73-f794-4abd-8631-51e7fa1e2a58"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:16:52.272565145Z",
+  "updatedAt": "2026-08-30T08:16:52.272565145Z",
+  "startedAt": null,
+  "completedAt": null
+}

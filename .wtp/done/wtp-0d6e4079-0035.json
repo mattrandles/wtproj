@@ -1,0 +1,39 @@
+{
+  "id": "81640828-7cd1-4813-a340-3bdd01234ba8",
+  "shortId": "wtp-0d6e4079-0035",
+  "title": "Audit and verify the complete focused stats feature",
+  "description": "Perform the final integration audit across aggregation, parsing, rendering, JSON, help, README, and changelog. Confirm focused queries avoid handoffs, provider and storage interfaces remain unchanged, existing stats output remains compatible, time boundaries are consistently half-open, the clock is captured once, custom status order is preserved, unset models remain explicit, and charts never leak into JSON. Inspect parallel-task overlap and make only narrow corrective changes. Run gofmt validation, go test ./..., go vet ./..., git diff --check, and the repository's commit verification script. Record exact commands and outcomes in the completion comment; do not redesign the accepted command or JSON contracts.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "review",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "251ee535-f926-4fc1-927d-3c3fcef266a2",
+    "d9a03ee9-684e-4db3-8817-767b79a44649",
+    "fb945036-54e0-4d24-a6d5-53edd1b8a9a7"
+  ],
+  "comments": [
+    {
+      "id": "223143c7-62e9-4a7c-b2fd-723564ba209b",
+      "author": "",
+      "message": "Started final integration audit: reviewing current focused-stats changes, public contracts, parallel-task overlap, and full verification requirements.",
+      "createdAt": "2026-08-30T06:27:41.262619874Z"
+    },
+    {
+      "id": "9f56e41a-1db0-475f-bf4c-95242049e06b",
+      "author": "codex-wtp-loop",
+      "message": "Final audit passed; no corrective changes needed. Confirmed focused categorical/scalar and created/progressed series use task-only ListTasks paths (no handoffs), overview retains handoffs, provider/storage interfaces are untouched by stats, existing overview/focused text+JSON contracts remain stable, UTC ranges and every bucket are half-open, runStats captures one UTC clock instant, catalog order/unset JSON values persist, and charts are rejected with root --json. Parallel overlap: no other in-progress task; prerequisite work is complete. Verification passed: gofmt -l ./cmd ./internal (no output); go test ./...; go vet ./...; git diff --check; ./scripts/verify.sh commit (smoke test passed; commit verification passed).",
+      "createdAt": "2026-08-30T06:28:40.515887057Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:11.326620178Z",
+  "updatedAt": "2026-08-30T06:28:46.278078226Z",
+  "startedAt": "2026-08-30T06:26:54.065562264Z",
+  "completedAt": "2026-08-30T06:28:46.278078226Z"
+}

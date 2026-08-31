@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documented focused CSV/JSON batch export-edit-import, optimistic `updatedAt`
+  protection, all-or-nothing publication, and recovery-journal behavior across
+  the README, CLI help/schema, and contributor guidance.
+- Documented the expanded `wtp stats` selectors and compatibility form, JSON
+  guidance for agents, optional fixed-width `--chart` output for humans, and
+  UTC half-open created/progressed rolling ranges.
+
 ## [0.3.3] - 2026-08-23
 
 ### Fixed

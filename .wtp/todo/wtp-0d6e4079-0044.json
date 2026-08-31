@@ -1,0 +1,25 @@
+{
+  "id": "e3fedecb-23f0-4a23-8010-e75b151608e0",
+  "shortId": "wtp-0d6e4079-0044",
+  "title": "Document grouping fields and targeted agent loops",
+  "description": "Update README, schema, changelog, task-management skill, and codex-wtp-loop skill for issueId, project, milestone, version, featureId, and feature semantics, clearing, filters, stats, batch behavior, compatibility, and targeted loop examples. Explain that featureId is the stable key and feature is the display name. Make the loop establish one optional grouping scope and reuse it for scoped model stats and every automatic claim. Leave setup-wtp focused on setup unless directly affected.",
+  "priority": "medium",
+  "estimate": "m",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "012638c3-846a-4747-9d7a-364908cd3991",
+    "2fd09cb3-9938-4d4a-851a-63ee3df29c4a",
+    "ef977840-ab3e-45e8-8043-3ea95bef07a1"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:19:56.323302359Z",
+  "updatedAt": "2026-08-30T08:15:38.61866516Z",
+  "startedAt": null,
+  "completedAt": null
+}

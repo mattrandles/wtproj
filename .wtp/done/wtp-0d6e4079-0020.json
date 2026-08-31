@@ -1,0 +1,39 @@
+{
+  "id": "34bcf5b5-24b2-4e9e-bd9b-fb97f6cce431",
+  "shortId": "wtp-0d6e4079-0020",
+  "title": "Build batch import decoding and patch mapping",
+  "description": "Build the non-CLI batch import service using the JSON/CSV codecs and provider batch transaction. Read from a named file or stdin, infer format from .csv/.json, require --format-equivalent input for stdin or unknown extensions, and let an explicit valid format override the extension. Convert decoded rows into provider requests without losing three-state patch semantics: JSON omission and CSV blank preserve, JSON null and CSV _clear explicitly clear, and supplied nonblank values update. Parse configured statuses and priority/estimate enums consistently with single-task update, pass dependency identifiers through for provider-wide resolution, and require every row's updatedAt concurrency token. Collect deterministic row/task/field diagnostics for all independent parse and mapping errors before calling the provider; never invoke mutation when decoding or mapping fails. Return the provider updated/unchanged TaskViews in input order and do not print or own CLI flags. Add tests for both formats, stdin, inference and overrides, clear mapping, enum/status errors, malformed paths, aggregate diagnostics, and proof that invalid input never calls the provider.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "batch-import",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "1cbc6242-fc67-453c-92ee-433400f4f758",
+    "2d674903-58ea-49da-afaa-5077e41d8e84",
+    "c0ddeeb8-c176-47f4-8588-e5076546e94e"
+  ],
+  "comments": [
+    {
+      "id": "dc121525-9286-4947-b389-283c425dd618",
+      "author": "codex-wtp-loop",
+      "message": "Design milestone: implementing internal/batchimport as a CLI-independent service parallel to batchexport. It will resolve file/stdin formats, decode via batchjson/batchcsv, preserve codec patch presence and clear semantics, aggregate deterministic catalog/enum mapping diagnostics before one provider BatchUpdate call, and return the provider result unchanged.",
+      "createdAt": "2026-08-30T02:48:31.150712892Z"
+    },
+    {
+      "id": "91b1300e-f8b1-4472-a894-68d31edec223",
+      "author": "codex-wtp-loop",
+      "message": "Implementation complete: added internal/batchimport service with file/stdin reads, extension inference and explicit format overrides, codec-backed JSON/CSV patch preservation, configured status plus priority/estimate normalization, deterministic aggregate mapping diagnostics, provider BatchUpdate-only-after-validation, and input-order result sorting. JSON/CSV decoders now aggregate independent row errors. Added focused coverage for formats/stdin/overrides, clear semantics, enums/statuses, malformed paths, diagnostics, provider-call suppression, and result ordering. Verification passed: go test ./internal/batchjson ./internal/batchcsv ./internal/batchimport; go test ./...; go vet ./...; git diff --check.",
+      "createdAt": "2026-08-30T02:52:58.456557081Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.455148677Z",
+  "updatedAt": "2026-08-30T02:52:58.501913678Z",
+  "startedAt": "2026-08-30T02:46:12.410125647Z",
+  "completedAt": "2026-08-30T02:52:58.501913678Z"
+}

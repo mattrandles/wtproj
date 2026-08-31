@@ -1,0 +1,39 @@
+{
+  "id": "2644d3b3-cb00-44f3-a7c3-9f47d4713ac6",
+  "shortId": "wtp-0d6e4079-0022",
+  "title": "Wire batch export and import into the CLI",
+  "description": "Integrate the completed batch services into the public CLI. Add root command group wtp batch with export and import subcommands. Implement exact usage: wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...] and wtp batch import --in PATH|- [--format csv|json]. Require --out/--in explicitly; support repeatable --task; reject status-plus-task and malformed/extra arguments. Preserve root wtp export and legacy --export-tasks unchanged. For file export, human output reports destination/format/task count and root --json returns structured metadata. For --out -, write only raw batch bytes and reject root --json so stdout cannot mix data and summaries. Import human output prints updated/unchanged counts; root --json returns {\"updated\":[TaskView...],\"unchanged\":[TaskView...]} in input order. Route errors through existing CLI conventions with actionable row/field context. Update CLI provider doubles only as needed and add focused flag/parser/output tests, but leave process-level round trips to the integration task. Do not update README, skills, changelog, help prose, or schema prose beyond minimal command compilation. Finish with go test ./internal/cli and go test ./....",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "cli",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "34bcf5b5-24b2-4e9e-bd9b-fb97f6cce431",
+    "84bd7cf3-721d-44e3-90e7-f2275b49bd71",
+    "c0ddeeb8-c176-47f4-8588-e5076546e94e"
+  ],
+  "comments": [
+    {
+      "id": "b46fcd15-cda4-46e5-a450-12199d45847b",
+      "author": "codex-wtp-loop",
+      "message": "Inspected CLI and completed batch services. Implementing the new batch command boundary only; existing root export and legacy rewrite paths will remain unchanged.",
+      "createdAt": "2026-08-30T03:04:31.125078561Z"
+    },
+    {
+      "id": "11d92529-d332-462e-9294-2f3e2149ba3f",
+      "author": "codex-wtp-loop",
+      "message": "Completed batch CLI wiring: export/import parsers, repeatable task selectors, stdout/JSON safeguards, human/JSON summaries, and focused diagnostics/output tests. Verified go test ./internal/cli and go test ./....",
+      "createdAt": "2026-08-30T03:07:19.360043207Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.616784069Z",
+  "updatedAt": "2026-08-30T03:07:22.057021841Z",
+  "startedAt": "2026-08-30T03:03:30.47563886Z",
+  "completedAt": "2026-08-30T03:07:22.057021841Z"
+}

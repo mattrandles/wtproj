@@ -1,0 +1,24 @@
+{
+  "id": "69221fad-19b7-4b30-854b-b0e874f23bfe",
+  "shortId": "wtp-0d6e4079-0078",
+  "title": "Expose planning update and set-status CLI",
+  "description": "Implement wtp planning update ID and wtp planning set-status ID STATUS. Update exposes the full mutable metadata surface, supports explicit clearing and ordered dependency/reusable replacement, requires at least one supplied change, and intentionally has no --status flag. Set-status accepts exactly one fixed planning status and no assignee mutation. Both commands reject executable IDs, extra positionals, duplicates, blank values, and invalid transitions, and render the resulting planning view consistently in text and JSON. Add clear/reorder/no-op, adjacent backward transition, rejection/reopen, forbidden direct transition, and usage tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "48ed91ab-7fda-4410-acce-0ede1f7f1a25",
+    "8efd694e-9415-4ddf-80fc-69fcdc152d9b"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:17:30.053964363Z",
+  "updatedAt": "2026-08-30T08:17:30.053964363Z",
+  "startedAt": null,
+  "completedAt": null
+}

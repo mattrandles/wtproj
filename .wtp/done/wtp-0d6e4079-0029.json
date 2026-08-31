@@ -1,0 +1,43 @@
+{
+  "id": "e57f1257-adc5-4bd7-9c73-b3a32040fd39",
+  "shortId": "wtp-0d6e4079-0029",
+  "title": "Build deterministic horizontal stats bar-chart renderer",
+  "description": "Add an isolated CLI renderer for labeled integer buckets. Render aligned labels, a Unicode separator and block bar, followed by the exact count. Use no ANSI color and a fixed maximum width of 32 cells. Scale bars relative to the largest count, guarantee one cell for every nonzero value, render zero values without block glyphs, and handle all-zero input without division errors. Preserve supplied bucket ordering and display empty categorical values as (unset). Keep the utility independent of command parsing and JSON. Prefer a new focused implementation and test file to reduce overlap. Add exact-output table tests for empty, zero-only, scaled, tied, long-label, and large-count inputs.",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "cli-rendering",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "8b75a63d-191b-4bb2-b354-79cef0a55cdd"
+  ],
+  "comments": [
+    {
+      "id": "7639d440-1304-49e8-a634-86835f713170",
+      "author": "codex-wtp-loop",
+      "message": "Inspected the stats architecture and dependent CLI task. Adding a new internal/cli chart renderer with a small labeled-count input, fixed 32-cell bars, Unicode-only output, and exact-output table coverage; no parser or JSON changes.",
+      "createdAt": "2026-08-30T05:58:24.450895918Z"
+    },
+    {
+      "id": "12459829-c176-46c6-9746-3b4e34765b04",
+      "author": "codex-wtp-loop",
+      "message": "Implemented internal/cli/stats_chart.go and exact-output stats_chart_test.go. Renderer aligns labels, preserves order, renders (unset), scales positive counts to a 32-cell maximum with one cell for nonzero values, emits zero bars without block glyphs, and avoids large-count overflow. Focused renderer tests and git diff --check pass.",
+      "createdAt": "2026-08-30T06:00:20.161137513Z"
+    },
+    {
+      "id": "c993a4df-2f02-4961-b5b9-cff0c97f2fdf",
+      "author": "codex-wtp-loop",
+      "message": "Implementation and verification complete. Renderer is isolated in internal/cli/stats_chart.go with focused exact-output coverage in stats_chart_test.go; no parsing or JSON changes.",
+      "createdAt": "2026-08-30T06:00:41.189646619Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:10.814903152Z",
+  "updatedAt": "2026-08-30T06:00:41.210427123Z",
+  "startedAt": "2026-08-30T05:56:24.166602543Z",
+  "completedAt": "2026-08-30T06:00:41.210427123Z"
+}

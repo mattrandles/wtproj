@@ -1,0 +1,31 @@
+{
+  "id": "8d329a3c-abe2-45d0-a0f8-f60f68500021",
+  "shortId": "wtp-0d6e4079-0021",
+  "title": "Add batch transaction failure and recovery coverage",
+  "description": "Add the exhaustive flat-file transaction and recovery test matrix after the atomic provider implementation lands. Inject failures before journal publication, after the prepared journal, on each nth task replacement including status moves, while rolling back, after the committed marker, and during journal cleanup. Prove that ordinary returned validation/publication errors leave every original task byte and path unchanged; prepared crash residue is rolled back on the next provider open; committed residue is rolled forward; duplicate old/new status copies are cleaned; a recovery failure retains actionable journal state; readers cannot observe an in-process partial batch because they wait on the global lock; and successful batches remove the journal. Cover no-op-only and mixed changed/unchanged batches, stale tokens, final-state cross-row dependency/status changes, monotonic timestamps under clock rollback, custom statuses, and both legacy/scoped short IDs. Exercise the filesystem abstraction and Windows replacement-specific behavior without weakening current single-task tests. Make only narrow provider corrections exposed by these tests. Run targeted fault tests, go test ./..., and go vet ./....",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "storage-testing",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "c0ddeeb8-c176-47f4-8588-e5076546e94e"
+  ],
+  "comments": [
+    {
+      "id": "a4ed68bc-63fb-457a-8dcb-f13e31d4dbae",
+      "author": "codex-wtp-loop",
+      "message": "Baseline go test ./... passes. Extended batch transaction seams with indexed fault points and exact pre-transaction file snapshots for rollback; next I am adding subprocess crash, filesystem-failure, recovery, locking, status/ID, and timestamp coverage.",
+      "createdAt": "2026-08-30T02:57:03.408633941Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.538511529Z",
+  "updatedAt": "2026-08-30T03:03:03.256618373Z",
+  "startedAt": "2026-08-30T02:53:18.784537292Z",
+  "completedAt": "2026-08-30T03:03:03.256618373Z"
+}

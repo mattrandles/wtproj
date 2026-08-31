@@ -1,0 +1,24 @@
+{
+  "id": "2c10213f-ca78-412e-a3d5-6604068cf26f",
+  "shortId": "wtp-0d6e4079-0083",
+  "title": "Recover interrupted planning promotions",
+  "description": "Wire planning-promote journal recovery into every flat-file store-open and relevant load path under the global lock. Recover existing journals in the fixed order batch-update, reusable-update, planning-promote. Prepared promotion journals restore all planning before snapshots and remove any todo after copies; committed journals finish all todo after snapshots and remove every planning source. Recovery must validate the complete journal before touching files, be idempotent, retain the journal on any failure, and remove it only after directory sync confirms convergence. Refuse conflicting live transactions while another recovery journal remains. Add fault injection at each replacement/removal, repeated opens, partial source/target sets, status-move residue, retained diagnostics, and Unix/Windows tests.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "planning-recovery",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "177a8b95-10f7-4147-8d27-64bda30a0a69",
+    "9fa3cdf9-5844-43c3-a6ec-b19cc2ccdb2f"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:18:12.849532974Z",
+  "updatedAt": "2026-08-30T08:18:12.849532974Z",
+  "startedAt": null,
+  "completedAt": null
+}

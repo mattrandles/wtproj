@@ -1,0 +1,29 @@
+{
+  "id": "12a536b7-a2af-4aef-a84b-e7f99424722e",
+  "shortId": "wtp-0d6e4079-0087",
+  "title": "Document the versioned planning workflow",
+  "description": "Update README, wtp help, wtp schema, CHANGELOG, and CONTRIBUTING after behavior is final. Document the nested storage layout, fixed revisable transitions, full planning metadata, global identity/dependency semantics, featureId versus feature, every planning command and exact flags, milestone report hierarchy, case-insensitive AND filters, dry-run and atomic promotion, dependency-closed group rejection, journal recovery order, canonical export layout, branch/shared-store behavior, and compatibility. State explicitly that normal stats, batch, graph, ready, and next exclude planning; rejected replaces deletion; and flat-file is the only backend. Include a complete project/version/milestone example from toplan through promotion and add/update documentation contract tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-docs",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "64f8ccfe-6401-4d17-b639-a713f779626b",
+    "69221fad-19b7-4b30-854b-b0e874f23bfe",
+    "7a0a9bd0-c1f2-4378-a6bf-6dcbceb575c7",
+    "7bca2b6d-b60e-48b7-b0bd-18c63048f839",
+    "a7844d98-63d9-4d20-a8a4-ebfe77eba2df",
+    "c15b1343-e3ff-4d5a-9f28-cb50cb1cf875",
+    "eba33198-9817-4c00-8c65-e21d3a8d72b7"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:18:12.98702657Z",
+  "updatedAt": "2026-08-30T08:18:12.98702657Z",
+  "startedAt": null,
+  "completedAt": null
+}

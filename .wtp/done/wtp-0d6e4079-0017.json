@@ -1,0 +1,37 @@
+{
+  "id": "1cbc6242-fc67-453c-92ee-433400f4f758",
+  "shortId": "wtp-0d6e4079-0017",
+  "title": "Implement versioned JSON batch codec",
+  "description": "Implement the JSON v1 codec for editable task batches after the shared batch types exist. The exact top-level shape is {\"version\":1,\"tasks\":[...]}. Each row must carry updatedAt and at least one of id or shortId; when both identifiers are present, preserve both for provider verification. Support mutable fields title, description, status, priority, estimate, lane, model, gitRepo, gitBranch, worktreeName, worktreeDir, assignee, and dependencies. Omitted mutable properties mean preserve; explicit null clears only clearable fields; null or empty values for required title/status must be rejected when supplied. Dependencies are identifier arrays. Decode strictly: reject unsupported versions, unknown properties at every level, malformed timestamps, empty task arrays, duplicate rows, and rows with no patch fields. Encode deterministic UTF-8 JSON with stable field ordering and RFC3339Nano UTC timestamps. Keep serialization DTOs separate from core storage Task JSON and do not add CLI routing or file I/O. Add table-driven round-trip and rejection tests, then run the package tests and go test ./....",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "batch-json",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "c0ddeeb8-c176-47f4-8588-e5076546e94e"
+  ],
+  "comments": [
+    {
+      "id": "24e76988-472f-4d0c-b0a0-d7bf349aeba5",
+      "author": "",
+      "message": "Inspected the shared BatchTaskUpdateInput/Optional* types and provider contract. Implementing an independent strict JSON codec package with explicit presence tracking for omission versus null, deterministic field order, and UTC RFC3339Nano timestamps; CLI, CSV, and file I/O remain out of scope.",
+      "createdAt": "2026-08-30T02:24:08.326578932Z"
+    },
+    {
+      "id": "c4920e4f-96ef-4cd6-9d71-98a394f210a3",
+      "author": "",
+      "message": "Implementation and verification complete: internal/batchjson strict JSON v1 codec plus table-driven round-trip/rejection tests. Passed go test ./internal/batchjson, go test ./..., and git diff --check.",
+      "createdAt": "2026-08-30T02:29:30.852138993Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.207006875Z",
+  "updatedAt": "2026-08-30T02:29:30.872791081Z",
+  "startedAt": "2026-08-30T02:22:57.667819835Z",
+  "completedAt": "2026-08-30T02:29:30.872791081Z"
+}

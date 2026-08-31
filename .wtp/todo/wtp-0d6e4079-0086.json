@@ -1,0 +1,25 @@
+{
+  "id": "64f8ccfe-6401-4d17-b639-a713f779626b",
+  "shortId": "wtp-0d6e4079-0086",
+  "title": "Include planning records in canonical exports",
+  "description": "Extend canonical export and legacy --export-tasks to include a managed planning directory containing UUID-named planning JSON records while executable task files remain at the export root. Snapshot executable tasks, planning items, handoffs, and reusable definitions consistently under the global lock. Treat planning as a managed directory, enforce its exact expected contents, remove stale managed planning records safely, and continue rejecting symlinks, unmanaged entries, and paths overlapping active storage. Preserve deterministic bytes/order, empty planning directory behavior, idempotence, and existing executable export compatibility. Add Unix/Windows tests for empty/populated stores, all planning statuses, shared IDs, reusable assignments, live renames, stale cleanup, and injected failures.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-export",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "177a8b95-10f7-4147-8d27-64bda30a0a69",
+    "7aa1f414-5f65-4627-ac3c-eb9cdf75965b",
+    "8efd694e-9415-4ddf-80fc-69fcdc152d9b"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:18:12.953059022Z",
+  "updatedAt": "2026-08-30T08:18:12.953059022Z",
+  "startedAt": null,
+  "completedAt": null
+}

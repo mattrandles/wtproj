@@ -41,8 +41,9 @@ positive without concealing similar future findings.
 
 This repository dogfoods `wtp`. Its `.wtp/` task records are intentionally
 version-controlled so planning and task history travel with the source.
-Do not add a broad `.wtp/` ignore rule. The transient `.wtp/meta/wtp.lock` and
-export directories are ignored because they are local runtime artifacts.
+Do not add a broad `.wtp/` ignore rule. The transient
+`.wtp/meta/wtp.lock` and `.wtp/meta/batch-update.json` files, plus export
+directories, are ignored because they are local runtime artifacts.
 
 Use the CLI for normal task changes rather than editing task JSON directly:
 
@@ -51,6 +52,20 @@ wtp task list
 wtp task comment <task-id> --message "..."
 wtp task done <task-id>
 ```
+
+For a focused multi-task edit, prefer the batch contract over generated
+PowerShell scripts or repeated update calls:
+
+```sh
+wtp batch export --status todo --out task-edits.json
+# Edit only the intended patch fields, then import once.
+wtp batch import --in task-edits.json
+```
+
+Batch rows require the exported `updatedAt` token, so a concurrent change makes
+the complete import fail safely. See `wtp help`, `wtp schema`, and the README
+for JSON version 1, CSV `_clear`, selector, response, and recovery-journal
+details.
 
 ### Merge-safe branch-scoped task history
 

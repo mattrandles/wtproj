@@ -1,0 +1,24 @@
+{
+  "id": "96d655c6-09e9-4961-8e46-02e1d0bc563d",
+  "shortId": "wtp-0d6e4079-0051",
+  "title": "Add reusable delete transaction journal contract",
+  "description": "Design and implement the crash-recovery journal contract required to delete a reusable definition while detaching it from every referencing task atomically. Add a versioned .wtp/meta/reusable-update.json document with prepared and committed states, exact before/after catalog snapshots, exact before/after snapshots for every affected task, deterministic validation, and explicit target paths. Reuse established atomic replacement and fault-point patterns without coupling this journal to the existing batch-update journal. Reject malformed, stale, path-escaping, duplicate-target, or internally inconsistent journals before any recovery action. Add codec and validation tests for empty and multi-status detach sets, state transitions, corrupt input, and Windows/Unix path handling. This task establishes the journal state machine and helpers only; publication and startup recovery are separate dependent tasks.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "reusable-recovery",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "1f18fd01-6926-4a22-961b-1ca0e90b5bdf",
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:41:56.799230532Z",
+  "updatedAt": "2026-08-30T07:41:56.799230532Z",
+  "startedAt": null,
+  "completedAt": null
+}

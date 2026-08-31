@@ -1,0 +1,32 @@
+{
+  "id": "84bd7cf3-721d-44e3-90e7-f2275b49bd71",
+  "shortId": "wtp-0d6e4079-0019",
+  "title": "Build batch export selection and output service",
+  "description": "Build the non-CLI batch export service on top of the JSON and CSV codecs. Default selection exports every task in normal ListTasks order. Support exactly one configured status filter or repeatable explicit task identifiers; status and task selectors conflict, duplicate explicit selectors are errors, and explicit selections retain caller order. Export id, shortId, required updatedAt, and every mutable field while excluding comments, handoffs, readiness, createdAt, startedAt, and completedAt. Convert stored canonical dependency UUIDs to current short IDs for editable output, failing safely if the loaded graph cannot be resolved. Infer csv/json from a recognized file extension, require an explicit format for stdout or unknown extensions, and let an explicit valid format override the extension. Atomically replace file outputs using a same-directory temporary file and emit raw bytes only for stdout. Return count/format/destination metadata to the CLI layer without printing. Do not implement import behavior or command parsing. Add tests for all/status/ID selection, ordering, conflicts, dependency rendering, format inference, atomic overwrite failure preservation, and stdout bytes.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "batch-export",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "1cbc6242-fc67-453c-92ee-433400f4f758",
+    "2d674903-58ea-49da-afaa-5077e41d8e84"
+  ],
+  "comments": [
+    {
+      "id": "c1711aef-60aa-4706-b59d-510119499f85",
+      "author": "codex-wtp-loop",
+      "message": "Design milestone: implementing internal/batchexport as a provider-backed, CLI-independent service. It will validate selector/format conflicts before loading, preserve ListTasks or explicit-ID order, render canonical dependency UUIDs as current short IDs, encode complete editable patches through batchjson/batchcsv, write stdout bytes verbatim, and atomically replace same-directory file outputs.",
+      "createdAt": "2026-08-30T02:40:23.041997369Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.372904603Z",
+  "updatedAt": "2026-08-30T02:45:49.575102158Z",
+  "startedAt": "2026-08-30T02:37:44.106558936Z",
+  "completedAt": "2026-08-30T02:45:49.575102158Z"
+}

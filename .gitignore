@@ -25,5 +25,6 @@ Thumbs.db
 scripts/VERIFY-STEPS.md
 
 # This repository dogfoods wtp: task records in .wtp/ are intentionally tracked.
-# Ignore only the transient lock created while wtp performs a mutation.
+# Ignore only transient files created while wtp performs a mutation.
 .wtp/meta/wtp.lock
+.wtp/meta/batch-update.json

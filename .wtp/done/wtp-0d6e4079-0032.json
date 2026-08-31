@@ -1,0 +1,37 @@
+{
+  "id": "fb945036-54e0-4d24-a6d5-53edd1b8a9a7",
+  "shortId": "wtp-0d6e4079-0032",
+  "title": "Add exhaustive focused status and model CLI regressions",
+  "description": "Create a separate focused-stats CLI test file to avoid unnecessary overlap with the existing large test file. Cover plain, chart, and JSON output for status, model, and STATUS model; default and custom catalogs; zero-count statuses; unset models; lexical ordering; empty stores; long labels; status-first ambiguity; provider failures; and malformed or excess arguments. Verify quick queries never request handoffs and existing wtp stats, wtp stats STATUS, and legacy focused selectors remain byte- and JSON-shape compatible where applicable. Make only narrow implementation corrections exposed by these tests, then run go test ./internal/cli ./internal/stats and go test ./....",
+  "priority": "medium",
+  "estimate": "s",
+  "lane": "cli-testing",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "b944e25e-a1de-4049-9628-99ac7f82da5f"
+  ],
+  "comments": [
+    {
+      "id": "501cc69e-9169-45db-8a05-069e93920daa",
+      "author": "codex-wtp-loop",
+      "message": "Milestone: inspected existing CLI/stats coverage and added internal/cli/stats_focused_cli_test.go with focused status/model plain-chart-JSON contract cases, custom status-first ambiguity, zero/unset/lexical/long-label/empty-store behavior, provider failures, malformed/excess args, no-handoff checks, and legacy overview/focused compatibility assertions. Running formatting and focused tests next.",
+      "createdAt": "2026-08-30T06:19:21.328291931Z"
+    },
+    {
+      "id": "b4a14cc4-471e-43f4-986d-0968b3bac41c",
+      "author": "codex-wtp-loop",
+      "message": "Verification complete: dedicated focused CLI regressions pass with go test ./internal/cli ./internal/stats and go test ./...; gofmt -d is clean and git diff --check passes. No production correction was necessary; unrelated existing worktree changes remain untouched.",
+      "createdAt": "2026-08-30T06:20:53.537372647Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:11.073500134Z",
+  "updatedAt": "2026-08-30T06:21:01.030860545Z",
+  "startedAt": "2026-08-30T06:14:35.731158225Z",
+  "completedAt": "2026-08-30T06:21:01.030860545Z"
+}

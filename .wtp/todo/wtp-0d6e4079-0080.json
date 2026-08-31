@@ -1,0 +1,24 @@
+{
+  "id": "7a0a9bd0-c1f2-4378-a6bf-6dcbceb575c7",
+  "shortId": "wtp-0d6e4079-0080",
+  "title": "Expose planning report CLI and renderers",
+  "description": "Implement wtp planning report with optional --status and the six shared grouping flags. Human output renders a readable project/version/milestone tree with totals and aligned toplan/researched/planned/rejected counts, displaying empty grouping values as (unset). Root --json returns the typed nested report without chart or stats compatibility aliases. Validate arbitrary flag order, duplicates, empty selectors, unsupported statuses, zero-result reports, combined filters, lexical ordering, and stdout purity. Update immediate command registration/help stubs only; comprehensive documentation remains separate.",
+  "priority": "high",
+  "estimate": "s",
+  "lane": "planning-report",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "838ce89d-6ffd-4730-afb1-e26867bdbb28",
+    "a7844d98-63d9-4d20-a8a4-ebfe77eba2df"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:17:30.116372005Z",
+  "updatedAt": "2026-08-30T08:17:30.116372005Z",
+  "startedAt": null,
+  "completedAt": null
+}

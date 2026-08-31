@@ -1,0 +1,23 @@
+{
+  "id": "0268b202-70dc-4403-8da0-9848daa94244",
+  "shortId": "wtp-0d6e4079-0056",
+  "title": "Expose reusable create list and show commands",
+  "description": "Add the wtp reusable command family with create, list, and show subcommands. Implement exact usage and validation for create --name --title --instructions, and show NAME_OR_ID; list takes no selectors. Support root --json with typed definition objects and deterministic arrays, plus concise human output that preserves multiline instructions safely. Return clear errors for missing arguments, extra positionals, empty required values, unknown definitions, duplicate names, and unsupported subcommands. Add CLI tests for argument order, Unicode and Markdown-capable instructions, JSON stability, human rendering, empty catalogs, and error text. Update only immediate command registration/help stubs needed for compilation; comprehensive help/schema documentation is a later task.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-cli",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:41:56.937582921Z",
+  "updatedAt": "2026-08-30T07:41:56.937582921Z",
+  "startedAt": null,
+  "completedAt": null
+}

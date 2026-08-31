@@ -1,0 +1,23 @@
+{
+  "id": "66be685f-1fdd-486d-aed0-4bcf05603de3",
+  "shortId": "wtp-0d6e4079-0066",
+  "title": "Define versioned planning lifecycle architecture",
+  "description": "Implement and freeze the cross-cutting contract for a second planning lifecycle after the grouping and reusable queues complete. Define fixed planning statuses toplan, researched, planned, and rejected; the .wtp/planning/\u003cstatus\u003e layout; reuse of the global UUID and branch-scoped short-ID allocator; preservation of the complete task metadata payload; nil execution lifecycle timestamps; revisable transitions; separate provider query surfaces; the planning CLI family; project/version/milestone report shape; AND grouping filters across issueId, project, milestone, version, featureId, and feature; dependency-closed promotion; dedicated journal ordering after batch and reusable recovery; and canonical export layout. Keep normal task stats, batch workflows, graphs, and claims planning-blind. Add foundational types/interfaces plus compile-time and architecture contract tests so dependent tasks make no policy decisions. Explicitly exclude planning deletion, comments, batch editing, execution-graph expansion, and non-flat-file support.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "planning-architecture",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "15182c39-e556-4757-be7b-5a7001b68f8b"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:16:14.460060261Z",
+  "updatedAt": "2026-08-30T08:16:14.460060261Z",
+  "startedAt": null,
+  "completedAt": null
+}

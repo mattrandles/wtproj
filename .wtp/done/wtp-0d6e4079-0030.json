@@ -1,0 +1,38 @@
+{
+  "id": "f997ac68-d12f-4f70-b1e2-9635aa8df042",
+  "shortId": "wtp-0d6e4079-0030",
+  "title": "Extend stats parsing and dispatch for focused and series queries",
+  "description": "Refactor the stats argument parser into a typed query while preserving every existing invocation. Add canonical non-chart forms: wtp stats status; wtp stats model; wtp stats STATUS model; wtp stats created STARTd-ENDd; and wtp stats progressed STARTd-ENDd. Route all focused attributes through task-only aggregation and retain full aggregation for overview commands. Emit existing focused text/JSON shapes for categorical queries and the new structured series shape for time queries. Add an internal execution helper accepting asOf, with the public command capturing time.Now().UTC() once. Time series must not accept a status filter. Preserve existing status-first resolution for ambiguous configured status names. Update usage errors minimally; leave chart rendering and full prose documentation to dependent tasks. Add parser and dispatch unit tests and run go test ./internal/stats ./internal/cli.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "cli",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "a5dd57a3-f1cf-4c91-9065-614461965485",
+    "cfd3cc51-9e08-4e6d-8597-46733d651253"
+  ],
+  "comments": [
+    {
+      "id": "2093dde9-d2df-4d74-acc4-f6bb15ce48e8",
+      "author": "codex-wtp-loop",
+      "message": "Inspecting existing stats series APIs and CLI contracts before implementing typed query parsing and dispatch.",
+      "createdAt": "2026-08-30T03:31:53.890608828Z"
+    },
+    {
+      "id": "31d631a8-0be3-454b-a6a1-2607e7628be7",
+      "author": "codex-wtp-loop",
+      "message": "Implemented typed stats queries: focused status/model paths are task-only, overview remains full aggregation, created/progressed series use injected as-of dispatch, and status-first parsing is preserved. Targeted and full Go tests pass.",
+      "createdAt": "2026-08-30T03:36:27.446774784Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:10.899694332Z",
+  "updatedAt": "2026-08-30T03:36:27.486861929Z",
+  "startedAt": "2026-08-30T03:31:10.010282418Z",
+  "completedAt": "2026-08-30T03:36:27.486861929Z"
+}

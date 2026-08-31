@@ -1,0 +1,38 @@
+{
+  "id": "b944e25e-a1de-4049-9628-99ac7f82da5f",
+  "shortId": "wtp-0d6e4079-0031",
+  "title": "Integrate explicit --chart stats output mode",
+  "description": "Add wtp stats --chart ..., with the flag canonically placed before selectors. Apply it to focused status/model queries and created/progressed series. Preserve existing focused key/value output when the flag is absent. Chart headers must identify the metric, optional status filter, requested range when applicable, and summed task count. Pass buckets to the renderer without reordering them. Reject --chart with root --json, overview reports, unsupported scalar attributes, missing selectors, misplaced flags, or duplicate flags. Keep root --json syntax and output unchanged. Add focused CLI tests covering valid chart invocations, zero data, status filtering, and every conflict; run the CLI and full repository tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "cli-rendering",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "e57f1257-adc5-4bd7-9c73-b3a32040fd39",
+    "f997ac68-d12f-4f70-b1e2-9635aa8df042"
+  ],
+  "comments": [
+    {
+      "id": "456c5e62-096c-4d95-837d-afc4b78cdd75",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task, repository guidance, and existing stats/chart implementation; beginning CLI integration.",
+      "createdAt": "2026-08-30T06:02:17.203031368Z"
+    },
+    {
+      "id": "b911860f-7c9c-4619-8ded-80dfc2439301",
+      "author": "codex-wtp-loop",
+      "message": "Implemented stats --chart integration and focused CLI tests. Verified go test ./internal/cli, go test ./..., go run ./cmd/wtp stats --chart model, and git diff --check.",
+      "createdAt": "2026-08-30T06:06:43.597437931Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:10.984003739Z",
+  "updatedAt": "2026-08-30T06:06:43.678134457Z",
+  "startedAt": "2026-08-30T06:01:20.785011994Z",
+  "completedAt": "2026-08-30T06:06:43.678134457Z"
+}

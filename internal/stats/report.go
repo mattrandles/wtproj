@@ -23,6 +23,7 @@ type Bucket struct {
 type Attribute string
 
 const (
+	AttributeStatus       Attribute = "status"
 	AttributeModel        Attribute = "model"
 	AttributeLane         Attribute = "lane"
 	AttributePriority     Attribute = "priority"
@@ -104,8 +105,33 @@ type Options struct {
 // can include global records and task-scoped records belonging to selected
 // tasks without changing Provider or storage contracts.
 func Aggregate(p provider.Provider, options Options) (Report, error) {
+	report, tasks, err := aggregateTasks(p, options)
+	if err != nil {
+		return Report{}, err
+	}
+	handoffResult, err := p.ListHandoffs(provider.HandoffFilter{AllScopes: true})
+	if err != nil {
+		return Report{}, fmt.Errorf("list handoffs for stats: %w", err)
+	}
+
+	report.Handoffs = handoffMetrics(tasks, handoffResult.Handoffs, options.Status != nil)
+	return report, nil
+}
+
+// AggregateFocused loads and aggregates tasks without requesting retained
+// handoffs. It is the task-only path for focused categorical and scalar
+// queries; overview callers should continue to use Aggregate or Build.
+func AggregateFocused(p provider.Provider, options Options, attribute Attribute) (FocusedReport, error) {
+	report, _, err := aggregateTasks(p, options)
+	if err != nil {
+		return FocusedReport{}, err
+	}
+	return report.Focus(attribute), nil
+}
+
+func aggregateTasks(p provider.Provider, options Options) (Report, []core.TaskView, error) {
 	if p == nil {
-		return Report{}, fmt.Errorf("stats provider is nil")
+		return Report{}, nil, fmt.Errorf("stats provider is nil")
 	}
 
 	catalog := options.Catalog
@@ -119,18 +145,14 @@ func Aggregate(p provider.Provider, options Options) (Report, error) {
 	if options.Status != nil {
 		status, err := catalog.ParseStatus(string(*options.Status))
 		if err != nil {
-			return Report{}, err
+			return Report{}, nil, err
 		}
 		filter.Status = &status
 	}
 
 	tasks, err := p.ListTasks(filter)
 	if err != nil {
-		return Report{}, fmt.Errorf("list tasks for stats: %w", err)
-	}
-	handoffResult, err := p.ListHandoffs(provider.HandoffFilter{AllScopes: true})
-	if err != nil {
-		return Report{}, fmt.Errorf("list handoffs for stats: %w", err)
+		return Report{}, nil, fmt.Errorf("list tasks for stats: %w", err)
 	}
 
 	report := Report{
@@ -153,9 +175,7 @@ func Aggregate(p provider.Provider, options Options) (Report, error) {
 	if options.Status != nil {
 		report.Status = string(*options.Status)
 	}
-
-	report.Handoffs = handoffMetrics(tasks, handoffResult.Handoffs, options.Status != nil)
-	return report, nil
+	return report, tasks, nil
 }
 
 // Build is a descriptive alias for Aggregate for callers constructing a
@@ -168,6 +188,8 @@ func Build(p provider.Provider, options Options) (Report, error) {
 // Comments and dependencies are scalar metrics and therefore return nil.
 func (r Report) Buckets(attribute Attribute) []Bucket {
 	switch attribute {
+	case AttributeStatus:
+		return r.StatusCounts
 	case AttributeModel:
 		return r.Attributes.Model
 	case AttributeLane:
@@ -193,7 +215,7 @@ func (r Report) Focus(attribute Attribute) FocusedReport {
 		Attribute:  attribute,
 	}
 	switch attribute {
-	case AttributeModel, AttributeLane, AttributePriority, AttributeEstimate, AttributeAssignee:
+	case AttributeStatus, AttributeModel, AttributeLane, AttributePriority, AttributeEstimate, AttributeAssignee:
 		buckets := r.Buckets(attribute)
 		focused.Buckets = &buckets
 	case AttributeComments:

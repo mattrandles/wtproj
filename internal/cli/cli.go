@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/mattrandles/wtproj/internal/app"
+	"github.com/mattrandles/wtproj/internal/batchexport"
+	"github.com/mattrandles/wtproj/internal/batchimport"
 	"github.com/mattrandles/wtproj/internal/buildinfo"
 	"github.com/mattrandles/wtproj/internal/config"
 	"github.com/mattrandles/wtproj/internal/core"
@@ -84,6 +86,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	switch rest[0] {
 	case "task":
 		return runTask(ctx, rest[1:])
+	case "batch":
+		return runBatch(ctx, rest[1:])
 	case "handoff":
 		return runHandoff(ctx, rest[1:])
 	case "graph":
@@ -97,71 +101,197 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	}
 }
 
-const statsUsage = "usage: wtp stats [STATUS] [model|lane|priority|estimate|assignee|comments|dependencies]"
+const statsUsage = "usage: wtp stats [--chart] [STATUS] [status|model|lane|priority|estimate|assignee|comments|dependencies] | wtp stats [--chart] [created|progressed] STARTd-ENDd"
 
-// runStats accepts only positional status and attribute arguments. Keeping
-// this parser separate from flag.FlagSet makes reversed and extra arguments
-// unambiguous, while root --json remains the sole output switch.
+// statsQuery is the typed positional query accepted by the stats command.
+// Attribute and Metric are mutually exclusive; an empty value for both is an
+// overview query. Status is intentionally resolved before either kind so a
+// configured status that shares an attribute or metric name keeps its
+// established status-first meaning.
+type statsQuery struct {
+	status    *core.Status
+	attribute stats.Attribute
+	metric    stats.SeriesMetric
+	rangeSpec stats.RollingRange
+	chart     bool
+}
+
+func (q statsQuery) isOverview() bool { return q.attribute == "" && q.metric == "" }
+
+func (q statsQuery) isSeries() bool { return q.metric != "" }
+
+// runStats captures the command clock once so each series query has one
+// consistent as-of instant.
 func runStats(ctx context, args []string) error {
+	return runStatsAt(ctx, args, time.Now().UTC())
+}
+
+// runStatsAt executes a stats query with an explicit as-of instant. It keeps
+// time-series execution deterministic in tests while the public command owns
+// the wall clock.
+func runStatsAt(ctx context, args []string, asOf time.Time) error {
 	catalog := ctx.provider.StatusCatalog()
-	status, attribute, focused, err := parseStatsArgs(args, catalog)
+	query, err := parseStatsArgs(args, catalog)
 	if err != nil {
 		return err
+	}
+	if query.chart && ctx.jsonOut {
+		return errors.New("stats --chart cannot be combined with root --json")
+	}
+	if query.chart && query.isOverview() {
+		return errors.New("stats --chart requires a focused selector")
 	}
 
-	report, err := stats.Aggregate(ctx.provider, stats.Options{Status: status, Catalog: catalog})
+	if query.isSeries() {
+		report, err := stats.AggregateSeries(ctx.provider, stats.SeriesOptions{
+			Metric: query.metric,
+			Range:  query.rangeSpec,
+			AsOf:   asOf,
+		})
+		if err != nil {
+			return err
+		}
+		if query.chart {
+			return printStatsSeriesChart(ctx, report, query.rangeSpec)
+		}
+		return printStatsSeries(ctx, report)
+	}
+	options := stats.Options{Status: query.status, Catalog: catalog}
+	if !query.isOverview() {
+		report, err := stats.AggregateFocused(ctx.provider, options, query.attribute)
+		if err != nil {
+			return err
+		}
+		if query.chart {
+			return printStatsFocusedChart(ctx, report)
+		}
+		return printStatsFocused(ctx, report)
+	}
+
+	report, err := stats.Aggregate(ctx.provider, options)
 	if err != nil {
 		return err
-	}
-	if focused {
-		return printStatsFocused(ctx, report.Focus(attribute))
 	}
 	return printStatsOverview(ctx, report)
 }
 
-func parseStatsArgs(args []string, catalogs ...core.StatusCatalog) (*core.Status, stats.Attribute, bool, error) {
+func parseStatsArgs(args []string, catalogs ...core.StatusCatalog) (statsQuery, error) {
+	chart, selectors, err := parseStatsChartFlag(args)
+	if err != nil {
+		return statsQuery{}, err
+	}
+	args = selectors
 	catalog := core.DefaultStatusCatalog()
 	if len(catalogs) > 0 && len(catalogs[0].Statuses()) > 0 {
 		catalog = catalogs[0]
 	}
 	if len(args) > 2 {
-		return nil, "", false, errors.New(statsUsage)
+		if len(args) == 3 {
+			if _, statusErr := catalog.ParseStatus(args[0]); statusErr == nil {
+				if _, metric := parseStatsSeriesMetric(args[1]); metric {
+					return statsQuery{}, fmt.Errorf("stats time series does not accept a status filter; %s", statsUsage)
+				}
+			}
+		}
+		return statsQuery{}, errors.New(statsUsage)
 	}
 	if len(args) == 0 {
-		return nil, "", false, nil
+		return statsQuery{chart: chart}, nil
 	}
 
 	if status, err := catalog.ParseStatus(args[0]); err == nil {
 		if len(args) == 1 {
-			return &status, "", false, nil
+			return statsQuery{status: &status, chart: chart}, nil
+		}
+		if _, metric := parseStatsSeriesMetric(args[1]); metric {
+			return statsQuery{}, fmt.Errorf("stats time series does not accept a status filter; %s", statsUsage)
 		}
 		attribute, ok := parseStatsAttribute(args[1])
 		if !ok {
-			return nil, "", false, fmt.Errorf("unknown stats attribute %q; %s", args[1], statsUsage)
+			return statsQuery{}, fmt.Errorf("unknown stats attribute %q; %s", args[1], statsUsage)
 		}
-		return &status, attribute, true, nil
+		if chart && !isChartAttribute(attribute) {
+			return statsQuery{}, fmt.Errorf("stats --chart does not support scalar attribute %q", attribute)
+		}
+		return statsQuery{status: &status, attribute: attribute, chart: chart}, nil
+	}
+
+	if metric, ok := parseStatsSeriesMetric(args[0]); ok {
+		if len(args) != 2 {
+			return statsQuery{}, fmt.Errorf("stats series %q requires STARTd-ENDd; %s", metric, statsUsage)
+		}
+		rangeSpec, err := stats.ParseRollingRange(args[1])
+		if err != nil {
+			return statsQuery{}, fmt.Errorf("%w; %s", err, statsUsage)
+		}
+		return statsQuery{metric: metric, rangeSpec: rangeSpec, chart: chart}, nil
 	}
 
 	attribute, ok := parseStatsAttribute(args[0])
 	if !ok {
-		return nil, "", false, fmt.Errorf("stats argument %q must be a status or attribute; %s", args[0], statsUsage)
+		return statsQuery{}, fmt.Errorf("stats argument %q must be a status or attribute; %s", args[0], statsUsage)
 	}
 	if len(args) == 2 {
-		return nil, "", false, fmt.Errorf("stats status must precede attribute %q; %s", attribute, statsUsage)
+		return statsQuery{}, fmt.Errorf("stats status must precede attribute %q; %s", attribute, statsUsage)
 	}
-	return nil, attribute, true, nil
+	if chart && !isChartAttribute(attribute) {
+		return statsQuery{}, fmt.Errorf("stats --chart does not support scalar attribute %q", attribute)
+	}
+	return statsQuery{attribute: attribute, chart: chart}, nil
+}
+
+func parseStatsChartFlag(args []string) (bool, []string, error) {
+	chartCount := 0
+	firstChart := -1
+	for index, arg := range args {
+		if arg != "--chart" {
+			continue
+		}
+		chartCount++
+		if firstChart == -1 {
+			firstChart = index
+		}
+	}
+	if chartCount > 1 {
+		return false, nil, errors.New("stats --chart may be specified only once")
+	}
+	if firstChart > 0 {
+		return false, nil, errors.New("stats --chart must appear before selectors")
+	}
+	if firstChart == 0 {
+		return true, args[1:], nil
+	}
+	return false, args, nil
+}
+
+func isChartAttribute(attribute stats.Attribute) bool {
+	switch attribute {
+	case stats.AttributeStatus, stats.AttributeModel, stats.AttributeLane,
+		stats.AttributePriority, stats.AttributeEstimate, stats.AttributeAssignee:
+		return true
+	default:
+		return false
+	}
 }
 
 func parseStatsAttribute(value string) (stats.Attribute, bool) {
 	attribute := stats.Attribute(value)
 	switch attribute {
-	case stats.AttributeModel, stats.AttributeLane, stats.AttributePriority,
+	case stats.AttributeStatus, stats.AttributeModel, stats.AttributeLane, stats.AttributePriority,
 		stats.AttributeEstimate, stats.AttributeAssignee, stats.AttributeComments,
 		stats.AttributeDependencies:
 		return attribute, true
 	default:
 		return "", false
 	}
+}
+
+func parseStatsSeriesMetric(value string) (stats.SeriesMetric, bool) {
+	metric := stats.SeriesMetric(value)
+	if err := metric.Validate(); err != nil {
+		return "", false
+	}
+	return metric, true
 }
 
 func printStatsOverview(ctx context, report stats.Report) error {
@@ -264,6 +394,81 @@ func printStatsFocused(ctx context, report stats.FocusedReport) error {
 		return printStatsLine(ctx.stdout, "dependencies.directDependencyTotal", report.Dependencies.DirectDependencyTotal)
 	}
 	return nil
+}
+
+func printStatsFocusedChart(ctx context, report stats.FocusedReport) error {
+	if report.Buckets == nil {
+		return fmt.Errorf("stats --chart does not support scalar attribute %q", report.Attribute)
+	}
+	buckets := make([]chartBucket, len(*report.Buckets))
+	for index, bucket := range *report.Buckets {
+		buckets[index] = chartBucket{Label: bucket.Value, Count: bucket.Count}
+	}
+	return printStatsChart(ctx, string(report.Attribute), report.Status, "", report.TotalTasks, buckets)
+}
+
+func printStatsSeries(ctx context, report stats.SeriesReport) error {
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, report)
+	}
+	if _, err := fmt.Fprintln(ctx.stdout, "stats"); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "attribute", report.Attribute); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "totalTasks", report.TotalTasks); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(ctx.stdout, "range:"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(ctx.stdout, "  start: %s\n  end: %s\n", report.Range.Start.Format(time.RFC3339Nano), report.Range.End.Format(time.RFC3339Nano)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(ctx.stdout, "buckets:"); err != nil {
+		return err
+	}
+	for _, bucket := range report.Buckets {
+		if _, err := fmt.Fprintf(ctx.stdout, "  %s:\n    start: %s\n    end: %s\n    count: %d\n", bucket.Label, bucket.Start.Format(time.RFC3339Nano), bucket.End.Format(time.RFC3339Nano), bucket.Count); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printStatsSeriesChart(ctx context, report stats.SeriesReport, requestedRange stats.RollingRange) error {
+	buckets := make([]chartBucket, len(report.Buckets))
+	for index, bucket := range report.Buckets {
+		buckets[index] = chartBucket{Label: bucket.Label, Count: bucket.Count}
+	}
+	return printStatsChart(ctx, string(report.Attribute), "", requestedRange.String(), report.TotalTasks, buckets)
+}
+
+func printStatsChart(ctx context, metric, status, requestedRange string, totalTasks int, buckets []chartBucket) error {
+	if _, err := fmt.Fprintln(ctx.stdout, "stats chart"); err != nil {
+		return err
+	}
+	if err := printStatsLine(ctx.stdout, "metric", metric); err != nil {
+		return err
+	}
+	if status != "" {
+		if err := printStatsLine(ctx.stdout, "status", status); err != nil {
+			return err
+		}
+	}
+	if requestedRange != "" {
+		if err := printStatsLine(ctx.stdout, "range", requestedRange); err != nil {
+			return err
+		}
+	}
+	if err := printStatsLine(ctx.stdout, "totalTasks", totalTasks); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(ctx.stdout, "buckets:"); err != nil {
+		return err
+	}
+	return renderStatsChart(ctx.stdout, buckets)
 }
 
 func printStatsBuckets(w io.Writer, name string, buckets []stats.Bucket) error {
@@ -428,6 +633,97 @@ func runHandoff(ctx context, args []string) error {
 	default:
 		return fmt.Errorf("unknown handoff subcommand %q", args[0])
 	}
+}
+
+const batchExportUsage = "usage: wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...]"
+const batchImportUsage = "usage: wtp batch import --in PATH|- [--format csv|json]"
+
+func runBatch(ctx context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("batch subcommand is required")
+	}
+	switch args[0] {
+	case "export":
+		return runBatchExport(ctx, args[1:])
+	case "import":
+		return runBatchImport(ctx, args[1:])
+	default:
+		return fmt.Errorf("unknown batch subcommand %q", args[0])
+	}
+}
+
+func runBatchExport(ctx context, args []string) error {
+	flags := flag.NewFlagSet("batch export", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	out := flags.String("out", "", "batch destination path or - for stdout")
+	format := flags.String("format", "", "batch format: csv or json")
+	status := flags.String("status", "", "select tasks with this status")
+	var taskIDs stringList
+	flags.Var(&taskIDs, "task", "task ID to export (repeatable)")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(batchExportUsage)
+	}
+	if !wasFlagSet(flags, "out") || strings.TrimSpace(*out) == "" {
+		return errors.New("batch export --out is required")
+	}
+	if strings.TrimSpace(*status) != "" && len(taskIDs) > 0 {
+		return fmt.Errorf("batch export accepts either --status or --task, not both\n%s", batchExportUsage)
+	}
+	if strings.TrimSpace(*out) == "-" && ctx.jsonOut {
+		return errors.New("batch export --out - cannot be combined with --json")
+	}
+
+	result, err := batchexport.Export(ctx.provider, batchexport.Options{
+		Destination: *out,
+		Format:      batchexport.Format(*format),
+		Status:      *status,
+		TaskIDs:     taskIDs,
+	}, ctx.stdout)
+	if err != nil {
+		return err
+	}
+	if result.Destination == "-" {
+		return nil
+	}
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, result)
+	}
+	if _, err := fmt.Fprintf(ctx.stdout, "destination: %s\nformat: %s\ntaskCount: %d\n", result.Destination, result.Format, result.Count); err != nil {
+		return err
+	}
+	return nil
+}
+
+func runBatchImport(ctx context, args []string) error {
+	flags := flag.NewFlagSet("batch import", flag.ContinueOnError)
+	flags.SetOutput(ctx.stderr)
+	in := flags.String("in", "", "batch input path or - for stdin")
+	format := flags.String("format", "", "batch format: csv or json")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New(batchImportUsage)
+	}
+	if !wasFlagSet(flags, "in") || strings.TrimSpace(*in) == "" {
+		return errors.New("batch import --in is required")
+	}
+
+	result, err := batchimport.Import(ctx.provider, batchimport.Options{
+		Source: *in,
+		Format: batchimport.Format(*format),
+	})
+	if err != nil {
+		return err
+	}
+	if ctx.jsonOut {
+		return encodeJSON(ctx.stdout, result)
+	}
+	_, err = fmt.Fprintf(ctx.stdout, "updated: %d\nunchanged: %d\n", len(result.Updated), len(result.Unchanged))
+	return err
 }
 
 func runHandoffWrite(ctx context, args []string) error {
@@ -1269,11 +1565,13 @@ Commands:
 	wtp handoff get [--task <task-id> | --all-scopes] [--limit N | --all]
 	wtp handoff purge (--id <handoff-id> | --global | --task <task-id> | --all-scopes) [--before RFC3339 | --older-than DURATION]
 	  wtp graph [--status STATUS|all]
-	  wtp stats
-	  wtp stats [STATUS]
-	  wtp stats [model|lane|priority|estimate|assignee|comments|dependencies]
-	  wtp stats [STATUS] [model|lane|priority|estimate|assignee|comments|dependencies]
+	  wtp stats [--chart] [STATUS]
+	  wtp stats [--chart] [status|model|lane|priority|estimate|assignee|comments|dependencies]
+	wtp stats [--chart] [STATUS] [status|model|lane|priority|estimate|assignee|comments|dependencies]
+	wtp stats [--chart] [created|progressed] STARTd-ENDd
 	wtp export --out .wtp-export
+	wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...]
+	wtp batch import --in PATH|- [--format csv|json]
 	wtp version
 	wtp update
 	wtp schema
@@ -1297,7 +1595,9 @@ The optional free-form model field records a suggested execution model and does 
 Dependencies accept UUIDs or short IDs and are stored as canonical UUIDs.
 graph prints dependency trees for matching tasks; it defaults to todo and accepts every configured status or all.
 Shared dependencies are expanded once: text marks later occurrences as (already shown), while JSON emits {"ref":"<task UUID>"}.
-	stats supports exactly four forms: wtp stats and wtp stats STATUS print an overview; wtp stats ATTRIBUTE and wtp stats STATUS ATTRIBUTE print a focused report. STATUS is any configured status. ATTRIBUTE is model, lane, priority, estimate, assignee, comments, or dependencies; a status must precede an attribute. Overview JSON has totalTasks, statusCounts, attributes, comments, dependencies, and handoffs, plus status when filtered. statusCounts includes every configured status in catalog order, including zero buckets. Focused JSON has totalTasks, attribute, and exactly one of buckets, comments, or dependencies, plus status when filtered. Categorical buckets use value and count; model, lane, and assignee are lexical, while priority and estimate use their canonical order. Empty categorical values are value "" in JSON and (unset) in text.
+	stats accepts singular selectors: at most one configured STATUS and one ATTRIBUTE, with STATUS before ATTRIBUTE. status alone returns a filtered overview; an attribute alone returns its focused report; status itself is the focused status-count attribute. The status-before-model compatibility form wtp stats STATUS model remains supported. Configured statuses resolve before attributes and series metrics, so a status named model keeps status-first meaning. The created and progressed series each take one STARTd-ENDd rolling range and do not accept a status filter. Overview JSON has totalTasks, statusCounts, attributes, comments, dependencies, and handoffs, plus status when filtered. statusCounts includes every configured status in catalog order, including zero buckets. Focused JSON has totalTasks, attribute, and exactly one of buckets, comments, or dependencies, plus status when filtered. Categorical buckets use value and count; model, lane, and assignee are lexical, while priority and estimate use their canonical order. Empty categorical values are value "" in JSON and (unset) in text.
+	For agents and scripts, use root --json before stats, such as wtp --json stats model. Human users may request an optional chart with wtp stats --chart ATTRIBUTE or wtp stats --chart created|progressed STARTd-ENDd. --chart must appear immediately after stats and before selectors, may appear only once, requires a focused selector, and cannot be combined with root --json. Chart bars preserve bucket order, align labels, and are scaled to a fixed maximum width of 32 cells; the largest positive bucket gets 32 cells, smaller positive buckets get proportional bars of at least one cell, and zero buckets have no bar. Empty model values display as (unset).
+	Series ranges resolve at one UTC as-of instant to the half-open UTC range [asOf-START*24h, asOf-END*24h), split into 24-hour half-open UTC buckets. The start is included and the end excluded; boundaries are UTC instants, not local calendar days. created uses CreatedAt; progressed uses each task's latest UpdatedAt and counts each task once, rather than counting historical updates.
 The comments metrics count selected tasks with at least one comment and all comment records. The dependency metrics count selected tasks with direct dependencies, independent selected tasks, and the total number of direct dependency entries; dependencies are not deduplicated or expanded transitively. Overview handoffs include every global retained handoff and every task-scoped handoff; a status-filtered report keeps global handoffs and task-scoped handoffs for selected tasks, while allStatusTotal remains the count before filtering. Focused reports do not include handoff metrics.
 Configurable statuses:
   .wtp.json may append project-specific lifecycle states with this shape:
@@ -1318,10 +1618,20 @@ Configurable statuses:
   Removing a configured status while task files still use it fails storage
   opening safely and leaves the existing files untouched.
 Examples:
-  wtp stats
-  wtp stats model
-  wtp stats done model
-export writes an exact canonical snapshot to a dedicated directory, including the retained handoffs.json collection; unmanaged entries and paths overlapping active .wtp storage are rejected.
+  wtp --json stats
+  wtp --json stats status
+  wtp --json stats model
+  wtp --json stats done model
+  wtp --json stats created 7d-0d
+  wtp --json stats progressed 7d-0d
+  wtp stats --chart model
+  wtp stats --chart done model
+  wtp stats --chart progressed 7d-0d
+export writes an exact canonical snapshot to a dedicated directory, including the retained handoffs.json collection; unmanaged entries and paths overlapping active .wtp storage are rejected. Root export is not an editable batch document.
+batch export writes an editable patch document. Use at most one selector kind: --status STATUS or repeatable --task ID; omit both to export every task. Task selectors accept canonical UUIDs or short IDs and retain caller order. File .json/.csv suffixes infer format; --format is required for PATH with another suffix or for - (stdout). Batch export to stdout writes raw data and cannot be combined with --json. File export text reports destination, format, and taskCount; --json returns {"count":1,"format":"json","destination":"PATH"}.
+batch import reads PATH or - (stdin), using the same format inference and --format rules. JSON output is {"updated":[...],"unchanged":[...]}; human output reports updated and unchanged counts. Each row requires id or shortId and updatedAt plus at least one mutable field. The mutable fields are title, description, status, priority, estimate, lane, model, gitRepo, gitBranch, worktreeName, worktreeDir, assignee, and dependencies.
+Batch JSON is version 1 with {"version":1,"tasks":[...]}; omitted patch fields preserve stored values and null clears optional fields. CSV blanks preserve stored values; _clear explicitly clears optional fields only. Title and status must be non-empty; priority is low|medium|high|urgent; estimate is xs|s|m|l|xl; statuses must be configured; gitRepo and worktreeDir must be absolute; dependencies must resolve and remain acyclic. Both identifiers, when supplied, must name the same task. Duplicate rows or identifiers, unknown fields or headers, malformed input, stale updatedAt, invalid transitions, lifecycle violations, and dependency errors reject the entire import before publication.
+The flat-file batch transaction uses transient .wtp/meta/batch-update.json with version 1 and prepared/committed states. Store opening recovers that journal; a recovery failure retains it for diagnosis. Version-controlled stores should ignore it alongside .wtp/meta/wtp.lock.
 version reports the binary's version, commit, and build date; use wtp --json version for machine-readable output.
 update installs a newer checksum-verified GitHub release over the running executable; use wtp --json update for machine-readable output.
 
@@ -1411,6 +1721,7 @@ Storage layout:
 			index.json
 			index-<branchId>.json
 			wtp.lock (transient global allocation lock)
+			batch-update.json (transient batch recovery journal)
 			locks/
 
 Configuration and discovery:
@@ -1616,6 +1927,60 @@ Export rules:
 	- Unmanaged entries are reported before changes, and export paths overlapping active .wtp storage are rejected.
 	- Legacy --export-tasks=<directory> remains an alias for export and includes handoffs.json too.
 
+Editable batch task contract:
+	- Commands are:
+	    wtp batch export --out PATH|- [--format csv|json] [--status STATUS | --task ID ...]
+	    wtp batch import --in PATH|- [--format csv|json]
+	- batch export accepts at most one selector kind. --status selects one configured
+	  status; repeatable --task selects exact canonical UUIDs or short IDs in the
+	  order supplied; omitting both selects every task. A file ending in .json or .csv infers its format; an unknown
+	  suffix and PATH '-' require --format. Import follows the same rule, reads '-'
+	  from stdin, and export '-' writes only raw batch data. Export stdout cannot
+	  be combined with --json.
+	- JSON version 1 has this exact top-level shape:
+	    {"version":1,"tasks":[{"id":"<uuid>","shortId":"wtp-0001",
+	      "updatedAt":"<RFC3339>","title":"..."}]}
+	  Each task row may contain id, shortId, updatedAt, title, description, status,
+	  priority, estimate, lane, model, gitRepo, gitBranch, worktreeName,
+	  worktreeDir, assignee, and dependencies. id or shortId and updatedAt are
+	  required; at least one mutable field is required. Omitted patch fields
+	  preserve stored values. JSON null clears an optional field, including all
+	  dependencies when dependencies is null. Title and status cannot be empty.
+	- CSV uses the header:
+	    id,shortId,updatedAt,title,description,status,priority,estimate,lane,model,gitRepo,gitBranch,worktreeName,worktreeDir,assignee,dependencies,_clear
+	  The header must include updatedAt and id or shortId, and may contain a subset
+	  of known columns. Blank editable cells preserve stored values. _clear is a
+	  comma-separated list of optional fields to clear: description, priority,
+	  estimate, lane, model, gitRepo, gitBranch, worktreeName, worktreeDir,
+	  assignee, or dependencies. Required identifiers, updatedAt, title, and
+	  status cannot be cleared. CSV is UTF-8 and may have a BOM.
+	- Mutable fields are title, description, status, priority, estimate, lane, model,
+	  gitRepo, gitBranch, worktreeName, worktreeDir, assignee, and dependencies.
+	  Priority accepts low|medium|high|urgent; estimate accepts xs|s|m|l|xl;
+	  status must be configured; gitRepo and worktreeDir must be absolute paths;
+	  dependencies must resolve to existing tasks, cannot include the task itself,
+	  and must leave the final graph acyclic. Duplicate rows or identifiers,
+	  unknown JSON properties or CSV headers, malformed values, empty title/status,
+	  invalid status transitions or lifecycle timestamps, and failed dependency
+	  readiness validation are errors.
+	- updatedAt is a required optimistic-concurrency token. Import compares it to
+	  the current task and rejects a stale row. The provider validates every row,
+	  including the final dependency graph, before publishing any changed task;
+	  import is all-or-nothing. The JSON response is
+	    {"updated":[<task view>],"unchanged":[<task view>]}
+	  and file export with --json returns
+	    {"count":<positive integer>,"format":"json|csv","destination":"PATH"}.
+	- The flat-file provider writes .wtp/meta/batch-update.json only for changed
+	  batches. It is a version-1 journal with prepared or committed state and
+	  before/after task-file snapshots. Store open rolls back prepared journals,
+	  rolls forward committed journals, and removes a recovered journal; if
+	  recovery fails, the journal is retained and the error is reported. Ignore
+	  this transient file alongside .wtp/meta/wtp.lock in version-controlled stores.
+	- Batch export is separate from canonical export. Root export and legacy
+	  --export-tasks=<directory> write canonical UUID-named task snapshots plus
+	  handoffs.json; they do not write the batch version wrapper or editable patch
+	  representation.
+
 Legacy task compatibility:
 	- The legacy task action flags remain supported: --get-next-task, --get-tasks, --get-task, --set-task-in-progress, --set-task-paused, --set-task-done, --add-comment, and --create-task.
 
@@ -1646,6 +2011,17 @@ Interoperability guidance:
 type optionString struct {
 	set   bool
 	value string
+}
+
+type stringList []string
+
+func (values *stringList) String() string {
+	return strings.Join(*values, ",")
+}
+
+func (values *stringList) Set(value string) error {
+	*values = append(*values, value)
+	return nil
 }
 
 func (o *optionString) String() string {

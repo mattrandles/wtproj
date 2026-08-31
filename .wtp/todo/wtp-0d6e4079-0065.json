@@ -1,0 +1,30 @@
+{
+  "id": "15182c39-e556-4757-be7b-5a7001b68f8b",
+  "shortId": "wtp-0d6e4079-0065",
+  "title": "Verify and dogfood reusable advisory tasks end to end",
+  "description": "Run final cross-platform and black-box verification of reusable advisory tasks after all implementation and documentation work. Cover definition create/list/show/update/rename/delete; ordered task create/update/clear; live resolution on show/list/start/ready/next; handoffs plus reusable items; legacy task creation; batch JSON/CSV round trips and stale failures; canonical exports; shared stores and branch scopes; malformed legacy/catalog input; concurrent claims, definition edits, and deletes; fault-injected reusable journal rollback/roll-forward; and Unix/Windows path behavior. Use a disposable store to prove a claimed final task surfaces test, review, version, and commit instructions in order without creating child backlog tasks or blocking completion. Also use the candidate binary against this dogfood task to attach representative definitions, inspect the live view, then cleanly detach/delete them without losing unrelated metadata. Run gofmt, go test ./..., go vet ./..., documentation and skill validators, git diff --check, repository verification scripts, and Unix/Windows smoke/prerelease coverage. Record commands, evidence, any platform skips, and residual risk in the completion comment.",
+  "priority": "urgent",
+  "estimate": "l",
+  "lane": "reusable-qa",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "062a93ed-5d41-4e96-b810-f65c9c3f315f",
+    "0a238a49-9373-43d7-bd18-6609386b7b2f",
+    "210ec169-d247-44ae-b419-ef6b4b487a79",
+    "3230f122-a083-4ae3-b643-ffbfec17e108",
+    "4797970d-600a-491a-95e5-25bcb0aa82c5",
+    "ae50a1fd-11d8-4493-82f4-941f0dbe8036",
+    "f2f880d5-2c8e-498f-a1d2-d590d326e2d7",
+    "fb47f310-2259-4823-b580-41be699f2f9e"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:41:57.189246719Z",
+  "updatedAt": "2026-08-30T07:41:57.189246719Z",
+  "startedAt": null,
+  "completedAt": null
+}

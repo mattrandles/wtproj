@@ -1,0 +1,38 @@
+{
+  "id": "18055466-85e3-4302-9d5b-67eed16cfe34",
+  "shortId": "wtp-0d6e4079-0025",
+  "title": "Audit the complete cross-platform batch workflow",
+  "description": "Perform the final senior integration audit after implementation, failure coverage, CLI integration tests, and documentation/skills are complete. Verify the public contract is internally consistent across code, help, schema, README, and skills; the model-independent batch types do not leak storage snapshots into the editable format; every import requires expected updatedAt; JSON omission/null and CSV blank/_clear semantics match tests; final-state dependency validation is order-independent; no-op rows retain timestamps; all validation errors are pre-publication; prepared/committed journal recovery is safe under Unix and Windows replacement semantics; stdout is never contaminated by summaries; and canonical wtp export/legacy compatibility remain byte-contract compatible. Inspect for overlap regressions from parallel tasks and make only narrowly scoped corrections. Run targeted race/fault tests, gofmt validation, go test ./..., go vet ./..., git diff --check, ./scripts/verify.sh commit, and the PowerShell commit/smoke gate when pwsh is available. Record exact verification commands and results in the completion comment; do not redesign the accepted v1 format.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "review",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "607028b6-3962-4764-80bc-6d1c24c86c6e",
+    "c1a646b1-2a6f-4879-8297-f1700c648126"
+  ],
+  "comments": [
+    {
+      "id": "ed3fd712-bdc9-4827-86f6-1806e8340304",
+      "author": "codex-wtp-loop",
+      "message": "Audit started: reviewing batch contract boundaries, recovery semantics, CLI behavior, and cross-platform verification without modifying unrelated work.",
+      "createdAt": "2026-08-30T05:51:47.235055165Z"
+    },
+    {
+      "id": "8cab1eac-10b5-46ab-8d35-10abc8b2916a",
+      "author": "codex-wtp-loop",
+      "message": "Final audit passed. Narrow correction: README/help/schema now state that batch export permits at most one selector kind and exports all tasks when selectors are omitted, matching existing service/CLI/smoke behavior. Verification passed (exit 0): go test -race ./internal/batchjson ./internal/batchcsv ./internal/batchimport ./internal/batchexport ./internal/provider/flatfile ./internal/cli; go test -tags=wtp_fault_injection ./internal/provider/flatfile -count=1; go test ./internal/cli -run 'TestBatch|TestRunBatch|TestHelp|TestSchema' -count=1; gofmt -l ./cmd ./internal; go test ./...; go vet ./...; git diff --check; ./scripts/verify.sh commit; GOOS=windows GOARCH=amd64 go test -exec /usr/bin/true ./...; pwsh -NoProfile -File ./scripts/verify.ps1 commit; pwsh -NoProfile -File ./scripts/e2e_smoke.ps1.",
+      "createdAt": "2026-08-30T05:55:50.776163593Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.862041215Z",
+  "updatedAt": "2026-08-30T05:55:50.81753746Z",
+  "startedAt": "2026-08-30T05:50:51.660750101Z",
+  "completedAt": "2026-08-30T05:55:50.81753746Z"
+}

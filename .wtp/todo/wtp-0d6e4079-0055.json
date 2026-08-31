@@ -1,0 +1,24 @@
+{
+  "id": "fb47f310-2259-4823-b580-41be699f2f9e",
+  "shortId": "wtp-0d6e4079-0055",
+  "title": "Resolve live reusable items in task views and claims",
+  "description": "Populate TaskView.reusableTasks from each task ordered reusableTaskIds using the current catalog on every read. Apply the same resolution to create/update results, show/get, JSON list views, explicit task start, task ready previews, and atomic task next claims without consuming or snapshotting definitions. Confirm that definition title/instructions edits and renames appear on subsequent reads while task IDs and order remain unchanged. Keep compact human task lists unaffected and preserve handoff attachment semantics on claims. Add tests for live edits, zero/one/many assignments, ordering, branch-scoped ready/next, assignee filtering, handoffs plus reusable items in one claim, and corruption rejection. Do not add CLI formatting in this task.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-views",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "998e7dc0-2588-41f2-825b-77c47d70a79d",
+    "e81d78ef-3a6d-4f6d-83c2-24f7df6d946a"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:41:56.910270556Z",
+  "updatedAt": "2026-08-30T07:41:56.910270556Z",
+  "startedAt": null,
+  "completedAt": null
+}

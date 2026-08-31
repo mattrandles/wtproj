@@ -67,6 +67,9 @@ try {
     $handoffGetOut = Join-Path $workDir "handoff_get.json"
     $handoffPurgeOut = Join-Path $workDir "handoff_purge.json"
     $handoffAfterPurgeOut = Join-Path $workDir "handoff_after_purge.json"
+    $batchExportPath = Join-Path $workDir "batch_export.json"
+    $batchExportSummary = Join-Path $workDir "batch_export_summary.txt"
+    $batchImportOut = Join-Path $workDir "batch_import.json"
 
     Push-Location $testRepo
     try {
@@ -164,6 +167,18 @@ try {
         Assert-Contains '"status": "inProgress"' $taskOut
 
         & $binaryPath task done $taskBShortID --agent Bob | Out-Null
+        & $binaryPath batch export --out $batchExportPath > $batchExportSummary
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        Assert-Contains 'taskCount: 2' $batchExportSummary
+        & $binaryPath --json batch import --in $batchExportPath > $batchImportOut
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        Assert-Contains '"updated": []' $batchImportOut
+        Assert-Contains '"unchanged": [' $batchImportOut
+
         & $binaryPath export --out exported | Out-Null
 
         Push-Location $repoRoot

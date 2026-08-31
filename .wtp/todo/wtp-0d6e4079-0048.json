@@ -1,0 +1,23 @@
+{
+  "id": "6408a48a-bc85-449b-a554-fbb17aab324c",
+  "shortId": "wtp-0d6e4079-0048",
+  "title": "Implement reusable catalog JSON codec",
+  "description": "Implement the standalone version-1 reusable catalog codec used by flat-file storage. Read and write {version:1,definitions:[...]} deterministically with ordered definitions, strict supported-version checking, unknown and duplicate property rejection, canonical UTC RFC3339Nano timestamps, UTF-8 preservation, and validation through the core catalog contract. Treat a missing file as an empty catalog without creating it during reads; reject empty, malformed, or semantically invalid definitions when a file exists. Add table-driven codec tests for round trips, deterministic bytes, Unicode instructions, unsupported versions, duplicate names with mixed case, malformed IDs/timestamps, and unknown fields. Do not connect the codec to provider methods yet.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "reusable-storage",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "1f18fd01-6926-4a22-961b-1ca0e90b5bdf"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:41:56.71559846Z",
+  "updatedAt": "2026-08-30T07:41:56.71559846Z",
+  "startedAt": null,
+  "completedAt": null
+}

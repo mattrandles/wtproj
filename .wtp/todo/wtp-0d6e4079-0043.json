@@ -1,0 +1,24 @@
+{
+  "id": "2fd09cb3-9938-4d4a-851a-63ee3df29c4a",
+  "shortId": "wtp-0d6e4079-0043",
+  "title": "Expose grouping filters and dimensions in stats CLI",
+  "description": "Parse all six grouping flags after optional --chart and before positional stats selectors. Add focused attributes issueId, project, milestone, version, featureId, and feature; update overview, focused, JSON, text, and chart paths while preserving status ambiguity rules. Cover combined status/group filters, scalar metrics, series, charts, unset buckets, and invalid ordering.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "550ed327-eb9f-4e65-b7c7-884324d0f699",
+    "879f7df7-b5d3-4740-b3d5-e8627bdb0fcb"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:19:56.178606206Z",
+  "updatedAt": "2026-08-30T08:15:38.596585963Z",
+  "startedAt": null,
+  "completedAt": null
+}

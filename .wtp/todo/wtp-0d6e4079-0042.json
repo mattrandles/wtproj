@@ -1,0 +1,23 @@
+{
+  "id": "550ed327-eb9f-4e65-b7c7-884324d0f699",
+  "shortId": "wtp-0d6e4079-0042",
+  "title": "Add grouped stats aggregation",
+  "description": "Add issueId, project, milestone, version, featureId, and feature categorical dimensions and thread all six grouping filters through overview, focused, created, and progressed aggregation. Preserve lexical case-sensitive buckets while filters match case-insensitively. Scope task handoffs to matching tasks, retain globals, and define allStatusTotal before optional status filtering.",
+  "priority": "high",
+  "estimate": "l",
+  "lane": "feature-grouping",
+  "model": "GPT 5.6 Terra High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "42878424-a6c3-44f2-920c-1d944944b5dd"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:19:56.036599863Z",
+  "updatedAt": "2026-08-30T08:15:38.573922298Z",
+  "startedAt": null,
+  "completedAt": null
+}

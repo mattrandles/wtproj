@@ -84,6 +84,9 @@ func (p *Provider) ensureLayout() error {
 		}
 	}
 	return p.withGlobalLock(func() error {
+		if err := p.recoverBatchUpdate(); err != nil {
+			return err
+		}
 		if err := p.validateUnconfiguredStatusDirs(); err != nil {
 			return err
 		}
@@ -669,6 +672,9 @@ func pathContains(parent, child string) bool {
 }
 
 func (p *Provider) loadTasks() ([]core.Task, error) {
+	if err := p.recoverBatchUpdate(); err != nil {
+		return nil, err
+	}
 	if err := p.validateUnconfiguredStatusDirs(); err != nil {
 		return nil, err
 	}
@@ -1354,6 +1360,35 @@ func writeJSONAtomicWithFileSystem(path string, value any, fs fileSystem) error 
 	if err := encoder.Encode(value); err != nil {
 		_ = temp.Close()
 		return fmt.Errorf("encode %s: %w", path, err)
+	}
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		return fmt.Errorf("sync temp for %s: %w", path, err)
+	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("close temp for %s: %w", path, err)
+	}
+	if err := fs.replace(temp.Name(), path); err != nil {
+		return fmt.Errorf("replace %s: %w", path, err)
+	}
+	if err := fs.syncDirectory(filepath.Dir(path)); err != nil {
+		return fmt.Errorf("sync parent for %s: %w", path, err)
+	}
+	return nil
+}
+
+func writeBytesAtomicWithFileSystem(path string, data []byte, fs fileSystem) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create parent for %s: %w", path, err)
+	}
+	temp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temp for %s: %w", path, err)
+	}
+	defer os.Remove(temp.Name())
+	if _, err := temp.Write(data); err != nil {
+		_ = temp.Close()
+		return fmt.Errorf("write temp for %s: %w", path, err)
 	}
 	if err := temp.Sync(); err != nil {
 		_ = temp.Close()

@@ -1,0 +1,43 @@
+{
+  "id": "251ee535-f926-4fc1-927d-3c3fcef266a2",
+  "shortId": "wtp-0d6e4079-0033",
+  "title": "Add time-series stats CLI and storage integration coverage",
+  "description": "Add separate CLI and flat-file integration tests for created and progressed output. Use the injected execution timestamp to avoid wall-clock flakes. Cover 7d-0d, 14d-7d, exact start/end boundaries, zero days, tasks outside the range, future values, and tasks whose CreatedAt and UpdatedAt fall into different buckets. Validate plain text, chart output, and the complete JSON range/bucket structure. Exercise malformed, reversed, equal, overflowing, missing, and extra ranges. Confirm stats reads do not mutate .wtp, task files, indexes, timestamps, or handoffs. Avoid duplicating lower-level aggregation cases; make only narrow fixes and run go test ./... plus git diff --check.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "integration",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [
+    "b944e25e-a1de-4049-9628-99ac7f82da5f"
+  ],
+  "comments": [
+    {
+      "id": "8010471b-d54c-4b58-ad0d-5409aaf43690",
+      "author": "codex-wtp-loop",
+      "message": "Inspected task state, existing worktree, README workflow, and current CLI/stats integration tests; next tracing storage fixtures and injected-time seams before edits.",
+      "createdAt": "2026-08-30T06:08:21.52070165Z"
+    },
+    {
+      "id": "1bd0b8a7-2ca7-4566-af69-0c87c9c83d7f",
+      "author": "codex-wtp-loop",
+      "message": "Milestone: added separate CLI and flat-file stats series integration suites with injected as-of fixtures, created/progressed range and renderer coverage, invalid range cases, and byte-level storage immutability checks; formatting and focused verification next.",
+      "createdAt": "2026-08-30T06:13:01.24849448Z"
+    },
+    {
+      "id": "c96f72b6-dd2e-480b-9997-34bfdffd3a34",
+      "author": "codex-wtp-loop",
+      "message": "Completed integration coverage: deterministic CLI rendering and flat-file series tests cover created/progressed 7d-0d, 14d-7d, 1d-0d, boundaries, outside/future and split timestamps; malformed/reversed/equal/overflowing/missing/extra ranges; complete JSON; and read-only storage manifests. Verification passed: focused CLI/flatfile tests, go test ./..., git diff --check.",
+      "createdAt": "2026-08-30T06:13:58.383847137Z"
+    }
+  ],
+  "createdAt": "2026-08-30T01:30:11.160047087Z",
+  "updatedAt": "2026-08-30T06:13:58.55438607Z",
+  "startedAt": "2026-08-30T06:07:26.487759379Z",
+  "completedAt": "2026-08-30T06:13:58.55438607Z"
+}

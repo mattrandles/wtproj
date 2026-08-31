@@ -1,0 +1,24 @@
+{
+  "id": "9fa3cdf9-5844-43c3-a6ec-b19cc2ccdb2f",
+  "shortId": "wtp-0d6e4079-0082",
+  "title": "Define planning promotion journal codec",
+  "description": "Add a strict version-1 .wtp/meta/planning-promote.json contract with prepared and committed states. Store the deterministic selected IDs plus exact before planning paths/bytes and after todo paths/bytes for every record, including status and updatedAt changes. Validate canonical paths remain inside the expected planning/planned and todo directories, targets are unique, snapshots decode to the same identities and allowed statuses, the after set preserves every field except status/updatedAt/lifecycle normalization, and malformed, stale, unknown, duplicate, or path-escaping journals are rejected before replacement. Add deterministic codec, duplicate-property, Unicode, Unix/Windows path, empty-set rejection, and corruption tests.",
+  "priority": "high",
+  "estimate": "m",
+  "lane": "planning-promotion",
+  "model": "GPT 5.6 Luna High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "177a8b95-10f7-4147-8d27-64bda30a0a69",
+    "66be685f-1fdd-486d-aed0-4bcf05603de3"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T08:17:30.18161465Z",
+  "updatedAt": "2026-08-30T08:17:30.18161465Z",
+  "startedAt": null,
+  "completedAt": null
+}

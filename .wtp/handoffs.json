@@ -168,6 +168,139 @@
       "author": "codex-wtp-loop",
       "message": "Senior audit passed with no corrections. Catalog is per-provider invocation and immutable; no-config keeps four statuses/directories; unconfigured live status records fail safely; atomic status publication plus residue recovery is sound; waiting/blocked/failed never auto-claim; only done resolves dependencies; stats ordering is deterministic. Targeted edge tests, go test ./..., go vet ./..., git diff --check, and ./scripts/verify.sh all passed (including smoke and commit verification). No further review action required.",
       "createdAt": "2026-08-21T14:50:24.505567979Z"
+    },
+    {
+      "id": "7da0c666-2d6d-4217-95cc-a27f4ca5be2b",
+      "author": "Codex",
+      "message": "Batch update backlog created as wtp-0d6e4079-0016 through wtp-0d6e4079-0025. Start with claimable Sol task wtp-0d6e4079-0016, then follow encoded dependencies; allocation is exactly 1 Sol High, 2 Terra High, and 7 Luna High. Task descriptions contain the accepted CSV/JSON, concurrency, transaction, documentation, skills, and verification contracts.",
+      "createdAt": "2026-08-29T23:43:47.839959853Z"
+    },
+    {
+      "id": "b7299078-1a67-46c2-a1d0-b3a97f131f96",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0016 complete: shared batch patch/provider types and atomic flat-file BatchUpdate landed with prepared rollback, committed roll-forward, retained failed recovery journal, final-state validation, and focused tests. Verified go test targeted packages, go test -race ./internal/provider/flatfile, go test ./..., and git diff --check. Dependent codec/CLI/docs/fault-matrix tasks remain scoped separately.",
+      "createdAt": "2026-08-30T02:22:23.3842358Z"
+    },
+    {
+      "id": "e721ffd1-b38c-4946-a714-0fcb4e5d7f09",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0017 complete: added independent internal/batchjson JSON v1 codec over core.BatchTaskUpdateInput. It emits deterministic ordered compact UTF-8 JSON with UTC RFC3339Nano updatedAt, preserves id and shortId, maps omission/null/patch presence correctly, and strictly rejects unsupported versions, unknown/duplicate properties, malformed input, empty batches, duplicate rows, missing identifiers/timestamps, invalid required fields, bad dependencies, and no-op rows. Added table-driven round-trip/rejection tests. Verified go test ./internal/batchjson, go test ./..., and git diff --check.",
+      "createdAt": "2026-08-30T02:29:30.82612786Z"
+    },
+    {
+      "id": "08a74e07-014b-4a19-9386-5035c1877bb0",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0018 complete: added independent internal/batchcsv codec over core.BatchTaskUpdateInput. It emits deterministic ordered UTF-8 CSV with LF endings and no BOM, quotes embedded commas/quotes/multiline fields, maps blank cells to preserve and _clear to explicit clears for clearable metadata/dependencies, and accepts short IDs or UUIDs for provider resolution. Strictly rejects unknown/duplicate/missing headers, ragged or malformed CSV, invalid UTF-8/timestamps, duplicate task identifiers, invalid clear lists/conflicts, malformed dependency lists, empty batches, missing identifiers/timestamps, and no-op rows. Added table-driven round-trip, CRLF+BOM, multiline, clear-semantics, and malformed-input tests. Verified go test ./internal/batchcsv, go test ./..., go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-30T02:37:17.71875715Z"
+    },
+    {
+      "id": "28c2aa7f-5e56-4a8f-9ce6-1e03d6e57e83",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0019 complete: added internal/batchexport service for ordered all/status/explicit-ID selection, selector validation, full-graph dependency UUID-to-shortID rendering, complete editable JSON/CSV patches, extension/explicit format resolution, raw stdout bytes, and same-directory atomic file replacement with failure preservation. Added focused tests for selection/order/conflicts, cross-status dependency rendering, clear semantics, inference/override, atomic failure preservation, and stdout bytes. Verified go test -count=1 ./internal/batchexport, go test ./..., go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-30T02:45:46.38789994Z"
+    },
+    {
+      "id": "f333a062-cd23-4d70-bc9c-52f9b6d7bd9d",
+      "taskId": "34bcf5b5-24b2-4e9e-bd9b-fb97f6cce431",
+      "author": "codex-wtp-loop",
+      "message": "Importer design: add internal/batchimport parallel to batchexport; decode codec patches, validate/normalize configured status and priority/estimate before mutation, aggregate deterministic row/task/field diagnostics, support file/stdin and format inference/override, preserve provider result ordering.",
+      "createdAt": "2026-08-30T02:48:31.17560229Z"
+    },
+    {
+      "id": "c6b70af8-3db4-42d3-9806-f82e109c4ba3",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0020 complete: added internal/batchimport CLI-independent service for file/stdin JSON/CSV imports, format inference/override, codec-preserved patch/clear semantics, configured status and enum mapping, deterministic aggregate diagnostics, input-order provider results, and no mutation on invalid decode/mapping. JSON/CSV decoders aggregate independent row errors. Verified focused codec/import tests, go test ./..., go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-30T02:52:58.479043727Z"
+    },
+    {
+      "id": "ef849448-da4a-4c36-b1a4-c9589fe76782",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0021 complete: added exhaustive flat-file batch transaction/recovery coverage, including fault-injection subprocess checks before/after journal states, each indexed replacement (with status move), rollback, committed cleanup, filesystem publication/cleanup failures, exact byte/path rollback including legacy UUID filenames, duplicate residue cleanup, global-lock reader blocking, no-op/mixed batches, stale tokens, final dependency validation, monotonic timestamps, custom statuses, and legacy/scoped IDs. Added narrow provider fixes for catalog-aware batch transitions and exact pre-transaction file restoration. Verified targeted fault tests with -tags wtp_fault_injection, Windows flatfile test cross-compile, go test ./..., go vet ./..., and git diff --check.",
+      "createdAt": "2026-08-30T03:03:03.233659008Z"
+    },
+    {
+      "id": "2951c6ef-e08b-479a-a77c-d07d3d74fa2e",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0022 complete: wired root batch export/import CLI to completed services. File export reports destination/format/taskCount (or Result JSON); stdout exports remain raw and reject root --json. Import prints updated/unchanged or returns ordered result JSON. Added focused parser/selector/output/diagnostic tests. Verified go test ./internal/cli and go test ./....",
+      "createdAt": "2026-08-30T03:07:19.38141639Z"
+    },
+    {
+      "id": "a2941d90-2c0f-4593-8204-55b5d40d186c",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0023 complete: added process-level CLI integration coverage over real flat-file storage for JSON/CSV export-edit-import, deterministic/default/configured-status/explicit-ID selection, extension inference and format override, stdin/stdout, CSV BOM/CRLF/multiline/_clear, JSON null/omission, short-ID dependency export with canonical UUID storage on import, lifecycle transitions, updated/unchanged results, stale updatedAt rejection, and malformed/duplicate/stale/invalid-transition/missing-dependency/cyclic/mixed batch store-preservation checks. Added canonical root export versus legacy --export-tasks parity and representative Unix/PowerShell smoke workflow. Verification: go test ./..., go vet ./..., ./scripts/verify.sh commit (including smoke), git diff --check.",
+      "createdAt": "2026-08-30T03:15:01.943837379Z"
+    },
+    {
+      "id": "3ca29bdb-ce2e-4969-bc77-096bee68dcff",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0026 complete: added AttributeStatus, typed created/progressed series metrics, explicit-asOf rolling range resolution, exact UTC range/time-bucket/SeriesReport JSON contracts, and task-only AggregateFocused. Overview task aggregation is separated from all-scope handoff loading; legacy Report and FocusedReport fields/order remain exact. No provider/storage/CLI parsing/rendering changes. Verified targeted stats/CLI, full go test, vet, stats race/386, and diff check.",
+      "createdAt": "2026-08-30T03:21:02.270987558Z"
+    },
+    {
+      "id": "161d2d9f-8ce4-476b-b7fc-2a19569796b5",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0027 complete: task-only AggregateFocused uses shared task aggregation with the existing status filter, exactly one ListTasks call, and no ListHandoffs. Added provider-spy coverage for empty stores, custom catalog order/zero status buckets, filtered lexical/unset model buckets, provider errors, and handoff non-loading. Verification: go test -count=1 ./internal/stats; go test -count=1 ./...; git diff --check. Preserved unrelated worktree changes; CLI routing remains with dependent stats CLI task.",
+      "createdAt": "2026-08-30T03:25:00.459721576Z"
+    },
+    {
+      "id": "4c1cfaac-9063-40ce-ada4-c413e157358b",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0028 complete: added strict rolling created/progressed series aggregation with UTC half-open buckets, canonical labels, exact boundaries, task-level latest UpdatedAt deduplication, empty buckets, and totalTasks bucket sums. Added focused edge/provider/fixed-asOf coverage; no CLI or rendering changes. Verification: go test -count=1 -run 'Series|RollingRange' ./internal/stats; GOARCH=386 go test -count=1 ./internal/stats; go test -count=1 ./...; git diff --check.",
+      "createdAt": "2026-08-30T03:30:46.158501489Z"
+    },
+    {
+      "id": "8cfcad63-2ec2-4420-80d7-b3f0fa94a626",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0030 complete: refactored CLI stats parsing to typed overview/focused/series queries; added focused status, created/progressed STARTd-ENDd series, status-first ambiguity preservation, status-filter rejection for series, task-only focused dispatch, full overview dispatch, injected-clock runStatsAt, structured text/JSON series output, and parser/dispatch tests. Verification: go test -count=1 ./internal/stats ./internal/cli; go test -count=1 ./...; git diff --check. Preserved unrelated worktree changes; chart rendering and prose docs remain for dependent tasks.",
+      "createdAt": "2026-08-30T03:36:27.465020491Z"
+    },
+    {
+      "id": "3bbf3dc7-3c7b-4489-b364-44b4cacbe84a",
+      "author": "codex-wtp-loop",
+      "message": "Completed batch contract documentation: README workflow/CLI reference, help/schema, CONTRIBUTING, Unreleased changelog, .gitignore, and task-management/setup-wtp skill updates. Added JSON v1/CSV semantics, selectors/inference/stdin-stdout, updatedAt stale protection, atomic validation/publication, canonical export distinction, and .wtp/meta/batch-update.json recovery guidance. Verification: both skill validators, documentation/help/schema tests, go test ./..., git diff --check.",
+      "createdAt": "2026-08-30T05:50:10.920574074Z"
+    },
+    {
+      "id": "b4fe154e-5333-45ab-9d3d-40a6defd9d98",
+      "author": "codex-wtp-loop",
+      "message": "Final batch-workflow audit complete. Corrected the only contract mismatch: code/tests/smoke allow selector-free batch export of all tasks, so README/help/schema now say selectors are optional and mutually exclusive. Race, wtp fault-injection recovery, full Go/vet/gofmt/diff/Unix commit gate, Windows cross-compile, and PowerShell commit/smoke gates all passed; exact commands are in task wtp-0d6e4079-0025's completion comment.",
+      "createdAt": "2026-08-30T05:55:50.795291703Z"
+    },
+    {
+      "id": "2b0bce9a-15ac-4c7f-ab19-bff9ecdc74d9",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0029 complete: added isolated internal/cli horizontal stats chart renderer and exact-output table tests for empty, zero-only, scaled, tied, long-label, and large-count cases. Uses aligned labels, (unset), │/█ output, 32-cell max scaling, zero-safe handling, preserved order, and overflow-safe integer math. Verification: go test -count=1 ./internal/cli -run TestRenderStatsChart; go test ./...; git diff --check.",
+      "createdAt": "2026-08-30T06:00:41.163772511Z"
+    },
+    {
+      "id": "af4f2853-54e0-4541-94b5-de08d947ea44",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0031 complete: integrated canonical stats --chart parsing before selectors, focused categorical and created/progressed series chart output, metric/status/range/totalTasks headers, preserved bucket order, root --json and conflict validation, and focused CLI coverage. Verification: go test ./internal/cli; go test ./...; go run ./cmd/wtp stats --chart model; git diff --check.",
+      "createdAt": "2026-08-30T06:06:43.516475667Z"
+    },
+    {
+      "id": "caad5d27-0530-4457-a10e-1ac63d0913d0",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0033 complete: added internal/cli/stats_series_integration_test.go and internal/provider/flatfile/stats_integration_test.go with injected as-of fixtures, created/progressed range/rendering/JSON coverage, invalid range validation, and byte-level read-only storage checks. Verification: go test ./internal/cli ./internal/provider/flatfile; go test ./...; git diff --check.",
+      "createdAt": "2026-08-30T06:13:58.466770754Z"
+    },
+    {
+      "id": "6115495b-d9b6-41b3-a62d-c2eb4a7c7202",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0032 complete: added internal/cli/stats_focused_cli_test.go covering focused status/model plain, chart, and JSON contracts; filtered STATUS model; default/custom catalogs and status-first ambiguity; zero/unset/lexical/long-label/empty-store cases; provider failures; malformed/excess arguments; no-handoff quick queries; and legacy overview/focused compatibility. No production correction was needed. Verification: go test ./internal/cli ./internal/stats; go test ./...; gofmt -d clean; git diff --check clean.",
+      "createdAt": "2026-08-30T06:20:58.273941608Z"
+    },
+    {
+      "id": "0b6320f8-1400-4731-8da9-50212f998d0a",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0034 complete: updated README, embedded wtp help/usage, agent-facing task-management/setup guidance, and Unreleased changelog for singular/status-first stats selectors, status-before-model compatibility, --chart placement/conflict and 32-cell scaled bars, (unset) models, UTC half-open 24-hour rolling ranges, latest UpdatedAt progressed semantics, and JSON plus human chart examples. Verification: embedded help contract, go test ./internal/releaseasset -run Documentation -count=1, go test ./..., skill quick_validate on both edited skills, and git diff --check.",
+      "createdAt": "2026-08-30T06:26:14.376653202Z"
+    },
+    {
+      "id": "71a06c76-67db-4eff-ab6b-758fbc71dfb1",
+      "author": "codex-wtp-loop",
+      "message": "wtp-0d6e4079-0035 audit complete: no corrections required. Verified focused categorical/scalar and created/progressed series queries are task-only and avoid ListHandoffs; overview retains handoffs; stats leaves provider/storage interfaces unchanged; overview/focused text+JSON contracts are compatible; range and bucket boundaries are UTC half-open; runStats captures time once; custom catalog order and explicit unset model values are preserved; and --chart is rejected with root --json. No parallel tasks remain in progress. Verification passed: gofmt -l ./cmd ./internal (no output); go test ./...; go vet ./...; git diff --check; ./scripts/verify.sh commit (smoke test passed; commit verification passed).",
+      "createdAt": "2026-08-30T06:28:46.252451156Z"
     }
   ]
 }

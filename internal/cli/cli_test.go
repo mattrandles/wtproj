@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mattrandles/wtproj/internal/batchjson"
 	"github.com/mattrandles/wtproj/internal/buildinfo"
 	"github.com/mattrandles/wtproj/internal/core"
 	"github.com/mattrandles/wtproj/internal/provider"
@@ -185,6 +186,186 @@ func TestRunInformationalCommandsRejectUnexpectedArgumentsWithoutStorageSideEffe
 				t.Fatalf("invalid %s initialized .wtp: stat error = %v", command, statErr)
 			}
 		})
+	}
+}
+
+func TestRunBatchExportWritesFileAndReportsMetadata(t *testing.T) {
+	task := graphTaskView("00000000-0000-4000-8000-000000000001", "wtp-0001", "Export me", core.StatusTodo, nil, "2026-04-21T10:00:00Z")
+	p := &batchCLITestProvider{statsTestProvider: statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{task}}}}
+	path := filepath.Join(t.TempDir(), "tasks.json")
+	var stdout, stderr bytes.Buffer
+
+	if err := runBatch(context{provider: p, stdout: &stdout, stderr: &stderr}, []string{"export", "--out", path}); err != nil {
+		t.Fatalf("runBatch(export) error = %v", err)
+	}
+	if got, want := stdout.String(), "destination: "+path+"\nformat: json\ntaskCount: 1\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read export: %v", err)
+	}
+	rows, err := batchjson.Decode(data)
+	if err != nil {
+		t.Fatalf("decode export: %v", err)
+	}
+	if len(rows) != 1 || rows[0].ShortID != task.ShortID {
+		t.Fatalf("exported rows = %#v", rows)
+	}
+}
+
+func TestRunBatchExportStdoutIsRawAndRejectsJSONSummary(t *testing.T) {
+	task := graphTaskView("00000000-0000-4000-8000-000000000001", "wtp-0001", "Export me", core.StatusTodo, nil, "2026-04-21T10:00:00Z")
+	p := &batchCLITestProvider{statsTestProvider: statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{task}}}}
+	var stdout, stderr bytes.Buffer
+	ctx := context{provider: p, stdout: &stdout, stderr: &stderr}
+
+	if err := runBatchExport(ctx, []string{"--out", "-", "--format", "json"}); err != nil {
+		t.Fatalf("runBatchExport(stdout) error = %v", err)
+	}
+	if _, err := batchjson.Decode(stdout.Bytes()); err != nil {
+		t.Fatalf("stdout contains non-batch output: %q, error = %v", stdout.String(), err)
+	}
+
+	stdout.Reset()
+	ctx.jsonOut = true
+	err := runBatchExport(ctx, []string{"--out", "-", "--format", "json"})
+	if err == nil || !strings.Contains(err.Error(), "cannot be combined with --json") {
+		t.Fatalf("--json stdout export error = %v", err)
+	}
+	if got := stdout.String(); got != "" {
+		t.Fatalf("rejected stdout export wrote %q", got)
+	}
+}
+
+func TestRunBatchExportJSONMetadataPreservesRepeatedTaskSelectorOrder(t *testing.T) {
+	first := graphTaskView("00000000-0000-4000-8000-000000000001", "wtp-0001", "First", core.StatusTodo, nil, "2026-04-21T10:00:00Z")
+	second := graphTaskView("00000000-0000-4000-8000-000000000002", "wtp-0002", "Second", core.StatusDone, nil, "2026-04-21T10:01:00Z")
+	p := &batchCLITestProvider{statsTestProvider: statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{first, second}}}}
+	path := filepath.Join(t.TempDir(), "selected.json")
+	var stdout, stderr bytes.Buffer
+
+	if err := runBatchExport(context{provider: p, stdout: &stdout, stderr: &stderr, jsonOut: true}, []string{"--out", path, "--task", second.ShortID, "--task", first.ShortID}); err != nil {
+		t.Fatalf("runBatchExport(--json) error = %v", err)
+	}
+	var metadata struct {
+		Count       int    `json:"count"`
+		Format      string `json:"format"`
+		Destination string `json:"destination"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &metadata); err != nil {
+		t.Fatalf("decode JSON metadata: %v", err)
+	}
+	if metadata.Count != 2 || metadata.Format != "json" || metadata.Destination != path {
+		t.Fatalf("metadata = %#v", metadata)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read export: %v", err)
+	}
+	rows, err := batchjson.Decode(data)
+	if err != nil {
+		t.Fatalf("decode export: %v", err)
+	}
+	if len(rows) != 2 || rows[0].ShortID != second.ShortID || rows[1].ShortID != first.ShortID {
+		t.Fatalf("selector ordering = %#v", rows)
+	}
+}
+
+func TestRunBatchExportValidatesRequiredAndExclusiveSelectors(t *testing.T) {
+	ctx := context{provider: &batchCLITestProvider{}, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "missing destination", args: []string{"--format", "json"}, want: "--out is required"},
+		{name: "missing stdout format", args: []string{"--out", "-"}, want: "format is required for stdout"},
+		{name: "both selectors", args: []string{"--out", "tasks.json", "--status", "todo", "--task", "wtp-0001"}, want: "either --status or --task"},
+		{name: "extra argument", args: []string{"--out", "tasks.json", "extra"}, want: batchExportUsage},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := runBatchExport(ctx, test.args)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("runBatchExport(%v) error = %v, want %q", test.args, err, test.want)
+			}
+		})
+	}
+}
+
+func TestRunBatchImportPrintsCountsAndJSONKeepsInputOrder(t *testing.T) {
+	first := graphTaskView("00000000-0000-4000-8000-000000000001", "wtp-0001", "First", core.StatusTodo, nil, "2026-04-21T10:00:00Z")
+	second := graphTaskView("00000000-0000-4000-8000-000000000002", "wtp-0002", "Second", core.StatusTodo, nil, "2026-04-21T10:01:00Z")
+	p := &batchCLITestProvider{result: provider.BatchUpdateResult{
+		Updated:   []core.TaskView{second, first},
+		Unchanged: []core.TaskView{second, first},
+	}}
+	path := filepath.Join(t.TempDir(), "updates.json")
+	data, err := batchjson.Encode([]core.BatchTaskUpdateInput{
+		{ShortID: first.ShortID, ExpectedUpdatedAt: first.UpdatedAt, Title: core.OptionalString{Set: true, Value: "First update"}},
+		{ShortID: second.ShortID, ExpectedUpdatedAt: second.UpdatedAt, Title: core.OptionalString{Set: true, Value: "Second update"}},
+	})
+	if err != nil {
+		t.Fatalf("encode import: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write import: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	ctx := context{provider: p, stdout: &stdout, stderr: &stderr}
+	if err := runBatchImport(ctx, []string{"--in", path}); err != nil {
+		t.Fatalf("runBatchImport() error = %v", err)
+	}
+	if got, want := stdout.String(), "updated: 2\nunchanged: 2\n"; got != want {
+		t.Fatalf("human stdout = %q, want %q", got, want)
+	}
+	if len(p.request.Tasks) != 2 || p.request.Tasks[0].ShortID != first.ShortID {
+		t.Fatalf("import request = %#v", p.request)
+	}
+
+	stdout.Reset()
+	ctx.jsonOut = true
+	if err := runBatchImport(ctx, []string{"--in", path}); err != nil {
+		t.Fatalf("runBatchImport(--json) error = %v", err)
+	}
+	var result provider.BatchUpdateResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("decode JSON output: %v", err)
+	}
+	for _, views := range [][]core.TaskView{result.Updated, result.Unchanged} {
+		if len(views) != 2 || views[0].ShortID != first.ShortID || views[1].ShortID != second.ShortID {
+			t.Fatalf("JSON output order = %#v", result)
+		}
+	}
+}
+
+func TestRunBatchImportRequiresInputAndRejectsExtraArguments(t *testing.T) {
+	ctx := context{stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	for _, test := range []struct {
+		args []string
+		want string
+	}{
+		{args: nil, want: "--in is required"},
+		{args: []string{"--in", "updates.json", "extra"}, want: batchImportUsage},
+	} {
+		err := runBatchImport(ctx, test.args)
+		if err == nil || !strings.Contains(err.Error(), test.want) {
+			t.Fatalf("runBatchImport(%v) error = %v, want %q", test.args, err, test.want)
+		}
+	}
+}
+
+func TestRunBatchImportReturnsRowAndFieldDiagnostics(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "invalid.json")
+	data := []byte(`{"version":1,"tasks":[{"shortId":"wtp-0001","updatedAt":"2026-04-21T10:00:00Z","title":" "}]}`)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write invalid import: %v", err)
+	}
+	err := runBatchImport(context{provider: &batchCLITestProvider{}, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}, []string{"--in", path})
+	if err == nil || !strings.Contains(err.Error(), "row 1") || !strings.Contains(err.Error(), "title") {
+		t.Fatalf("runBatchImport() error = %v, want row and field diagnostic", err)
 	}
 }
 
@@ -1543,25 +1724,29 @@ func mustSingleTask(t *testing.T, p provider.Provider, status core.Status) core.
 
 func TestParseStatsArgsAcceptsOnlyDocumentedForms(t *testing.T) {
 	tests := []struct {
-		name      string
-		args      []string
-		status    *core.Status
-		attribute string
-		focused   bool
-		wantErr   string
+		name    string
+		args    []string
+		want    statsQuery
+		wantErr string
 	}{
 		{name: "overview", args: nil},
-		{name: "status", args: []string{"done"}, status: statusPointer(core.StatusDone)},
-		{name: "attribute", args: []string{"model"}, attribute: "model", focused: true},
-		{name: "status and attribute", args: []string{"paused", "dependencies"}, status: statusPointer(core.StatusPaused), attribute: "dependencies", focused: true},
+		{name: "status overview", args: []string{"done"}, want: statsQuery{status: statusPointer(core.StatusDone)}},
+		{name: "status attribute", args: []string{"status"}, want: statsQuery{attribute: stats.AttributeStatus}},
+		{name: "attribute", args: []string{"model"}, want: statsQuery{attribute: stats.AttributeModel}},
+		{name: "status and attribute", args: []string{"paused", "dependencies"}, want: statsQuery{status: statusPointer(core.StatusPaused), attribute: stats.AttributeDependencies}},
+		{name: "created series", args: []string{"created", "7d-0d"}, want: statsQuery{metric: stats.SeriesMetricCreated, rangeSpec: stats.RollingRange{StartDays: 7, EndDays: 0}}},
+		{name: "progressed series", args: []string{"progressed", "14d-7d"}, want: statsQuery{metric: stats.SeriesMetricProgressed, rangeSpec: stats.RollingRange{StartDays: 14, EndDays: 7}}},
 		{name: "reversed", args: []string{"model", "done"}, wantErr: "must precede"},
 		{name: "invalid status", args: []string{"blocked"}, wantErr: "must be a status or attribute"},
 		{name: "unknown attribute", args: []string{"done", "bogus"}, wantErr: "unknown stats attribute"},
+		{name: "missing range", args: []string{"created"}, wantErr: "requires STARTd-ENDd"},
+		{name: "malformed range", args: []string{"progressed", "seven"}, wantErr: "must match STARTd-ENDd"},
+		{name: "status series", args: []string{"done", "created", "7d-0d"}, wantErr: "does not accept a status filter"},
 		{name: "extra", args: []string{"done", "model", "extra"}, wantErr: statsUsage},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			status, attribute, focused, err := parseStatsArgs(test.args)
+			got, err := parseStatsArgs(test.args)
 			if test.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 					t.Fatalf("parseStatsArgs() error = %v, want containing %q", err, test.wantErr)
@@ -1571,10 +1756,28 @@ func TestParseStatsArgsAcceptsOnlyDocumentedForms(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parseStatsArgs() error = %v", err)
 			}
-			if !reflect.DeepEqual(status, test.status) || string(attribute) != test.attribute || focused != test.focused {
-				t.Fatalf("parseStatsArgs() = (%v, %q, %t), want (%v, %q, %t)", status, attribute, focused, test.status, test.attribute, test.focused)
+			if !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("parseStatsArgs() = %#v, want %#v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestParseStatsArgsResolvesConfiguredStatusBeforeAttributesAndSeries(t *testing.T) {
+	catalog, err := core.NewStatusCatalog([]core.StatusDefinition{{Name: "created", Category: core.StatusCategoryWaiting}})
+	if err != nil {
+		t.Fatalf("NewStatusCatalog() error = %v", err)
+	}
+
+	query, err := parseStatsArgs([]string{"created"}, catalog)
+	if err != nil {
+		t.Fatalf("parseStatsArgs(created) error = %v", err)
+	}
+	if query.status == nil || *query.status != "created" || !query.isOverview() {
+		t.Fatalf("created query = %#v, want configured status overview", query)
+	}
+	if _, err := parseStatsArgs([]string{"created", "7d-0d"}, catalog); err == nil || !strings.Contains(err.Error(), "unknown stats attribute") {
+		t.Fatalf("ambiguous created series error = %v, want status-first attribute error", err)
 	}
 }
 
@@ -1585,18 +1788,23 @@ func TestRunStatsSupportsEveryValidInvocationForm(t *testing.T) {
 		json       bool
 		wantStatus *core.Status
 		focused    bool
+		series     bool
 	}{
 		{name: "overview", args: nil},
 		{name: "status-only", args: []string{"done"}, json: true, wantStatus: statusPointer(core.StatusDone)},
+		{name: "status-attribute", args: []string{"status"}, focused: true},
 		{name: "attribute-only", args: []string{"lane"}, focused: true},
 		{name: "status-and-attribute", args: []string{"paused", "comments"}, json: true, wantStatus: statusPointer(core.StatusPaused), focused: true},
+		{name: "created-series", args: []string{"created", "7d-0d"}, json: true, series: true},
+		{name: "progressed-series", args: []string{"progressed", "7d-0d"}, series: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			p := &statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{{Task: core.Task{ID: "task", Status: core.StatusTodo, Lane: "cli"}}}}}
+			asOf := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
+			p := &statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{{Task: core.Task{ID: "task", Status: core.StatusTodo, Lane: "cli", CreatedAt: asOf.Add(-time.Hour), UpdatedAt: asOf.Add(-time.Hour)}}}}}
 			var stdout, stderr bytes.Buffer
 			ctx := context{provider: p, stdout: &stdout, stderr: &stderr, jsonOut: test.json}
-			if err := runStats(ctx, test.args); err != nil {
+			if err := runStatsAt(ctx, test.args, asOf); err != nil {
 				t.Fatalf("runStats(%v) error = %v", test.args, err)
 			}
 			if test.wantStatus == nil {
@@ -1609,7 +1817,56 @@ func TestRunStatsSupportsEveryValidInvocationForm(t *testing.T) {
 			if test.focused && !strings.Contains(stdout.String(), `"attribute"`) && !strings.Contains(stdout.String(), "attribute:") {
 				t.Fatalf("focused stats output = %q", stdout.String())
 			}
+			if test.series && !strings.Contains(stdout.String(), `"range"`) && !strings.Contains(stdout.String(), "range:") {
+				t.Fatalf("series stats output = %q", stdout.String())
+			}
+			if test.focused || test.series {
+				if p.handoffCalls != 0 {
+					t.Fatalf("focused stats loaded handoffs %d times", p.handoffCalls)
+				}
+			} else if p.handoffCalls != 1 {
+				t.Fatalf("overview stats handoff calls = %d, want 1", p.handoffCalls)
+			}
 		})
+	}
+}
+
+func TestRunStatsAtRendersStructuredSeriesAndUsesInjectedClock(t *testing.T) {
+	asOf := time.Date(2026, time.August, 30, 12, 34, 56, 789, time.UTC)
+	p := &statsTestProvider{graphTestProvider: graphTestProvider{tasks: []core.TaskView{
+		{Task: core.Task{ID: "first", Status: core.StatusTodo, CreatedAt: asOf.Add(-7 * 24 * time.Hour), UpdatedAt: asOf.Add(-time.Hour)}},
+		{Task: core.Task{ID: "second", Status: core.StatusDone, CreatedAt: asOf.Add(-24 * time.Hour), UpdatedAt: asOf.Add(-48 * time.Hour)}},
+		{Task: core.Task{ID: "outside", Status: core.StatusTodo, CreatedAt: asOf, UpdatedAt: asOf}},
+	}}}
+	var stdout bytes.Buffer
+	ctx := context{provider: p, stdout: &stdout, stderr: &bytes.Buffer{}, jsonOut: true}
+
+	if err := runStatsAt(ctx, []string{"created", "7d-0d"}, asOf); err != nil {
+		t.Fatalf("runStatsAt(created) error = %v", err)
+	}
+	var report stats.SeriesReport
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("decode series JSON: %v", err)
+	}
+	if report.Attribute != stats.SeriesMetricCreated || report.TotalTasks != 2 || report.Range.Start != asOf.Add(-7*24*time.Hour) || report.Range.End != asOf {
+		t.Fatalf("series report = %#v", report)
+	}
+	if len(report.Buckets) != 7 || report.Buckets[0].Label != "7d-6d" || report.Buckets[0].Count != 1 || report.Buckets[6].Label != "1d-0d" || report.Buckets[6].Count != 1 {
+		t.Fatalf("series buckets = %#v", report.Buckets)
+	}
+	if p.lastFilter.Status != nil || p.handoffCalls != 0 {
+		t.Fatalf("series calls filter=%#v handoffs=%d, want unfiltered tasks and no handoffs", p.lastFilter, p.handoffCalls)
+	}
+
+	stdout.Reset()
+	ctx.jsonOut = false
+	if err := runStatsAt(ctx, []string{"progressed", "7d-0d"}, asOf); err != nil {
+		t.Fatalf("runStatsAt(progressed) error = %v", err)
+	}
+	for _, needle := range []string{"attribute: progressed", "range:\n  start: 2026-08-23T12:34:56.000000789Z", "buckets:\n  7d-6d:\n    start:"} {
+		if !strings.Contains(stdout.String(), needle) {
+			t.Fatalf("series text missing %q in %q", needle, stdout.String())
+		}
 	}
 }
 
@@ -1910,7 +2167,7 @@ func TestHelpMentionsTaskMetadataOptions(t *testing.T) {
 		t.Fatalf("help() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "--git-repo", "--git-branch", "--worktree-name", "--worktree-dir", "current Git worktree root", "wtpDir selects storage", "Usage Guide:", "wtp handoff write", "wtp handoff get", "wtp handoff purge", "handoff write appends by default", "newest global record", "handoff purge requires exactly one", ".wtp/handoffs.json", "claiming never consumes", "other scopes", "scopeCount", "otherScopesAvailable", "legacy --export-tasks is an alias", "Task IDs and scoped storage:", "wtp-BBBBBBBB-NNNN", "main hashes to 0d6e4079", ".wtp/meta/index-<branchId>.json", "Detached HEAD and non-Git", "foreign task can", "branch object", "UUID-named task file", "export remains canonical"} {
+	for _, needle := range []string{"wtp task show", "wtp task update", "wtp update", "checksum-verified", "wtp task edit", "wtp graph", "wtp schema", "--model", "--git-repo", "--git-branch", "--worktree-name", "--worktree-dir", "current Git worktree root", "wtpDir selects storage", "Usage Guide:", "wtp handoff write", "wtp handoff get", "wtp handoff purge", "handoff write appends by default", "newest global record", "handoff purge requires exactly one", ".wtp/handoffs.json", "claiming never consumes", "other scopes", "scopeCount", "otherScopesAvailable", "batch export writes an editable patch document", "omit both to export every task", "legacy --export-tasks is an alias", "Task IDs and scoped storage:", "wtp-BBBBBBBB-NNNN", "main hashes to 0d6e4079", ".wtp/meta/index-<branchId>.json", "Detached HEAD and non-Git", "foreign task can", "branch object", "UUID-named task file", "export remains canonical"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("help output missing %q", needle)
 		}
@@ -1928,7 +2185,7 @@ func TestSchemaDocumentsTaskAndHandoffContracts(t *testing.T) {
 		t.Fatalf("schema() error = %v", err)
 	}
 	output := stdout.String()
-	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, `"gitRepo": "/workspace/repo"`, "Configuration and discovery:", "linked worktrees use that worktree's configuration", "model: optional free-form string", "gitRepo: optional absolute path", "worktreeDir: optional absolute path", "--git-branch=", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid", ".wtp/handoffs.json", `"handoffs": [`, "Handoff field semantics:", "handoff write appends by default", "--task and --all-scopes conflict", "A cutoff is exclusive", "Handoff reads and task claims are non-consuming", "task start and task next attach", "Handoff JSON response shapes:", `"scopeCount": 1`, `"otherScopesAvailable": false`, `"purged": 1`, "missing .wtp/handoffs.json", "Legacy task compatibility:", "--export-tasks=<directory>", "Short IDs, branch scopes, and allocation indexes:", "{\"branch\":\"<exact branch name>\",\"next\":<positive integer>}", "SHA-256", "first four digest bytes", "wtp-0d6e4079-0001.json", "task ready and task next select current-scope", "Foreign tasks are not automatically claimable", "task start <task-id>", "Filename compatibility migration:", "canonical task UUID>.json", "conflicting files are rejected before migration", "export directory contains exactly one canonical UUID-named", "scoped short-ID filenames and allocation indexes are not exported", "preserve unknown future fields", ".wtp/meta/wtp.lock", "tolerate gaps", "Canonical export is unchanged"} {
+	for _, needle := range []string{"dependencies are stored as canonical UUID strings", ".wtp/meta/index.json", "Task JSON schema:", `"model": "gpt-5"`, `"gitRepo": "/workspace/repo"`, "Configuration and discovery:", "linked worktrees use that worktree's configuration", "model: optional free-form string", "gitRepo: optional absolute path", "worktreeDir: optional absolute path", "--git-branch=", "--model", "Task UUIDs and short IDs must be unique", "todo has no lifecycle timestamps", "comments created without an agent remain valid", ".wtp/handoffs.json", `"handoffs": [`, "Handoff field semantics:", "handoff write appends by default", "--task and --all-scopes conflict", "A cutoff is exclusive", "Handoff reads and task claims are non-consuming", "task start and task next attach", "Handoff JSON response shapes:", `"scopeCount": 1`, `"otherScopesAvailable": false`, `"purged": 1`, "missing .wtp/handoffs.json", "Legacy task compatibility:", "--export-tasks=<directory>", "Editable batch task contract:", "batch export accepts at most one selector kind", "omitting both selects every task", "Short IDs, branch scopes, and allocation indexes:", "{\"branch\":\"<exact branch name>\",\"next\":<positive integer>}", "SHA-256", "first four digest bytes", "wtp-0d6e4079-0001.json", "task ready and task next select current-scope", "Foreign tasks are not automatically claimable", "task start <task-id>", "Filename compatibility migration:", "canonical task UUID>.json", "conflicting files are rejected before migration", "export directory contains exactly one canonical UUID-named", "scoped short-ID filenames and allocation indexes are not exported", "preserve unknown future fields", ".wtp/meta/wtp.lock", "tolerate gaps", "Canonical export is unchanged"} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("schema output missing %q", needle)
 		}
@@ -2379,6 +2636,18 @@ type statsTestProvider struct {
 	graphTestProvider
 	handoffs          []core.Handoff
 	lastHandoffFilter provider.HandoffFilter
+	handoffCalls      int
+}
+
+type batchCLITestProvider struct {
+	statsTestProvider
+	result  provider.BatchUpdateResult
+	request provider.BatchUpdateRequest
+}
+
+func (p *batchCLITestProvider) BatchUpdate(request provider.BatchUpdateRequest) (provider.BatchUpdateResult, error) {
+	p.request = request
+	return p.result, nil
 }
 
 func (p *updateTestProvider) StatusCatalog() core.StatusCatalog {
@@ -2415,6 +2684,7 @@ func (p *statsTestProvider) ListTasks(filter provider.TaskFilter) ([]core.TaskVi
 
 func (p *statsTestProvider) ListHandoffs(filter provider.HandoffFilter) (provider.HandoffListResult, error) {
 	p.lastHandoffFilter = filter
+	p.handoffCalls++
 	return provider.HandoffListResult{Handoffs: p.handoffs}, nil
 }
 
@@ -2472,6 +2742,10 @@ func (p *updateTestProvider) UpdateTask(idOrShortID string, input core.UpdateTas
 			UpdatedAt:    now,
 		},
 	}, nil
+}
+
+func (p *updateTestProvider) BatchUpdate(provider.BatchUpdateRequest) (provider.BatchUpdateResult, error) {
+	return provider.BatchUpdateResult{}, errors.New("unexpected call")
 }
 
 func (p *updateTestProvider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
@@ -2534,6 +2808,10 @@ func (p graphTestProvider) CreateTask(input core.CreateTaskInput) (core.TaskView
 
 func (p graphTestProvider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p graphTestProvider) BatchUpdate(provider.BatchUpdateRequest) (provider.BatchUpdateResult, error) {
+	return provider.BatchUpdateResult{}, errors.New("unexpected call")
 }
 
 func (p graphTestProvider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
@@ -2604,6 +2882,10 @@ func (p readyTestProvider) UpdateTask(idOrShortID string, input core.UpdateTaskI
 	return core.TaskView{}, errors.New("unexpected call")
 }
 
+func (p readyTestProvider) BatchUpdate(provider.BatchUpdateRequest) (provider.BatchUpdateResult, error) {
+	return provider.BatchUpdateResult{}, errors.New("unexpected call")
+}
+
 func (p readyTestProvider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
 }
@@ -2670,6 +2952,10 @@ func (p *getTestProvider) CreateTask(input core.CreateTaskInput) (core.TaskView,
 
 func (p *getTestProvider) UpdateTask(idOrShortID string, input core.UpdateTaskInput) (core.TaskView, error) {
 	return core.TaskView{}, errors.New("unexpected call")
+}
+
+func (p *getTestProvider) BatchUpdate(provider.BatchUpdateRequest) (provider.BatchUpdateResult, error) {
+	return provider.BatchUpdateResult{}, errors.New("unexpected call")
 }
 
 func (p *getTestProvider) UpdateTaskStatus(idOrShortID string, target core.Status, actor string) (core.TaskView, error) {

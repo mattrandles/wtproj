@@ -174,6 +174,15 @@ type OptionalStatus struct {
 	Value Status
 }
 
+// OptionalStrings preserves the distinction between an omitted string slice
+// and an explicitly supplied empty slice. Batch codecs use that distinction to
+// represent preserve versus clear without coupling their wire format to task
+// storage.
+type OptionalStrings struct {
+	Set   bool
+	Value []string
+}
+
 type UpdateTaskInput struct {
 	Title        OptionalString
 	Description  OptionalString
@@ -188,6 +197,28 @@ type UpdateTaskInput struct {
 	WorktreeDir  OptionalString
 	Assignee     OptionalString
 	Dependencies OptionalString
+}
+
+// BatchTaskUpdateInput identifies one task, supplies its optimistic
+// concurrency token, and carries only mutable task fields. ID and ShortID may
+// both be supplied; providers must verify that they resolve to the same task.
+type BatchTaskUpdateInput struct {
+	ID                string
+	ShortID           string
+	ExpectedUpdatedAt time.Time
+	Title             OptionalString
+	Description       OptionalString
+	Status            OptionalStatus
+	Priority          OptionalPriority
+	Estimate          OptionalEstimate
+	Lane              OptionalString
+	Model             OptionalString
+	GitRepo           OptionalString
+	GitBranch         OptionalString
+	WorktreeName      OptionalString
+	WorktreeDir       OptionalString
+	Assignee          OptionalString
+	Dependencies      OptionalStrings
 }
 
 func ParseStatus(value string) (Status, error) {

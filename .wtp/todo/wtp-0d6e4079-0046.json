@@ -1,0 +1,23 @@
+{
+  "id": "1cd6bcd8-8087-4ba6-bf15-32015a920b62",
+  "shortId": "wtp-0d6e4079-0046",
+  "title": "Define reusable advisory-task contracts",
+  "description": "Implement the decision-complete architecture for reusable advisory items after the grouping-metadata queue is complete. Add core types for a reusable definition with canonical UUID, case-insensitively unique trimmed name, required trimmed title and instructions, and UTC createdAt/updatedAt. Define the version-1 .wtp/reusable.json wrapper, optional ordered reusableTaskIds on stored tasks, resolved reusableTasks on TaskView, create/update/batch input shapes, and provider interface contracts. Preserve assignment order and stable UUID references across definition renames. Missing catalogs and omitted task fields must remain valid legacy input. Explicitly exclude queue generation, automatic group-end inference, item status, completion enforcement, command execution, and stats dimensions. Add focused compile-time and baseline serialization tests; leave exhaustive validation, persistence, CLI, and integration behavior to dependent tasks.",
+  "priority": "urgent",
+  "estimate": "xl",
+  "lane": "reusable-architecture",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "todo",
+  "dependencies": [
+    "aac52ba8-b7c3-44ab-b6b0-303dcc44a0d4"
+  ],
+  "comments": [],
+  "createdAt": "2026-08-30T07:41:56.660553099Z",
+  "updatedAt": "2026-08-30T07:41:56.660553099Z",
+  "startedAt": null,
+  "completedAt": null
+}

@@ -1,0 +1,41 @@
+{
+  "id": "c0ddeeb8-c176-47f4-8588-e5076546e94e",
+  "shortId": "wtp-0d6e4079-0016",
+  "title": "Implement atomic batch-update provider transaction",
+  "description": "Implement the shared batch-update domain and flat-file provider transaction behind the approved batch workflow. Add core/provider request and result types for id and/or shortId, required expected updatedAt, optional mutable task fields, and updated versus unchanged TaskViews; extend the Provider interface and compilation-only test doubles. Under one flat-file global lock, reject duplicate or mismatched identifiers and stale rows, resolve dependency identifiers, apply every patch to an in-memory copy, compare effective values before status-transition checks, validate paths and field values, validate lifecycle transitions and startability against the final proposed task set, validate the final dependency graph, and advance updatedAt only for actual changes. Publish all changed tasks through a durable .wtp/meta/batch-update.json prepared/committed journal: rollback prepared interruptions, roll forward committed interruptions, recover before ordinary storage loading, retain the journal when recovery itself cannot finish, and preserve the existing Unix and Windows atomic replacement behavior. Add focused provider happy-path, no-op, stale-token, final-state dependency, status-lifecycle, and validation tests; leave the exhaustive fault matrix to its dependent test task. Do not implement CLI parsing, JSON/CSV codecs, or public documentation. Finish with targeted package tests and go test ./....",
+  "priority": "urgent",
+  "estimate": "xl",
+  "lane": "storage",
+  "model": "GPT 5.6 Sol High",
+  "gitRepo": "/mnt/dev/dev/wtproj",
+  "gitBranch": "main",
+  "worktreeName": "wtproj",
+  "worktreeDir": "/mnt/dev/dev/wtproj",
+  "status": "done",
+  "assignee": "codex-wtp-loop",
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e22bf56f-8363-4e91-ac6f-6a46aa2b1b81",
+      "author": "codex-wtp-loop",
+      "message": "Mapped batch contract and flat-file durability path. Implementing shared three-state patch types plus one-lock final-state validation and prepared/committed recovery journal; CLI/codecs/docs remain out of scope.",
+      "createdAt": "2026-08-30T02:13:45.744394053Z"
+    },
+    {
+      "id": "81b262e7-a714-4200-8a06-a8e90a54b33e",
+      "author": "codex-wtp-loop",
+      "message": "Milestone: shared batch request/result types compile across Provider doubles; flat-file BatchUpdate now performs one-lock identifier/stale checks, effective no-op detection, final-set lifecycle/startability/graph validation, and prepared/committed journal recovery before storage loading.",
+      "createdAt": "2026-08-30T02:16:50.786451622Z"
+    },
+    {
+      "id": "b551c73c-37f7-4e9d-87c2-9b4f6d075798",
+      "author": "codex-wtp-loop",
+      "message": "Implemented atomic BatchUpdate with ID/shortId verification, required updatedAt tokens, effective no-op handling, final-state lifecycle/startability/dependency validation, and durable prepared/committed recovery. Verified targeted packages, recovery cases, race test, full go test ./..., and git diff --check.",
+      "createdAt": "2026-08-30T02:22:23.362212365Z"
+    }
+  ],
+  "createdAt": "2026-08-29T23:43:27.122419406Z",
+  "updatedAt": "2026-08-30T02:22:23.406180813Z",
+  "startedAt": "2026-08-30T02:10:14.573467323Z",
+  "completedAt": "2026-08-30T02:22:23.406180813Z"
+}
