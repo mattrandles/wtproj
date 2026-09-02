@@ -101,11 +101,34 @@ func TestWTPPlanningSkillContract(t *testing.T) {
 
 func planningPython(t *testing.T) string {
 	t.Helper()
-	python, err := exec.LookPath("python3")
-	if err != nil {
-		t.Skip("Python 3 unavailable; planning helper checks require Python 3")
+	type candidate struct {
+		name string
+		args []string
 	}
-	return python
+	for _, candidate := range []candidate{
+		{name: "python3"},
+		{name: "python"},
+		{name: "py", args: []string{"-3"}},
+	} {
+		python, err := exec.LookPath(candidate.name)
+		if err != nil {
+			continue
+		}
+		checkArgs := append(append([]string{}, candidate.args...), "-c", "import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)")
+		if err := exec.Command(python, checkArgs...).Run(); err != nil {
+			continue
+		}
+		if candidate.name == "py" {
+			output, err := exec.Command(python, append(append([]string{}, candidate.args...), "-c", "import sys; print(sys.executable)")...).Output()
+			if err != nil {
+				continue
+			}
+			return strings.TrimSpace(string(output))
+		}
+		return python
+	}
+	t.Skip("Python 3 unavailable; planning helper checks require Python 3")
+	return ""
 }
 
 func TestWTPPlanningProposalSuite(t *testing.T) {

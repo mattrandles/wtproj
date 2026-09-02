@@ -172,7 +172,10 @@ Synchronize their start and enforce deadlines.
 
 The hermetic runner launches every contention operation as a separate
 candidate OS process. Each batch has a common start barrier, each process has
-the `--timeout` deadline, and the batch has `--suite-timeout`. A failed
+the `--timeout` deadline, and each contention suite plus the race check has
+`--suite-timeout`. This is not a wall-clock limit for the complete matrix; a
+full 20-repeat run can take substantially longer on resource-constrained
+hosts. A failed
 assertion stops the next iteration, terminates descendant process groups or
 trees, and keeps the complete iteration root (store files, command output,
 and report inputs). The scenario report records its iteration and schedule
@@ -226,14 +229,14 @@ assert the documented preservation boundary.
 The implemented top-level commands are:
 
 ```sh
-./scripts/verify.sh prerelease --seed 1 --repeat 1 --timeout 30s --suite-timeout 3m \
+./scripts/verify.sh prerelease --seed 1 --repeat 1 --timeout 30s --suite-timeout 10m \
   --report /tmp/wtp-qa/quick.json
 ```
 
 with an equivalent PowerShell command:
 
 ```powershell
-./scripts/verify.ps1 prerelease --seed 1 --repeat 1 --timeout 30s --suite-timeout 3m `
+./scripts/verify.ps1 prerelease --seed 1 --repeat 1 --timeout 30s --suite-timeout 10m `
   --report "$env:TEMP/wtp-qa/quick.json"
 ```
 
@@ -243,14 +246,14 @@ omitted. For release qualification, pass the exact artifact under review:
 ```sh
 ./scripts/verify.sh prerelease \
   --candidate /absolute/path/to/wtp \
-  --seed 1 --repeat 20 --timeout 30s --suite-timeout 3m \
+  --seed 1 --repeat 20 --timeout 30s --suite-timeout 10m \
   --report /tmp/wtp-qa/prerelease.json
 ```
 
 ```powershell
 ./scripts/verify.ps1 prerelease \
   --candidate C:\qa\wtp.exe \
-  --seed 1 --repeat 20 --timeout 30s --suite-timeout 3m \
+  --seed 1 --repeat 20 --timeout 30s --suite-timeout 10m \
   --report "$env:TEMP\wtp-qa\prerelease.json"
 ```
 
@@ -260,7 +263,7 @@ same candidate and seed with at least 100 iterations:
 ```sh
 ./scripts/verify.sh prerelease \
   --candidate /absolute/path/to/wtp \
-  --seed 20260810 --repeat 100 --timeout 30s --suite-timeout 3m \
+  --seed 20260810 --repeat 100 --timeout 30s --suite-timeout 10m \
   --report /tmp/wtp-qa/soak.json --keep-workdir
 ```
 
