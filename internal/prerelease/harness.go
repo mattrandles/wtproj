@@ -256,6 +256,8 @@ func Run(options Options) (Report, error) {
 	}{
 		{"lifecycle", scenarioLifecycle},
 		{"grouping-end-to-end", scenarioGroupingEndToEnd},
+		{"reusable-end-to-end", scenarioReusableEndToEnd},
+		{"planning-end-to-end", scenarioPlanningEndToEnd},
 		{"stats-and-custom-statuses", scenarioStatsAndCustomStatuses},
 		{"bounded-shared-dependency-graph", scenarioBoundedSharedDependencyGraph},
 		{"dependencies-and-ownership", scenarioDependenciesAndOwnership},
@@ -1459,7 +1461,7 @@ func validateReport(report Report) error {
 		return fmt.Errorf("race result %q is not explicit", report.Race.Status)
 	}
 	required := []string{
-		"lifecycle", "grouping-end-to-end", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
+		"lifecycle", "grouping-end-to-end", "reusable-end-to-end", "planning-end-to-end", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
 		"git-and-storage-topology", "configuration-failures",
 		"nested-invocation-and-hermeticity", "contention-creates", "contention-next",
 		"contention-handoffs", "contention-readers-and-writers", "failure-recovery",

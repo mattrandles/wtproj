@@ -7,8 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-01
+
 ### Added
 
+- Added editable CSV and JSON batch export/import with deterministic formats,
+  optimistic `updatedAt` concurrency protection, dependency-aware patching, and
+  all-or-nothing atomic publication with recovery journals.
+- Expanded `wtp stats` with focused status/model and other categorical reports,
+  rolling created/progressed time series, optional human-facing bar charts, and
+  exact grouping filters.
+- Added six optional task grouping fields (`issueId`, `project`, `milestone`,
+  `version`, `featureId`, and `feature`) across task mutation, selection,
+  dependency graph, statistics, and batch workflows, including scoped automatic
+  claims and stable feature-key semantics.
+- Added store-global reusable advisory-task definitions with CRUD, rename and
+  detach behavior, ordered task assignments, claim/view integration, batch and
+  canonical export support, and crash-safe recovery.
+- Added the versioned planning workflow with nested flat-file storage, a fixed
+  revisable lifecycle, complete metadata and dependency validation,
+  project/version/milestone reports, dependency-closed dry runs, atomic
+  promotion, recovery, and canonical export.
+- Added WTP-aware Codex planning guidance and updated task-management skills for
+  grouped, reusable, and planning workflows.
 - Documented focused CSV/JSON batch export-edit-import, optimistic `updatedAt`
   protection, all-or-nothing publication, and recovery-journal behavior across
   the README, CLI help/schema, and contributor guidance.
@@ -33,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   promotion, journal recovery order, canonical export, shared-store branch
   behavior, and compatibility in the README, CLI help/schema, and contributor
   guidance.
+
+### Fixed
+
+- Made planning JSON and provider export/fault-injection test paths
+  platform-neutral, including resolved export-directory comparisons.
 
 ## [0.3.3] - 2026-08-23
 

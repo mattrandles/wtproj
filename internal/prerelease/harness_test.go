@@ -108,7 +108,7 @@ func TestManifestIsSortedAndHashesContent(t *testing.T) {
 
 func TestValidateReportRejectsPassedReportMissingContentionEvidence(t *testing.T) {
 	report := validReportForTest()
-	report.Scenarios = report.Scenarios[:9]
+	report.Scenarios = report.Scenarios[:11]
 	if err := validateReport(report); err == nil || !strings.Contains(err.Error(), "missing scenario contention") {
 		t.Fatalf("validateReport() error = %v, want missing contention evidence", err)
 	}
@@ -116,9 +116,9 @@ func TestValidateReportRejectsPassedReportMissingContentionEvidence(t *testing.T
 
 func TestValidateReportRejectsIncompleteProcessEvidence(t *testing.T) {
 	report := validReportForTest()
-	report.Scenarios[8].ProcessCount = 32
-	report.Scenarios[8].ProcessExitCodes = []int{0}
-	report.Scenarios[8].ProcessDurationsMS = []int64{1}
+	report.Scenarios[11].ProcessCount = 32
+	report.Scenarios[11].ProcessExitCodes = []int{0}
+	report.Scenarios[11].ProcessDurationsMS = []int64{1}
 	if err := validateReport(report); err == nil || !strings.Contains(err.Error(), "process evidence is incomplete") {
 		t.Fatalf("validateReport() error = %v, want incomplete process evidence", err)
 	}
@@ -135,7 +135,7 @@ func TestValidateReportRejectsPassedFailedRace(t *testing.T) {
 
 func validReportForTest() Report {
 	names := []string{
-		"lifecycle", "grouping-end-to-end", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
+		"lifecycle", "grouping-end-to-end", "reusable-end-to-end", "planning-end-to-end", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
 		"git-and-storage-topology", "configuration-failures", "nested-invocation-and-hermeticity",
 		"contention-creates", "contention-next", "contention-handoffs", "contention-readers-and-writers", "failure-recovery",
 	}

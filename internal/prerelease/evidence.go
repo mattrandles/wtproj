@@ -78,7 +78,7 @@ type PreflightResult struct {
 }
 
 var requiredScenarioNames = []string{
-	"lifecycle", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
+	"lifecycle", "grouping-end-to-end", "reusable-end-to-end", "planning-end-to-end", "stats-and-custom-statuses", "bounded-shared-dependency-graph", "dependencies-and-ownership", "handoffs-and-export",
 	"git-and-storage-topology", "configuration-failures",
 	"nested-invocation-and-hermeticity", "contention-creates", "contention-next",
 	"contention-handoffs", "contention-readers-and-writers", "failure-recovery",

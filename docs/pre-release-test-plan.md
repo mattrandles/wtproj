@@ -109,6 +109,15 @@ and JSON behavior where they are public contracts.
   zero-count status buckets, comments, dependencies, and global/task-scoped
   handoff metrics. Removing an in-use status must fail without changing task
   storage.
+- Reusable advisory tasks: create ordered reusable definitions, assign them to
+  a task, verify live resolution in task views and claims, rename a definition,
+  delete it with task detachment, and validate the exported `reusable.json`
+  catalog.
+- Versioned planning: create and revise grouped planning records with
+  dependencies, verify list/show/report output and planning isolation from
+  ordinary task commands, validate the canonical planning export, then run a
+  dependency-closed dry-run and promotion and verify the resulting executable
+  tasks.
 - Dependency graph: create a fan-out/fan-in graph, prove blocked tasks cannot
   start, complete prerequisites, and verify deterministic ready ordering.
 - Agent ownership: matching, unassigned, and foreign-assigned tasks; prove a
